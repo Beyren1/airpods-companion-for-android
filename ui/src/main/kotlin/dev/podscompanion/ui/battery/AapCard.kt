@@ -29,6 +29,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.data.aap.FailureReason
+import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.protocol.advertising.Capability
 import dev.podscompanion.protocol.advertising.PodsModel
@@ -44,7 +45,7 @@ fun AapCard(
     noPermission: Boolean,
     model: PodsModel?,
     onCheck: () -> Unit,
-    onModeSelected: (address: String, ListeningMode) -> Unit,
+    onCommand: (address: String, AapCommand) -> Unit,
 ) {
     if (state == null && !noPermission) return
 
@@ -75,17 +76,11 @@ fun AapCard(
             if (state is AapSessionState.Connected) {
                 val modes = availableModes(model)
                 if (modes.isNotEmpty()) {
-                    ModeSelector(modes, state.device.listeningMode) { onModeSelected(state.address, it) }
+                    ModeSelector(modes, state.device.listeningMode) { onCommand(state.address, AapCommand.SetListeningMode(it)) }
                 } else {
                     state.device.listeningMode?.let {
                         Text(stringResource(R.string.aap_listening_mode, modeText(it)), style = MaterialTheme.typography.bodyMedium)
                     }
-                }
-                state.device.conversationalAwareness?.let {
-                    Text(
-                        stringResource(if (it) R.string.aap_ca_on else R.string.aap_ca_off),
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
                 }
             }
             if (state is AapSessionState.Failed) {
@@ -95,8 +90,8 @@ fun AapCard(
     }
 }
 
-/** Какие режимы показывать: у моделей без шумоподавления — никаких, Adaptive — только где он есть. */
-private fun availableModes(model: PodsModel?): List<ListeningMode> {
+/** Какие режимы показывать (и предлагать для долгого нажатия): у моделей без шумоподавления — никаких, Adaptive — только где он есть. */
+internal fun availableModes(model: PodsModel?): List<ListeningMode> {
     val caps = model?.capabilities ?: return emptyList()
     if (Capability.NOISE_CONTROL !in caps) return emptyList()
     return buildList {

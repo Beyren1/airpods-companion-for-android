@@ -27,6 +27,8 @@ data class AapDeviceState(
     val batteryPrimaryIsLeft: Boolean? = null,
     /** [primarySwaps] на момент пакета заряда, из которого взят [batteryPrimaryIsLeft]. */
     val batteryPrimarySwaps: Int = 0,
+    /** Последние значения всех настроек по [ControlId]; удобные геттеры в AapControls.kt. */
+    val controls: Map<Int, List<Int>> = emptyMap(),
 ) {
     fun apply(event: AapEvent): AapDeviceState = when (event) {
         is AapEvent.Battery -> event.components.fold(withBatteryOrder(event)) { state, battery ->
@@ -43,9 +45,24 @@ data class AapDeviceState(
             secondaryEar = event.secondary,
             primarySwaps = if (isMirrorOf(event)) primarySwaps + 1 else primarySwaps,
         )
-        is AapEvent.ListeningModeChanged -> copy(listeningMode = event.mode)
-        is AapEvent.ConversationalAwarenessChanged -> copy(conversationalAwareness = event.enabled)
+        is AapEvent.ListeningModeChanged -> copy(
+            listeningMode = event.mode,
+            controls = controls + (ControlId.LISTENING_MODE to listOf(event.mode.code())),
+        )
+        is AapEvent.ConversationalAwarenessChanged -> copy(
+            conversationalAwareness = event.enabled,
+            controls = controls + (ControlId.CONVERSATIONAL_AWARENESS to listOf(if (event.enabled) 0x01 else 0x02)),
+        )
+        is AapEvent.ControlChanged -> copy(controls = controls + (event.id to event.value))
         is AapEvent.Unknown -> this
+    }
+
+    private fun ListeningMode.code() = when (this) {
+        ListeningMode.OFF -> 0x01
+        ListeningMode.NOISE_CANCELLATION -> 0x02
+        ListeningMode.TRANSPARENCY -> 0x03
+        ListeningMode.ADAPTIVE -> 0x04
+        ListeningMode.UNKNOWN -> 0x00
     }
 
     private fun withBatteryOrder(event: AapEvent.Battery): AapDeviceState {

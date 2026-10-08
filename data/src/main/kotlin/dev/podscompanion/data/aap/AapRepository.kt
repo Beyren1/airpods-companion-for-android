@@ -6,11 +6,11 @@ import dev.podscompanion.bluetooth.aap.L2capUnavailableException
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevice
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.data.ConnectedNameMatcher
-import dev.podscompanion.protocol.aap.Aap
+import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.protocol.aap.AapDeviceState
 import dev.podscompanion.protocol.aap.AapEvent
 import dev.podscompanion.protocol.aap.AapParser
-import dev.podscompanion.protocol.aap.ListeningMode
+import dev.podscompanion.protocol.aap.ControlId
 import dev.podscompanion.protocol.util.Hex
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -49,7 +50,10 @@ class AapRepository @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val retryRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    /** Команды для каждого соединения (по адресу). CONFLATED: важна только последняя команда. */
+    /**
+     * Команды для каждого соединения (по адресу). Буфер на 16 команд: несколько настроек подряд
+     * не должны затирать друг друга; при переполнении выбрасываются самые старые.
+     */
     private val outgoing = ConcurrentHashMap<String, Channel<ByteArray>>()
 
     val state: StateFlow<AapSessions> = connectedAudio.devices()
@@ -70,12 +74,15 @@ class AapRepository @Inject constructor(
         retryRequests.tryEmit(Unit)
     }
 
-    /** Переключить шумоподавление у наушников [address]. Ничего не делает без прямого подключения. */
-    fun setListeningMode(address: String, mode: ListeningMode) {
+    /**
+     * Отправить команду наушникам [address]. Ничего не делает без прямого подключения.
+     * Новое значение придёт от наушников ответным уведомлением, по нему и обновится экран.
+     */
+    fun send(address: String, command: AapCommand) {
         val session = state.value.sessions.firstOrNull { it.address == address }
         if (session is AapSessionState.Connected) {
-            log.add("${session.deviceName}: выбран режим $mode")
-            outgoing[address]?.trySend(Aap.setListeningMode(mode))
+            log.add("${session.deviceName}: ${command.label}")
+            outgoing[address]?.trySend(command.bytes)
         }
     }
 
@@ -84,7 +91,7 @@ class AapRepository @Inject constructor(
 
     private fun session(target: ConnectedAudioDevice): Flow<AapSessionState> = flow {
         val address = target.device.address
-        val commands = Channel<ByteArray>(Channel.CONFLATED).also { outgoing[address] = it }
+        val commands = Channel<ByteArray>(16, BufferOverflow.DROP_OLDEST).also { outgoing[address] = it }
         var attempt = 0
         while (true) {
             attempt++
@@ -103,7 +110,16 @@ class AapRepository @Inject constructor(
                             log.add("${target.name}: подключено (${io.method})")
                             emit(AapSessionState.Connected(target.name, address, io.method, device))
                         }
-                        is AapIo.Sent -> log.add("→ ${Hex.encode(io.data)}")
+                        is AapIo.Sent -> {
+                            log.add("→ ${Hex.encode(io.data)}")
+                            // Настройку показываем сразу после отправки, не дожидаясь ответа:
+                            // некоторые наушники подтверждают её только через несколько секунд.
+                            val event = AapParser.parse(io.data)
+                            if (event.isSetting()) {
+                                device = device.apply(event!!)
+                                emit(AapSessionState.Connected(target.name, address, method, device))
+                            }
+                        }
                         is AapIo.Received -> {
                             val event = AapParser.parse(io.data)
                             log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
@@ -128,11 +144,15 @@ class AapRepository @Inject constructor(
         }
     }
 
+    private fun AapEvent?.isSetting(): Boolean =
+        this is AapEvent.ControlChanged || this is AapEvent.ListeningModeChanged || this is AapEvent.ConversationalAwarenessChanged
+
     private fun AapEvent.label(): String = when (this) {
         is AapEvent.Battery -> "заряд " + components.joinToString { "${it.component}=${it.percent}%" + if (it.charging) "⚡" else "" }
         is AapEvent.EarDetection -> "ухо $primary/$secondary"
         is AapEvent.ListeningModeChanged -> "режим $mode"
         is AapEvent.ConversationalAwarenessChanged -> "адаптация к разговору ${if (enabled) "вкл" else "выкл"}"
+        is AapEvent.ControlChanged -> "${ControlId.name(id)} = " + value.joinToString(" ") { "%02X".format(it) }
         is AapEvent.Unknown -> "неизвестный 0x%04X".format(opcode)
     }
 
