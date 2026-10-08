@@ -64,7 +64,9 @@ class NearbyPodsTracker(
     private var primary: Device? = null
 
     fun onPacket(address: String, fingerprint: PairFingerprint, status: PodsStatus, nowMs: Long) {
-        val device = devices.firstOrNull { address in it.addresses || it.fingerprint.matches(fingerprint) }
+        // Только по признакам, не по адресу: один и тот же адрес Pro 2 шлёт то 100/100, то 70/70,
+        // и при поиске по адресу заряд в карточке прыгал на секунду.
+        val device = devices.firstOrNull { it.fingerprint.matches(fingerprint) }
         if (device == null) {
             devices += Device(mutableSetOf(address), fingerprint, status, nowMs, status.rssi).apply {
                 addPacket(nowMs)
@@ -106,8 +108,13 @@ class NearbyPodsTracker(
         }
         val main = primary
 
+        // Один наушник подключённой пары иногда рекламирует другой заряд (Pro 2: 70/70 при реальных 100),
+        // и такой «двойник» той же модели и цвета показывался в «Рядом». Пока пара подключена, скрываем его.
+        fun isTwinOfConnected(device: Device) = connected != null && main === connected &&
+            device.fingerprint.modelId == main.fingerprint.modelId &&
+            device.fingerprint.colorCode == main.fingerprint.colorCode
         val others = devices
-            .filter { it !== main && it.rssi >= minRssi }
+            .filter { it !== main && it.rssi >= minRssi && !isTwinOfConnected(it) }
             .sortedByDescending { it.rssi }
             .map { it.status.copy(rawByAddress = it.rawByAddress.toMap()) }
         val status = main?.status?.copy(

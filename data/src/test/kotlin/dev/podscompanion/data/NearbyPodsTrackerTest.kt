@@ -119,7 +119,7 @@ class NearbyPodsTrackerTest {
         val nearby = tracker.snapshot(500, null)
 
         assertThat(nearby.primary?.left?.battery?.percent).isEqualTo(100)
-        assertThat(nearby.others).hasSize(1)
+        assertThat(nearby.others).hasSize(1) // не подключены: обе пары показываем
     }
 
     @Test
@@ -144,5 +144,17 @@ class NearbyPodsTrackerTest {
 
         assertThat(nearby.primary?.left?.battery?.percent).isEqualTo(100)
         assertThat(nearby.primary?.connected).isTrue()
+        assertThat(nearby.others).isEmpty()
+    }
+
+    @Test
+    fun `пакет 70 с адреса пары 100 не портит заряд в карточке`() {
+        packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -66, left = 100, right = 100), 0)
+        packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -66, left = 70, right = 70), 500)
+
+        val nearby = tracker.snapshot(500, listOf("AirPods Pro"), connectedBatteries = listOf(100))
+
+        assertThat(nearby.primary?.left?.battery?.percent).isEqualTo(100)
+        assertThat(nearby.others).isEmpty()
     }
 }
