@@ -7,11 +7,14 @@ enum class MediaAction { PAUSE, RESUME }
  * вынули наушник (или сняли Max) во время воспроизведения → пауза;
  * вернули обратно → продолжаем, но только если паузу ставили мы.
  *
- * Флаги «в ухе» в advertising иногда мигают, поэтому новое состояние принимается,
- * только если пришло [confirmations] пакетов подряд. Класс без Android, тестируется на JVM.
+ * Подключённые наушники шлют advertising редко (у Max по журналу раз в ~5 с), и каждое
+ * дополнительное подтверждение стоит целый интервал. Поэтому по умолчанию реагируем на первый же
+ * пакет, а «эхо» от запоздавшего пакета второго наушника гасит [cooldownMs].
+ * Класс без Android, тестируется на JVM.
  */
 class EarDetectionPolicy(
-    private val confirmations: Int = 2,
+    private val confirmationsToPause: Int = 1,
+    private val confirmationsToResume: Int = 1,
     /** После паузы/продолжения столько миллисекунд не реагируем на обратное: гасит «эхо» от запоздавших пакетов. */
     private val cooldownMs: Long = 3_000,
 ) {
@@ -36,7 +39,8 @@ class EarDetectionPolicy(
             candidateCount = 0
         }
         candidateCount++
-        if (candidateCount < confirmations || worn == stableWorn) return null
+        val needed = if (worn) confirmationsToResume else confirmationsToPause
+        if (candidateCount < needed || worn == stableWorn) return null
         if (nowMs - lastActionAtMs < cooldownMs) return null
 
         val previous = stableWorn

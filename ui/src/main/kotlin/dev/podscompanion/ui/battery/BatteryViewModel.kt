@@ -6,7 +6,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.podscompanion.bluetooth.scan.BluetoothUnavailableException
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
-import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.settings.AppSettings
 import dev.podscompanion.data.settings.SettingsRepository
@@ -28,7 +28,7 @@ import kotlinx.coroutines.launch
 
 sealed interface BatteryUiState {
     data object Searching : BatteryUiState
-    data class Found(val status: PodsStatus) : BatteryUiState
+    data class Found(val nearby: NearbyPods) : BatteryUiState
     data object BluetoothOff : BatteryUiState
     data class Error(val message: String) : BatteryUiState
 }
@@ -54,7 +54,7 @@ class BatteryViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setAutoPause(value) }
     }
 
-    /** Каждое новое значение перезапускает скан с нуля (и заново выбирает ближайшие наушники). */
+    /** Каждое новое значение перезапускает скан с нуля (и заново выбирает главные наушники). */
     private val restarts = MutableStateFlow(0)
 
     private val _refreshing = MutableStateFlow(false)
@@ -70,9 +70,9 @@ class BatteryViewModel @Inject constructor(
     val state: StateFlow<BatteryUiState> = restarts
         // flatMapLatest: при новом restarts старый скан отменяется (stopScan), стартует новый.
         .flatMapLatest {
-            repository.observeNearest(ScanIntensity.LOW_LATENCY)
-                .map<PodsStatus?, BatteryUiState> { status ->
-                    if (status == null) BatteryUiState.Searching else BatteryUiState.Found(status)
+            repository.observeNearby(ScanIntensity.LOW_LATENCY)
+                .map<NearbyPods, BatteryUiState> { nearby ->
+                    if (nearby.primary == null) BatteryUiState.Searching else BatteryUiState.Found(nearby)
                 }
                 .onStart { emit(BatteryUiState.Searching) }
                 .catch { e ->

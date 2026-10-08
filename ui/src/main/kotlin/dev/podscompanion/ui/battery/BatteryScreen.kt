@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.displayText
 import dev.podscompanion.protocol.advertising.BatteryLevel
@@ -120,8 +121,12 @@ fun BatteryScreen(
                 BatteryUiState.BluetoothOff -> BluetoothOff()
                 is BatteryUiState.Error -> Message(Icons.Filled.ErrorOutline, stringResource(R.string.scan_error, state.message))
                 is BatteryUiState.Found -> {
-                    PodsCard(state.status)
-                    if (showDebug) DebugCard(state.status, autoPauseLog)
+                    val main = state.nearby.primary
+                    if (main != null) {
+                        PodsCard(main)
+                        if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others)
+                        if (showDebug) DebugCard(main, autoPauseLog)
+                    }
                 }
             }
             footer()
@@ -213,8 +218,51 @@ private fun Header(status: PodsStatus) {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            if (status.connected) {
+                Spacer(Modifier.height(6.dp))
+                StatusPill(stringResource(R.string.connected_badge))
+            }
         }
     }
+}
+
+/** Другие наушники рядом (не подключённые): одна строка на пару. */
+@Composable
+private fun OthersCard(others: List<PodsStatus>) {
+    OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Text(stringResource(R.string.nearby_title), style = MaterialTheme.typography.titleSmall)
+            others.forEach { pods ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Filled.Headphones, null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp),
+                    )
+                    Text(
+                        pods.model?.displayName ?: stringResource(R.string.unknown_model, pods.modelId),
+                        style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(start = 12.dp).weight(1f),
+                    )
+                    Text(
+                        shortBattery(pods),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun shortBattery(status: PodsStatus): String {
+    val model = status.model
+    if (model != null && Capability.STEREO_BUDS !in model.capabilities) {
+        return status.primary.battery?.displayText() ?: "—"
+    }
+    val left = status.left.battery?.displayText() ?: "—"
+    val right = status.right.battery?.displayText() ?: "—"
+    return "L $left · R $right"
 }
 
 @Composable
@@ -311,6 +359,13 @@ private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>) {
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            status.packetIntervalMs?.let { interval ->
+                Text(
+                    stringResource(R.string.debug_packet_interval, interval / 1000f),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             // Долгое нажатие выделяет текст: байты можно скопировать и прислать вместо скриншота.
             SelectionContainer {
                 Text(status.rawHex, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
@@ -411,7 +466,7 @@ private val previewStatus = PodsStatus(
 @Preview(showBackground = true)
 @Composable
 private fun FoundPreview() {
-    PodsCompanionTheme { BatteryScreen(BatteryUiState.Found(previewStatus), false, {}, showDebug = true) }
+    PodsCompanionTheme { BatteryScreen(BatteryUiState.Found(NearbyPods(previewStatus.copy(connected = true), listOf(previewStatus.copy(model = PodsModel.AIRPODS_MAX_USB_C, modelId = 0x1F20))))), false, {}, showDebug = true) }
 }
 
 @Preview(showBackground = true)
@@ -420,12 +475,12 @@ private fun MaxPreview() {
     PodsCompanionTheme {
         BatteryScreen(
             BatteryUiState.Found(
-                previewStatus.copy(
+                NearbyPods(previewStatus.copy(
                     model = PodsModel.AIRPODS_MAX_USB_C, modelId = 0x1F20,
                     left = PodState(BatteryLevel(70), charging = false, inEar = true),
                     right = PodState(null, charging = false, inEar = false),
                     primary = PodState(BatteryLevel(70), charging = false, inEar = true),
-                ),
+                ), emptyList()),
             ),
             false, {}, showDebug = false,
         )

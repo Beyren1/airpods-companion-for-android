@@ -33,8 +33,8 @@ fun ScanPermissionGate(content: @Composable () -> Unit) {
     var denied by remember { mutableStateOf(false) }
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
-    ) { result ->
-        granted = result.values.all { it }
+    ) { _ ->
+        granted = ScanPermissions.granted(context)
         denied = !granted
     }
 
@@ -62,7 +62,7 @@ fun ScanPermissionGate(content: @Composable () -> Unit) {
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
-        Button(onClick = { launcher.launch(ScanPermissions.required) }) {
+        Button(onClick = { launcher.launch(ScanPermissions.requested) }) {
             Text(stringResource(R.string.perm_grant))
         }
     }

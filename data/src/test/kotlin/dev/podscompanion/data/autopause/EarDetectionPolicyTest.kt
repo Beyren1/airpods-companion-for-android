@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 
 class EarDetectionPolicyTest {
 
-    private val policy = EarDetectionPolicy(confirmations = 2, cooldownMs = 3_000)
+    private val policy = EarDetectionPolicy(cooldownMs = 3_000)
     private var now = 0L
 
     /** Каждый пакет через 1 с, как в реальном эфире. */
@@ -27,11 +27,29 @@ class EarDetectionPolicyTest {
     }
 
     @Test
-    fun `одиночный мигнувший пакет игнорируется`() {
+    fun `пауза с первого же пакета «сняты»`() {
         feed(worn = true, playing = true)
-        assertThat(feed(worn = false, playing = true, times = 1)).isNull()
-        assertThat(feed(worn = true, playing = true, times = 1)).isNull()
-        assertThat(feed(worn = true, playing = true, times = 1)).isNull()
+        assertThat(feed(worn = false, playing = true, times = 1)).isEqualTo(MediaAction.PAUSE)
+    }
+
+    @Test
+    fun `с двумя подтверждениями одиночный пакет «надеты» музыку не включает`() {
+        val policy = EarDetectionPolicy(confirmationsToPause = 1, confirmationsToResume = 2, cooldownMs = 3_000)
+        var now = 0L
+        fun step(worn: Boolean, playing: Boolean): MediaAction? { now += 1_000; return policy.onUpdate(worn, playing, now) }
+        step(true, true); step(true, true)
+        assertThat(step(false, true)).isEqualTo(MediaAction.PAUSE)
+        now += 5_000
+        assertThat(step(true, false)).isNull()
+        assertThat(step(true, false)).isEqualTo(MediaAction.RESUME)
+    }
+
+    @Test
+    fun `пауза и продолжение по одному пакету`() {
+        val policy = EarDetectionPolicy()
+        assertThat(policy.onUpdate(true, true, 0)).isNull()
+        assertThat(policy.onUpdate(false, true, 5_000)).isEqualTo(MediaAction.PAUSE)
+        assertThat(policy.onUpdate(true, false, 10_000)).isEqualTo(MediaAction.RESUME)
     }
 
     @Test
@@ -43,7 +61,7 @@ class EarDetectionPolicyTest {
 
     @Test
     fun `первое состояние после появления наушников ничего не делает`() {
-        assertThat(feed(worn = false, playing = true)).isNull()
+        assertThat(feed(worn = false, playing = true, times = 1)).isNull()
     }
 
     @Test
@@ -61,6 +79,6 @@ class EarDetectionPolicyTest {
         now += 5_000
         assertThat(feed(worn = true, playing = false)).isEqualTo(MediaAction.RESUME)
         // Второй наушник ещё шлёт старое состояние, музыка уже играет.
-        assertThat(feed(worn = false, playing = true)).isNull()
+        assertThat(feed(worn = false, playing = true, times = 1)).isNull()
     }
 }

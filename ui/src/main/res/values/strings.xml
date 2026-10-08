@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="perm_scan_title">Нужен доступ к Bluetooth</string>
-    <string name="perm_scan_reason">Разрешение «Устройства поблизости» нужно, чтобы принимать Bluetooth-сигналы наушников: из них приложение узнаёт заряд, модель и открыта ли крышка кейса. Геолокацию приложение не получает.</string>
+    <string name="perm_scan_reason">Разрешение «Устройства поблизости» нужно, чтобы принимать Bluetooth-сигналы наушников: из них приложение узнаёт заряд, модель и открыта ли крышка кейса. По этому же разрешению приложение узнаёт, какие наушники подключены к телефону, и показывает именно их. Геолокацию приложение не получает.</string>
     <string name="perm_location_reason">На Android 10–11 система выдаёт Bluetooth-сигналы только с разрешением на геолокацию. Приложение не определяет ваше местоположение: оно читает из сигнала наушников заряд, модель и состояние кейса.</string>
     <string name="perm_denied_hint">Без разрешения заряд показать нельзя. Если кнопка не помогает, включите его в настройках приложения.</string>
     <string name="perm_grant">Разрешить</string>
@@ -32,5 +32,8 @@
     <string name="on_head">на голове</string>
     <string name="in_case">в кейсе</string>
     <string name="case_remembered">последний</string>
+    <string name="connected_badge">подключены</string>
+    <string name="nearby_title">Ещё рядом</string>
+    <string name="debug_packet_interval">Пакет от наушников раз в %1$.1f с</string>
     <string name="charging">Заряжается</string>
 </resources>

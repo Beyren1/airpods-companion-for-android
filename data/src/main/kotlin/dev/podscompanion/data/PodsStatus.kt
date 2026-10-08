@@ -21,4 +21,8 @@ data class PodsStatus(
     val rssi: Int,
     val lastSeenMs: Long,
     val rawHex: String,
+    /** Эти наушники подключены к телефону (определено по имени A2DP-устройства). */
+    val connected: Boolean = false,
+    /** Средний интервал между пакетами этих наушников (для отладки задержек), null — мало данных. */
+    val packetIntervalMs: Long? = null,
 )

@@ -35,6 +35,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -145,7 +146,8 @@ class PodsService : LifecycleService() {
         scanIntensity = intensity
         Timber.d("scan start %s", intensity)
         scanJob = lifecycleScope.launch {
-            repository.observeNearest(intensity)
+            repository.observeNearby(intensity)
+                .map { it.primary }
                 .catch { e ->
                     Timber.w(e, "scan stopped")
                     emit(null)
