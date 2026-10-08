@@ -82,4 +82,27 @@ class AapOverlayTest {
         assertThat(result.left.inEar).isFalse()
         assertThat(result.right.inEar).isTrue()
     }
+
+    @Test
+    fun `до подтверждения сторона берётся из порядка в пакете заряда, а не из рекламы`() {
+        // Лог Pro 2: заряд «левый, правый, кейс», реклама указывает на правый, оба в ухе.
+        var aap = AapDeviceState()
+            .apply(AapEvent.EarDetection(EarState.IN_EAR, EarState.IN_EAR))
+            .apply(
+                AapEvent.Battery(
+                    listOf(
+                        AapBattery(BatteryComponent.LEFT, 99, charging = false, connected = true),
+                        AapBattery(BatteryComponent.RIGHT, 100, charging = false, connected = true),
+                    ),
+                ),
+            )
+        val side = AapOverlay.resolveSide(advertised, aap, previous = null)
+
+        // Вынули левый: Pro 2 присылают (вынут, в ухе) без смены ролей, реклама ещё старая.
+        aap = aap.apply(AapEvent.EarDetection(EarState.OUT_OF_EAR, EarState.IN_EAR))
+        val now = AapOverlay.resolveSide(advertised, aap, side)
+        val result = AapOverlay.apply(advertised, aap, now.primaryIsLeftNow(aap))
+        assertThat(result.left.inEar).isFalse()
+        assertThat(result.right.inEar).isTrue()
+    }
 }

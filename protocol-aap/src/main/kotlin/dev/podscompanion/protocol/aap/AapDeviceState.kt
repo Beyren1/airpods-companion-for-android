@@ -20,9 +20,16 @@ data class AapDeviceState(
      * По счётчику [dev.podscompanion.data.aap.AapOverlay] переворачивает сторону, не дожидаясь рекламы.
      */
     val primarySwaps: Int = 0,
+    /**
+     * Primary — левый? По порядку наушников в пакете заряда: первым идёт primary
+     * (лог Pro 2: «левый, правый, кейс», и вынутый левый оставался primary). null — заряда ещё не было.
+     */
+    val batteryPrimaryIsLeft: Boolean? = null,
+    /** [primarySwaps] на момент пакета заряда, из которого взят [batteryPrimaryIsLeft]. */
+    val batteryPrimarySwaps: Int = 0,
 ) {
     fun apply(event: AapEvent): AapDeviceState = when (event) {
-        is AapEvent.Battery -> event.components.fold(this) { state, battery ->
+        is AapEvent.Battery -> event.components.fold(withBatteryOrder(event)) { state, battery ->
             when (battery.component) {
                 BatteryComponent.LEFT -> state.copy(left = battery)
                 BatteryComponent.RIGHT -> state.copy(right = battery)
@@ -39,6 +46,13 @@ data class AapDeviceState(
         is AapEvent.ListeningModeChanged -> copy(listeningMode = event.mode)
         is AapEvent.ConversationalAwarenessChanged -> copy(conversationalAwareness = event.enabled)
         is AapEvent.Unknown -> this
+    }
+
+    private fun withBatteryOrder(event: AapEvent.Battery): AapDeviceState {
+        val first = event.components.firstOrNull {
+            it.component == BatteryComponent.LEFT || it.component == BatteryComponent.RIGHT
+        } ?: return this
+        return copy(batteryPrimaryIsLeft = first.component == BatteryComponent.LEFT, batteryPrimarySwaps = primarySwaps)
     }
 
     private fun isMirrorOf(event: AapEvent.EarDetection): Boolean =
