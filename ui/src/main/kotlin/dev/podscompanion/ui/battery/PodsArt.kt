@@ -17,6 +17,7 @@ import androidx.compose.ui.graphics.vector.PathParser
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.podscompanion.protocol.aap.ListeningMode
+import dev.podscompanion.protocol.advertising.PodsModel
 
 /**
  * Свои упрощённые рисунки наушников: вкладыш-«капля», кейс и накладные.
@@ -24,6 +25,37 @@ import dev.podscompanion.protocol.aap.ListeningMode
  * а «дырки» (сетка динамика, индикатор кейса) вырезаны правилом EvenOdd.
  */
 object PodsArt {
+    /** Рисунок и его реальный размер в миллиметрах: по нему части рисуются в одном масштабе. */
+    data class Art(val image: ImageVector, val widthMm: Float, val heightMm: Float)
+
+    val LeftBud get() = Art(BudLeft, 23f, 31f)
+    val RightBud get() = Art(BudRight, 23f, 31f)
+    val OverEarArt get() = Art(OverEar, 44f, 44f)
+
+    /** Кейс в настоящих пропорциях: у AirPods 4 маленький и почти квадратный, у Pro широкий. */
+    fun caseFor(model: PodsModel?): Art = when (model) {
+        PodsModel.AIRPODS_4, PodsModel.AIRPODS_4_ANC -> Art(Case4, 50.1f, 46.2f)
+        PodsModel.AIRPODS_PRO, PodsModel.AIRPODS_PRO_2, PodsModel.AIRPODS_PRO_2_USB_C, PodsModel.AIRPODS_PRO_3 ->
+            Art(CasePro, 60.6f, 45.2f)
+        else -> Art(Case, 54f, 47f)
+    }
+
+    /** Кейс Pro: 60,6 × 45,2 мм, крышка около трети высоты, индикатор спереди. */
+    private val CasePro: ImageVector by lazy {
+        icon("CasePro", 60.6f, 45.2f) {
+            fill("M14 0h32.6a14 13 0 0 1 14 13H0a14 13 0 0 1 14-13z")
+            fill("M0 14.4h60.6V31.2a14 14 0 0 1-14 14H14a14 14 0 0 1-14-14z" + "M31.5 22a1.2 1.2 0 1 0-2.4 0a1.2 1.2 0 1 0 2.4 0z")
+        }
+    }
+
+    /** Кейс AirPods 4: 50,1 × 46,2 мм, сильнее скруглён, без кнопки. */
+    private val Case4: ImageVector by lazy {
+        icon("Case4", 50.1f, 46.2f) {
+            fill("M18 0h14.1a18 15 0 0 1 18 15H0a18 15 0 0 1 18-15z")
+            fill("M0 16.4h50.1V28.2a18 18 0 0 1-18 18H18a18 18 0 0 1-18-18z" + "M26.25 25a1.2 1.2 0 1 0-2.4 0a1.2 1.2 0 1 0 2.4 0z")
+        }
+    }
+
     val BudLeft: ImageVector by lazy {
         icon("BudLeft", 48f, 64f) {
             fill(

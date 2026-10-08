@@ -203,25 +203,25 @@ private fun HeroCard(status: PodsStatus) {
             if (stereo) {
                 Row(Modifier.fillMaxWidth()) {
                     Part(
-                        PodsArt.BudLeft, stringResource(R.string.left), status.left.battery, status.left.charging,
+                        PodsArt.LeftBud, stringResource(R.string.left), status.left.battery, status.left.charging,
                         podNote(status.left), highlighted = status.left.inEar, exact = exact, modifier = Modifier.weight(1f),
                     )
                     if (hasCase) {
                         Part(
-                            PodsArt.Case, stringResource(R.string.case_label), status.caseBattery, status.caseCharging,
+                            PodsArt.caseFor(model), stringResource(R.string.case_label), status.caseBattery, status.caseCharging,
                             caseNote(status), highlighted = false, exact = status.aap?.case != null,
                             dimmed = status.caseBatteryRemembered, modifier = Modifier.weight(1f),
                         )
                     }
                     Part(
-                        PodsArt.BudRight, stringResource(R.string.right), status.right.battery, status.right.charging,
+                        PodsArt.RightBud, stringResource(R.string.right), status.right.battery, status.right.charging,
                         podNote(status.right), highlighted = status.right.inEar, exact = exact, modifier = Modifier.weight(1f),
                     )
                 }
             } else {
                 val pod = status.primary
                 Part(
-                    PodsArt.OverEar, stringResource(R.string.headphones), pod.battery, pod.charging,
+                    PodsArt.OverEarArt, stringResource(R.string.headphones), pod.battery, pod.charging,
                     if (pod.inEar) stringResource(R.string.on_head) else stringResource(R.string.off_head),
                     highlighted = pod.inEar, exact = exact, ringSize = 132.dp, modifier = Modifier.fillMaxWidth(),
                 )
@@ -234,7 +234,7 @@ private fun HeroCard(status: PodsStatus) {
 /** Одна часть: кольцо заряда вокруг рисунка, процент, название и где она сейчас. */
 @Composable
 private fun Part(
-    art: ImageVector,
+    art: PodsArt.Art,
     label: String,
     battery: BatteryLevel?,
     charging: Boolean,
@@ -263,10 +263,12 @@ private fun Part(
                 trackColor = colors.surfaceContainerHighest,
                 strokeCap = StrokeCap.Round,
             )
+            // Все части в одном масштабе по реальным размерам: кейс Pro заметно шире наушника.
+            val dpPerMm = ringSize.value / 92f * 0.95f
             Icon(
-                art, null,
+                art.image, null,
                 tint = if (highlighted) colors.onSurface else colors.onSurfaceVariant,
-                modifier = Modifier.size(ringSize * 0.46f),
+                modifier = Modifier.size((art.widthMm * dpPerMm).dp, (art.heightMm * dpPerMm).dp),
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -401,7 +403,7 @@ private fun Nearby(others: List<PodsStatus>) {
                     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.size(40.dp)) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
-                                if (stereo) PodsArt.Case else PodsArt.OverEar, null,
+                                if (stereo) PodsArt.caseFor(pods.model).image else PodsArt.OverEar, null,
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.size(22.dp),
                             )
