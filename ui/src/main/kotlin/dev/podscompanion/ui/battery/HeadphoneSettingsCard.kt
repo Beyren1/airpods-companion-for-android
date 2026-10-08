@@ -61,7 +61,8 @@ fun HeadphoneSettingsCard(
         AapToggle.CONVERSATIONAL_AWARENESS to R.string.setting_ca,
         AapToggle.PERSONALIZED_VOLUME to R.string.setting_personalized_volume,
         AapToggle.EAR_DETECTION to R.string.setting_ear_detection,
-        AapToggle.ONE_BUD_NOISE_CONTROL to R.string.setting_one_bud_nc,
+        // «Шумоподавление с одним наушником» (0x1B) пока скрыто: на Pro 2 не включалось,
+        // а на AirPods 4 после него наушники переподключались. Вернём, когда сверим по журналу.
     ).mapNotNull { (toggle, title) -> device.toggle(toggle)?.let { Triple(toggle, title, it) } }
     val mic = device.micMode
     val hold = device.pressAndHold
@@ -194,12 +195,13 @@ private fun StrengthSlider(value: Int, onChange: (Int) -> Unit) {
             valueRange = 0f..100f,
         )
         Row(Modifier.fillMaxWidth()) {
+            // Проверено на Pro 2: 0 — больше звуков вокруг, 100 — меньше шума.
             Text(
-                stringResource(R.string.setting_adaptive_less),
+                stringResource(R.string.setting_adaptive_more),
                 style = MaterialTheme.typography.labelSmall,
                 modifier = Modifier.weight(1f),
             )
-            Text(stringResource(R.string.setting_adaptive_more), style = MaterialTheme.typography.labelSmall)
+            Text(stringResource(R.string.setting_adaptive_less), style = MaterialTheme.typography.labelSmall)
         }
     }
 }

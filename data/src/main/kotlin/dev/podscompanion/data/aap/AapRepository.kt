@@ -110,7 +110,16 @@ class AapRepository @Inject constructor(
                             log.add("${target.name}: подключено (${io.method})")
                             emit(AapSessionState.Connected(target.name, address, io.method, device))
                         }
-                        is AapIo.Sent -> log.add("→ ${Hex.encode(io.data)}")
+                        is AapIo.Sent -> {
+                            log.add("→ ${Hex.encode(io.data)}")
+                            // Настройку показываем сразу после отправки, не дожидаясь ответа:
+                            // некоторые наушники подтверждают её только через несколько секунд.
+                            val event = AapParser.parse(io.data)
+                            if (event.isSetting()) {
+                                device = device.apply(event!!)
+                                emit(AapSessionState.Connected(target.name, address, method, device))
+                            }
+                        }
                         is AapIo.Received -> {
                             val event = AapParser.parse(io.data)
                             log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
@@ -134,6 +143,9 @@ class AapRepository @Inject constructor(
             withTimeoutOrNull(delaySec * 1_000L) { retryRequests.first() }
         }
     }
+
+    private fun AapEvent?.isSetting(): Boolean =
+        this is AapEvent.ControlChanged || this is AapEvent.ListeningModeChanged || this is AapEvent.ConversationalAwarenessChanged
 
     private fun AapEvent.label(): String = when (this) {
         is AapEvent.Battery -> "заряд " + components.joinToString { "${it.component}=${it.percent}%" + if (it.charging) "⚡" else "" }
