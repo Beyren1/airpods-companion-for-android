@@ -112,13 +112,13 @@ class NearbyPodsTrackerTest {
     }
 
     @Test
-    fun `пакеты одной пары с разным зарядом не раздваивают её`() {
+    fun `чужие наушники той же модели с другим зарядом — отдельная пара`() {
         packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -50, left = 100, right = 100), 0)
-        packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -55, left = 80, right = 80), 500)
+        packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -55, left = 30, right = 20), 500)
 
         val nearby = tracker.snapshot(500, null)
 
-        assertThat(nearby.others).isEmpty()
-        assertThat(nearby.primary?.rawByAddress?.keys).containsExactly("A", "B")
+        assertThat(nearby.primary?.left?.battery?.percent).isEqualTo(100)
+        assertThat(nearby.others).hasSize(1)
     }
 }

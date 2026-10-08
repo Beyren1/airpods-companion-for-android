@@ -1,5 +1,7 @@
 package dev.podscompanion.data
 
+import kotlin.math.abs
+
 /**
  * Признаки, по которым два пакета с разных MAC-адресов считаются одной парой наушников.
  * Каждый наушник рекламирует себя сам и со своего адреса, а «отправитель» меняется,
@@ -130,10 +132,16 @@ class NearbyPodsTracker(
         }
     }
 
-    // Заряд не сравниваем: с разных адресов одной пары Pro 2 приходили пакеты 100/100 и 80/80,
-    // и пара раздваивалась. Две пары одной модели и цвета рядом редки, их объединим в одну.
+    // Заряд сравниваем обязательно: рядом часто бывают чужие наушники той же модели и цвета
+    // (у Pro 2 так и было: своя пара 100/100, чужие 80/80 и 30/20).
     private fun PairFingerprint.matches(other: PairFingerprint): Boolean =
-        modelId == other.modelId && colorCode == other.colorCode
+        modelId == other.modelId &&
+            colorCode == other.colorCode &&
+            close(leftPercent, other.leftPercent) &&
+            close(rightPercent, other.rightPercent)
+
+    // null = наушник не на связи в одном из пакетов: по нему не судим.
+    private fun close(a: Int?, b: Int?) = a == null || b == null || abs(a - b) <= 10
 
     companion object {
         const val DEFAULT_MIN_RSSI = -80
