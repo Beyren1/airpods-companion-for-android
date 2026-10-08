@@ -65,8 +65,6 @@
     <string name="setting_adaptive_strength">Адаптивный режим</string>
     <string name="setting_adaptive_less">Меньше шума</string>
     <string name="setting_adaptive_more">Больше звуков вокруг</string>
-    <string name="debug_send_title">Отправить байты наушникам</string>
-    <string name="debug_send">Отправить</string>
     <string name="mode_off">выкл</string>
     <string name="mode_nc">шумоподавление</string>
     <string name="mode_transparency">прозрачность</string>

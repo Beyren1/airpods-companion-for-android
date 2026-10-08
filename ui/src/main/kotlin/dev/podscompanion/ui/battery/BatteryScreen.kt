@@ -42,13 +42,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
-import dev.podscompanion.protocol.util.Hex
-import androidx.compose.material3.FilledTonalButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.runtime.setValue
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -149,12 +142,7 @@ fun BatteryScreen(
                     }
                     if (session is AapSessionState.Connected) HeadphoneSettingsCard(session, main?.model, onCommand)
                     if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others, showDebug)
-                    if (showDebug && main != null) {
-                        val onSendRaw = (session as? AapSessionState.Connected)?.let { connected ->
-                            { bytes: ByteArray -> onCommand(connected.address, AapCommand.Raw(bytes)) }
-                        }
-                        DebugCard(main, autoPauseLog, aapLog, onSendRaw)
-                    }
+                    if (showDebug && main != null) DebugCard(main, autoPauseLog, aapLog)
                 }
             }
             footer()
@@ -404,12 +392,7 @@ private fun StatusPill(text: String?) {
 }
 
 @Composable
-private fun DebugCard(
-    status: PodsStatus,
-    autoPauseLog: List<String>,
-    aapLog: List<String>,
-    onSendRaw: ((ByteArray) -> Unit)? = null,
-) {
+private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>, aapLog: List<String>) {
     OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.debug_title), style = MaterialTheme.typography.titleSmall)
@@ -454,7 +437,6 @@ private fun DebugCard(
                     )
                 }
             }
-            if (onSendRaw != null) RawSender(onSendRaw)
             if (aapLog.isNotEmpty()) {
                 Text(stringResource(R.string.debug_aap_log), style = MaterialTheme.typography.titleSmall)
                 SelectionContainer {
@@ -465,30 +447,6 @@ private fun DebugCard(
                     )
                 }
             }
-        }
-    }
-}
-
-/**
- * Отправка своих байтов наушникам: так сверяем команды, в которых не уверены.
- * Ответ наушников появится в журнале AAP ниже.
- */
-@Composable
-private fun RawSender(onSend: (ByteArray) -> Unit) {
-    var text by rememberSaveable { mutableStateOf("04 00 04 00 09 00 ") }
-    val bytes = remember(text) { runCatching { Hex.decode(text) }.getOrNull()?.takeIf { it.size >= 6 } }
-    Text(stringResource(R.string.debug_send_title), style = MaterialTheme.typography.titleSmall)
-    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        OutlinedTextField(
-            value = text,
-            onValueChange = { text = it.uppercase() },
-            modifier = Modifier.weight(1f),
-            textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
-            isError = bytes == null,
-            singleLine = true,
-        )
-        FilledTonalButton(onClick = { bytes?.let(onSend) }, enabled = bytes != null) {
-            Text(stringResource(R.string.debug_send))
         }
     }
 }

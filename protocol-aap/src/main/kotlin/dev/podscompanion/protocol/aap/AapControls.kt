@@ -104,11 +104,6 @@ sealed interface AapCommand {
         override val label get() = "сила адаптивного режима $value"
     }
 
-    /** Произвольные байты из отладки: для сверки команд на своих наушниках. */
-    class Raw(override val bytes: ByteArray) : AapCommand {
-        override val label get() = "свои байты"
-    }
-
     companion object {
         fun control(id: Int, v1: Int, v2: Int = 0, v3: Int = 0, v4: Int = 0): ByteArray =
             Aap.packet(Opcode.CONTROL, id, v1, v2, v3, v4)
