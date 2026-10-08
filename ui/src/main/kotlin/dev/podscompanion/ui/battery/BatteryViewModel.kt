@@ -29,6 +29,25 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.withTimeoutOrNull
+import android.os.SystemClock
+import dev.podscompanion.protocol.aap.AxisRecorder
+import dev.podscompanion.protocol.aap.HeadCalibrator
+
+private const val PREPARE_MS = 1_500L
+private const val RECORD_MS = 4_000L
+
+/** Калибровка жестов головой: кивнуть, затем покачать головой. */
+sealed interface CalibrationState {
+    enum class Step { NOD, SHAKE }
+
+    data object Idle : CalibrationState
+    data class Recording(val step: Step, val progress: Float) : CalibrationState
+    data object Done : CalibrationState
+    data class Failed(val noData: Boolean) : CalibrationState
+}
 
 sealed interface BatteryUiState {
     data object Searching : BatteryUiState
@@ -55,6 +74,66 @@ class BatteryViewModel @Inject constructor(
 
     /** Команда наушникам: режим, настройка или свои байты из отладки. */
     fun send(address: String, command: AapCommand) = aapRepository.send(address, command)
+
+    /** Переименовать наушники [address]. */
+    fun rename(address: String, name: String) = aapRepository.send(address, AapCommand.Rename(name))
+
+    fun setHeadGestures(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setHeadGestures(value) }
+    }
+
+    private val _calibration = MutableStateFlow<CalibrationState>(CalibrationState.Idle)
+    val calibration: StateFlow<CalibrationState> = _calibration.asStateFlow()
+    private var calibrationJob: Job? = null
+
+    /**
+     * Калибровка: включаем датчики головы, записываем кивки, затем покачивания, и по ним
+     * определяем, какой угол за что отвечает. Удалась — сохраняем и включаем жесты.
+     */
+    fun startCalibration(address: String) {
+        calibrationJob?.cancel()
+        calibrationJob = viewModelScope.launch {
+            aapRepository.send(address, AapCommand.StartHeadTracking)
+            try {
+                val nod = record(address, CalibrationState.Step.NOD)
+                val shake = record(address, CalibrationState.Step.SHAKE)
+                val result = HeadCalibrator.calibrate(nod, shake)
+                if (result == null) {
+                    _calibration.value = CalibrationState.Failed(noData = nod.size == 0)
+                } else {
+                    settingsRepository.setHeadCalibration(result)
+                    settingsRepository.setHeadGestures(true)
+                    _calibration.value = CalibrationState.Done
+                }
+            } finally {
+                aapRepository.send(address, AapCommand.StopHeadTracking)
+            }
+        }
+    }
+
+    fun dismissCalibration() {
+        calibrationJob?.cancel()
+        _calibration.value = CalibrationState.Idle
+    }
+
+    private suspend fun record(address: String, step: CalibrationState.Step): AxisRecorder = coroutineScope {
+        val recorder = AxisRecorder()
+        _calibration.value = CalibrationState.Recording(step, 0f)
+        delay(PREPARE_MS) // успеть прочитать подсказку
+        val start = SystemClock.elapsedRealtime()
+        val ticker = launch {
+            while (true) {
+                val progress = ((SystemClock.elapsedRealtime() - start).toFloat() / RECORD_MS).coerceAtMost(1f)
+                _calibration.value = CalibrationState.Recording(step, progress)
+                delay(100)
+            }
+        }
+        withTimeoutOrNull(RECORD_MS) {
+            aapRepository.headMotion.filter { it.address == address }.collect { recorder.add(it.motion.orientation) }
+        }
+        ticker.cancel()
+        recorder
+    }
 
     /** Журнал автопаузы из сервиса, показывается в карточке отладки. */
     val autoPauseLines: StateFlow<List<String>> = autoPauseLog.lines

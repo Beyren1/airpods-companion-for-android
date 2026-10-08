@@ -39,6 +39,37 @@ object Aap {
         return packet(Opcode.CONTROL, 0x0D, code, 0x00, 0x00, 0x00)
     }
 
+    /** Включить поток датчиков головы (opcode 0x17). Нужен для жестов головой; расходует заряд. */
+    val START_HEAD_TRACKING: ByteArray = packet(
+        Opcode.HEAD_TRACKING,
+        0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x08, 0xA1, 0x02, 0x42, 0x0B, 0x08, 0x0E, 0x10, 0x02, 0x1A, 0x05, 0x01, 0x40, 0x9C, 0x00, 0x00,
+    )
+
+    val STOP_HEAD_TRACKING: ByteArray = packet(
+        Opcode.HEAD_TRACKING,
+        0x00, 0x00, 0x10, 0x00, 0x11, 0x00, 0x08, 0x7E, 0x10, 0x02, 0x42, 0x0B, 0x08, 0x4E, 0x10, 0x02, 0x1A, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00,
+    )
+
+    /**
+     * Переименовать: `04 00 04 00 1A 00 01 <длина> 00 <имя UTF-8>`. Длину ограничиваем 32 байтами
+     * и не режем букву пополам.
+     */
+    fun rename(name: String): ByteArray {
+        val bytes = utf8Prefix(name.trim(), MAX_NAME_BYTES)
+        return packet(Opcode.RENAME, 0x01, bytes.size, 0x00) + bytes
+    }
+
+    const val MAX_NAME_BYTES = 32
+
+    internal fun utf8Prefix(text: String, maxBytes: Int): ByteArray {
+        var end = text.length
+        while (end > 0 && text.substring(0, end).toByteArray(Charsets.UTF_8).size > maxBytes) {
+            end--
+            if (end > 0 && Character.isLowSurrogate(text[end])) end--
+        }
+        return text.substring(0, end).toByteArray(Charsets.UTF_8)
+    }
+
     fun packet(opcode: Int, vararg payload: Int): ByteArray =
         HEADER + byteArrayOf((opcode and 0xFF).toByte(), (opcode shr 8 and 0xFF).toByte()) + bytes(*payload)
 
@@ -55,6 +86,8 @@ object Opcode {
     const val EAR_DETECTION = 0x0006
     const val CONTROL = 0x0009
     const val REQUEST_NOTIFICATIONS = 0x000F
+    const val HEAD_TRACKING = 0x0017
+    const val RENAME = 0x001A
     const val SET_FEATURES = 0x004D
 }
 
@@ -114,6 +147,12 @@ sealed interface AapEvent {
     /** Любая другая настройка из пакета CONTROL: [id] из [ControlId], значение — 4 байта. */
     data class ControlChanged(val id: Int, val value: List<Int>) : AapEvent
 
+    /**
+     * Положение головы из потока датчиков: три угла и два ускорения, знаковые 16 бит.
+     * Какой угол — кивок, а какой — поворот, узнаём калибровкой (см. HeadGestureDetector).
+     */
+    data class HeadMotion(val orientation: List<Int>, val horizontal: Int, val vertical: Int) : AapEvent
+
     /** Всё, что пока не разбираем: попадёт в журнал AAP для реверса. */
     data class Unknown(val opcode: Int, val raw: ByteArray) : AapEvent {
         override fun equals(other: Any?) = other is Unknown && opcode == other.opcode && raw.contentEquals(other.raw)
@@ -131,6 +170,7 @@ object AapParser {
                 Opcode.BATTERY -> parseBattery(data)
                 Opcode.EAR_DETECTION -> AapEvent.EarDetection(EarState.of(data.u8(6)), EarState.of(data.u8(7)))
                 Opcode.CONTROL -> parseControl(data)
+                Opcode.HEAD_TRACKING -> parseHeadMotion(data)
                 else -> null
             }
         }.getOrNull() ?: AapEvent.Unknown(opcode, data)
@@ -151,6 +191,21 @@ object AapParser {
         }
         return AapEvent.Battery(components.filter { it.connected && it.percent in 0..100 })
     }
+
+    // Пакет датчиков: углы со смещения 43, 45, 47, ускорения с 51 и 53 (little-endian, со знаком).
+    // Другие пакеты 0x17 (короче) остаются Unknown.
+    private fun parseHeadMotion(data: ByteArray): AapEvent? {
+        if (data.size < HEAD_MOTION_MIN_SIZE) return null
+        return AapEvent.HeadMotion(
+            orientation = listOf(data.s16(43), data.s16(45), data.s16(47)),
+            horizontal = data.s16(51),
+            vertical = data.s16(53),
+        )
+    }
+
+    private fun ByteArray.s16(index: Int): Int = ((u8(index) or (u8(index + 1) shl 8)).toShort()).toInt()
+
+    private const val HEAD_MOTION_MIN_SIZE = 55
 
     // 04 00 04 00 09 00 <id> <value> 00 00 00
     private fun parseControl(data: ByteArray): AapEvent = when (val id = data.u8(6)) {

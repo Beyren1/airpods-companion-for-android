@@ -1,5 +1,6 @@
 package dev.podscompanion.data.aap
 
+import android.os.SystemClock
 import dev.podscompanion.bluetooth.aap.AapClient
 import dev.podscompanion.bluetooth.aap.AapIo
 import dev.podscompanion.bluetooth.aap.L2capUnavailableException
@@ -23,6 +24,7 @@ import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -40,6 +42,9 @@ import kotlinx.coroutines.withTimeoutOrNull
  * Состояние общее для сервиса и экрана (stateIn), поэтому на каждые наушники открывается один
  * сокет, сколько бы подписчиков ни было. Без подписчиков соединения закрываются через 5 с.
  */
+/** Один пакет датчиков головы: от каких наушников и когда пришёл. */
+data class HeadSample(val address: String, val timeMs: Long, val motion: AapEvent.HeadMotion)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
 class AapRepository @Inject constructor(
@@ -68,6 +73,14 @@ class AapRepository @Inject constructor(
             }
         }
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000), AapSessions())
+
+    private val _headMotion = MutableSharedFlow<HeadSample>(extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * Поток датчиков головы от всех наушников (после [AapCommand.StartHeadTracking]).
+     * Идёт десятки раз в секунду, поэтому в состояние и журнал не попадает.
+     */
+    val headMotion: SharedFlow<HeadSample> = _headMotion
 
     /** Кнопка «Проверить расширенный режим»: не ждать паузы между попытками. */
     fun retryNow() {
@@ -100,6 +113,7 @@ class AapRepository @Inject constructor(
             var device = AapDeviceState()
             var connected = false
             var method = "?"
+            var motionPackets = 0
             val failure = runCatching {
                 client.connect(target.device, commands).collect { io ->
                     when (io) {
@@ -122,6 +136,11 @@ class AapRepository @Inject constructor(
                         }
                         is AapIo.Received -> {
                             val event = AapParser.parse(io.data)
+                            if (event is AapEvent.HeadMotion) {
+                                if (motionPackets++ % MOTION_LOG_EVERY == 0) log.add("${target.name}: датчики головы ${event.orientation}")
+                                _headMotion.tryEmit(HeadSample(address, SystemClock.elapsedRealtime(), event))
+                                return@collect
+                            }
                             log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
                             if (event != null) {
                                 val updated = device.apply(event)
@@ -152,11 +171,13 @@ class AapRepository @Inject constructor(
         is AapEvent.EarDetection -> "ухо $primary/$secondary"
         is AapEvent.ListeningModeChanged -> "режим $mode"
         is AapEvent.ConversationalAwarenessChanged -> "адаптация к разговору ${if (enabled) "вкл" else "выкл"}"
+        is AapEvent.HeadMotion -> "датчики головы"
         is AapEvent.ControlChanged -> "${ControlId.name(id)} = " + value.joinToString(" ") { "%02X".format(it) }
         is AapEvent.Unknown -> "неизвестный 0x%04X".format(opcode)
     }
 
     private companion object {
         val BACKOFF_SEC = intArrayOf(3, 10, 30, 60)
+        const val MOTION_LOG_EVERY = 100
     }
 }

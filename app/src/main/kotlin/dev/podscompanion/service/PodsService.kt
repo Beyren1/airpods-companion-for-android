@@ -24,6 +24,7 @@ import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.autopause.AutoPauseLog
+import dev.podscompanion.data.gestures.HeadGestureController
 import dev.podscompanion.data.autopause.EarDetectionPolicy
 import dev.podscompanion.data.autopause.MediaAction
 import dev.podscompanion.data.settings.AppSettings
@@ -54,6 +55,7 @@ class PodsService : LifecycleService() {
     @Inject lateinit var repository: PodsRepository
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var autoPauseLog: AutoPauseLog
+    @Inject lateinit var headGestures: HeadGestureController
 
     private lateinit var notifications: PodsNotifications
     private lateinit var audioManager: AudioManager
@@ -110,6 +112,7 @@ class PodsService : LifecycleService() {
             }
         }
         lifecycleScope.launch { idleWatchdog() }
+        headGestures.run(lifecycleScope)
         startScan()
     }
 

@@ -104,6 +104,22 @@ sealed interface AapCommand {
         override val label get() = "сила адаптивного режима $value"
     }
 
+    /** Новое имя наушников. Android может показывать старое до переподключения. */
+    data class Rename(val name: String) : AapCommand {
+        override val bytes get() = Aap.rename(name)
+        override val label get() = "имя «$name»"
+    }
+
+    data object StartHeadTracking : AapCommand {
+        override val bytes get() = Aap.START_HEAD_TRACKING
+        override val label get() = "датчики головы: вкл"
+    }
+
+    data object StopHeadTracking : AapCommand {
+        override val bytes get() = Aap.STOP_HEAD_TRACKING
+        override val label get() = "датчики головы: выкл"
+    }
+
     companion object {
         fun control(id: Int, v1: Int, v2: Int = 0, v3: Int = 0, v4: Int = 0): ByteArray =
             Aap.packet(Opcode.CONTROL, id, v1, v2, v3, v4)

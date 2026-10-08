@@ -15,6 +15,7 @@ import dev.podscompanion.ui.battery.AppSettingsScreen
 import dev.podscompanion.ui.battery.BatteryUiState
 import dev.podscompanion.ui.battery.BatteryViewModel
 import dev.podscompanion.ui.battery.DebugInfo
+import dev.podscompanion.ui.battery.GesturesUi
 import dev.podscompanion.ui.battery.HeadphoneSettingsScreen
 import dev.podscompanion.ui.battery.HomeScreen
 import dev.podscompanion.ui.permissions.ScanPermissionGate
@@ -57,7 +58,20 @@ fun PodsNavHost() {
                     )
                 }
                 composable(Routes.HEADPHONES) {
-                    HeadphoneSettingsScreen(session, main?.model, viewModel::send, onBack = { nav.popBackStack() })
+                    val calibration by viewModel.calibration.collectAsStateWithLifecycle()
+                    HeadphoneSettingsScreen(
+                        session, main?.model, viewModel::send,
+                        onBack = { nav.popBackStack() },
+                        gestures = GesturesUi(
+                            enabled = settings.headGestures,
+                            calibrated = settings.headCalibration != null,
+                            backgroundEnabled = settings.backgroundEnabled,
+                            calibration = calibration,
+                            onEnabledChange = viewModel::setHeadGestures,
+                            onCalibrate = viewModel::startCalibration,
+                            onCalibrationDismiss = viewModel::dismissCalibration,
+                        ),
+                    )
                 }
                 composable(Routes.APP_SETTINGS) {
                     val autoPauseLog by viewModel.autoPauseLines.collectAsStateWithLifecycle()
