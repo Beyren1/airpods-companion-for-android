@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="perm_scan_title">Нужен доступ к Bluetooth</string>
+    <string name="perm_scan_reason">Разрешение «Устройства поблизости» нужно, чтобы принимать Bluetooth-сигналы наушников: из них приложение узнаёт заряд, модель и открыта ли крышка кейса. Геолокацию приложение не получает.</string>
+    <string name="perm_location_reason">На Android 10–11 система выдаёт Bluetooth-сигналы только с разрешением на геолокацию. Приложение не определяет ваше местоположение: оно читает из сигнала наушников заряд, модель и состояние кейса.</string>
+    <string name="perm_denied_hint">Без разрешения заряд показать нельзя. Если кнопка не помогает, включите его в настройках приложения.</string>
+    <string name="perm_grant">Разрешить</string>
+    <string name="bt_off">Bluetooth выключен. Включите его, чтобы увидеть наушники.</string>
+    <string name="scan_error">Ошибка сканирования: %1$s</string>
+    <string name="screen_title">Мои наушники</string>
+    <string name="searching_title">Ищу наушники…</string>
+    <string name="searching_hint">Откройте кейс рядом с телефоном или наденьте наушники.</string>
+    <string name="pull_hint">Потяните вниз, чтобы обновить</string>
+    <string name="updated_ago">Обновлено %1$d с назад · сигнал %2$s</string>
+    <string name="signal_excellent">отличный</string>
+    <string name="signal_good">хороший</string>
+    <string name="signal_weak">слабый</string>
+    <string name="debug_title">Отладка</string>
+    <string name="bt_open_settings">Открыть настройки Bluetooth</string>
+    <string name="unknown_model">Неизвестная модель (0x%1$04X)</string>
+    <string name="left">Левый</string>
+    <string name="right">Правый</string>
+    <string name="headphones">Наушники</string>
+    <string name="case_label">Кейс</string>
+    <string name="in_ear">в ухе</string>
+    <string name="on_head">на голове</string>
+    <string name="in_case">в кейсе</string>
+    <string name="charging">Заряжается</string>
+</resources>
