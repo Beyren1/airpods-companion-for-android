@@ -10,7 +10,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import dagger.hilt.android.AndroidEntryPoint
 import dev.podscompanion.data.settings.SettingsRepository
 import dev.podscompanion.service.PodsService
-import dev.podscompanion.ui.battery.BatteryRoute
+import dev.podscompanion.ui.PodsNavHost
 import dev.podscompanion.ui.permissions.ScanPermissions
 import dev.podscompanion.ui.theme.PodsCompanionTheme
 import javax.inject.Inject
@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             PodsCompanionTheme {
-                BatteryRoute(showDebug = BuildConfig.PACKET_LOGGING)
+                PodsNavHost()
             }
         }
 
