@@ -89,11 +89,11 @@ class NearbyPodsTracker(
      *   null — неизвестно (нет разрешения BLUETOOTH_CONNECT), тогда главные — ближайшие.
      *   Если имя подключённого устройства не похоже ни на одну модель (переименовали), тоже ближайшие.
      */
-    fun snapshot(nowMs: Long, connectedNames: List<String>?): NearbyPods {
+    fun snapshot(nowMs: Long, connectedNames: List<String>?, connectedBatteries: List<Int> = emptyList()): NearbyPods {
         devices.removeAll { nowMs - it.seenAtMs > staleAfterMs }
         if (primary !in devices) primary = null
 
-        val connected = connectedNames?.let { pickConnected(ConnectedNameMatcher.knownModels(it)) }
+        val connected = connectedNames?.let { pickConnected(ConnectedNameMatcher.knownModels(it), connectedBatteries) }
 
         primary = when {
             connected != null -> connected
@@ -120,15 +120,30 @@ class NearbyPodsTracker(
 
     /**
      * Наушники рядом, похожие на подключённые по имени. Если имя общее («AirPods») и подходят
-     * несколько пар, выбираем надетые, затем уже выбранные раньше, затем с самым сильным сигналом.
+     * несколько пар, выбираем надетые, затем с зарядом ближе к тому, что наушники сообщили телефону
+     * (у Pro 2 один наушник рекламировал 70/70 при реальных 100), затем выбранные раньше,
+     * затем с самым сильным сигналом.
      * Без этого при общем имени главная карточка появлялась на полсекунды, пока были видны
      * только одни наушники, и пропадала, когда приходили пакеты от вторых.
      */
-    private fun pickConnected(models: Set<PodsModel>): Device? {
+    private fun pickConnected(models: Set<PodsModel>, batteries: List<Int>): Device? {
         val candidates = devices.filter { it.status.model in models }
         if (candidates.size <= 1) return candidates.firstOrNull()
-        val worn = candidates.filter { it.status.isWorn() }.ifEmpty { candidates }
-        return primary?.takeIf { it in worn } ?: worn.maxByOrNull { it.rssi }
+        var best = candidates.filter { it.status.isWorn() }.ifEmpty { candidates }
+        if (batteries.isNotEmpty()) {
+            val distances = best.associateWith { batteryDistance(it.status, batteries) }
+            val min = distances.values.filterNotNull().minOrNull()
+            if (min != null) best = best.filter { distances[it] == min }
+        }
+        return primary?.takeIf { it in best } ?: best.maxByOrNull { it.rssi }
+    }
+
+    /** Насколько заряд в рекламе далёк от заряда, сообщённого телефону; null — сравнить не с чем. */
+    private fun batteryDistance(status: PodsStatus, batteries: List<Int>): Int? {
+        val advertised = listOfNotNull(status.left.battery, status.right.battery, status.primary.battery).map { it.percent }
+        if (advertised.isEmpty()) return null
+        // В рекламе шаг 10 % с округлением вниз: 99 % приходит как 90.
+        return batteries.minOf { real -> advertised.minOf { abs(real / 10 * 10 - it) } }
     }
 
     private fun PodsStatus.isWorn() = left.inEar || right.inEar || primary.inEar

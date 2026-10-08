@@ -134,4 +134,15 @@ class NearbyPodsTrackerTest {
         assertThat(nearby.primary?.model).isEqualTo(PodsModel.AIRPODS_4_ANC)
         assertThat(nearby.primary?.connected).isTrue()
     }
+
+    @Test
+    fun `две пары одной модели — подключённой считаем ту, чей заряд совпадает с сообщённым телефону`() {
+        packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -66, left = 70, right = 70), 0)
+        packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -68, left = 100, right = 100), 0)
+
+        val nearby = tracker.snapshot(0, listOf("AirPods Pro"), connectedBatteries = listOf(100))
+
+        assertThat(nearby.primary?.left?.battery?.percent).isEqualTo(100)
+        assertThat(nearby.primary?.connected).isTrue()
+    }
 }
