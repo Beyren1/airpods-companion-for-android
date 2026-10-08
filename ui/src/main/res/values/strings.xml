@@ -7,7 +7,16 @@
     <string name="perm_grant">Разрешить</string>
     <string name="bt_off">Bluetooth выключен. Включите его, чтобы увидеть наушники.</string>
     <string name="scan_error">Ошибка сканирования: %1$s</string>
-    <string name="searching_hint">Ищу наушники… Откройте кейс рядом с телефоном.</string>
+    <string name="screen_title">Мои наушники</string>
+    <string name="searching_title">Ищу наушники…</string>
+    <string name="searching_hint">Откройте кейс рядом с телефоном или наденьте наушники.</string>
+    <string name="pull_hint">Потяните вниз, чтобы обновить</string>
+    <string name="updated_ago">Обновлено %1$d с назад · сигнал %2$s</string>
+    <string name="signal_excellent">отличный</string>
+    <string name="signal_good">хороший</string>
+    <string name="signal_weak">слабый</string>
+    <string name="debug_title">Отладка</string>
+    <string name="bt_open_settings">Открыть настройки Bluetooth</string>
     <string name="unknown_model">Неизвестная модель (0x%1$04X)</string>
     <string name="left">Левый</string>
     <string name="right">Правый</string>
