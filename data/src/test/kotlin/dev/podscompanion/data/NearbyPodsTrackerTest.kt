@@ -39,11 +39,23 @@ class NearbyPodsTrackerTest {
     }
 
     @Test
-    fun `без подключённых главные — ближайшие`() {
+    fun `ничего не подключено — главных нет, все в списке рядом`() {
         packet("MAX", status(PodsModel.AIRPODS_MAX_USB_C, rssi = -40, left = 90, right = null), 0)
         packet("PRO", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -70), 0)
 
         val nearby = tracker.snapshot(0, connectedNames = emptyList())
+
+        assertThat(nearby.primary).isNull()
+        assertThat(nearby.others.map { it.model })
+            .containsExactly(PodsModel.AIRPODS_MAX_USB_C, PodsModel.AIRPODS_PRO_2_USB_C).inOrder()
+    }
+
+    @Test
+    fun `без разрешения на подключённые главные — ближайшие`() {
+        packet("MAX", status(PodsModel.AIRPODS_MAX_USB_C, rssi = -40, left = 90, right = null), 0)
+        packet("PRO", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -70), 0)
+
+        val nearby = tracker.snapshot(0, connectedNames = null)
 
         assertThat(nearby.primary?.model).isEqualTo(PodsModel.AIRPODS_MAX_USB_C)
         assertThat(nearby.primary?.connected).isFalse()
@@ -54,7 +66,7 @@ class NearbyPodsTrackerTest {
         packet("LEFT", status(PodsModel.AIRPODS_4_ANC, rssi = -60), 0)
         packet("RIGHT", status(PodsModel.AIRPODS_4_ANC, rssi = -88, right = null), 500)
 
-        val nearby = tracker.snapshot(500, emptyList())
+        val nearby = tracker.snapshot(500, null)
 
         assertThat(nearby.others).isEmpty()
         assertThat(nearby.primary?.rssi).isEqualTo(-88)
@@ -63,11 +75,11 @@ class NearbyPodsTrackerTest {
     @Test
     fun `выбранные наушники со слабым сигналом не бросаем, чужие слабые не показываем`() {
         packet("MINE", status(PodsModel.AIRPODS_4_ANC, rssi = -60), 0)
-        tracker.snapshot(0, emptyList())
+        tracker.snapshot(0, null)
         packet("MINE", status(PodsModel.AIRPODS_4_ANC, rssi = -88), 1_000)
         packet("FAR", status(PodsModel.AIRPODS_PRO_2, rssi = -90), 1_000)
 
-        val nearby = tracker.snapshot(1_000, emptyList())
+        val nearby = tracker.snapshot(1_000, null)
 
         assertThat(nearby.primary?.model).isEqualTo(PodsModel.AIRPODS_4_ANC)
         assertThat(nearby.others).isEmpty()
@@ -76,7 +88,7 @@ class NearbyPodsTrackerTest {
     @Test
     fun `пропавшие через 15 с исчезают`() {
         packet("MINE", status(PodsModel.AIRPODS_4_ANC, rssi = -60), 0)
-        assertThat(tracker.snapshot(16_000, emptyList())).isEqualTo(NearbyPods.EMPTY)
+        assertThat(tracker.snapshot(16_000, null)).isEqualTo(NearbyPods.EMPTY)
     }
 
     @Test
@@ -86,6 +98,6 @@ class NearbyPodsTrackerTest {
         packet("A", max, 5_000)
         packet("A", max, 10_000)
 
-        assertThat(tracker.snapshot(10_000, emptyList()).primary?.packetIntervalMs).isEqualTo(5_000)
+        assertThat(tracker.snapshot(10_000, null).primary?.packetIntervalMs).isEqualTo(5_000)
     }
 }

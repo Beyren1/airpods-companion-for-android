@@ -75,21 +75,33 @@ class NearbyPodsTracker(
         }
     }
 
-    fun snapshot(nowMs: Long, connectedNames: List<String>): NearbyPods {
+    /**
+     * @param connectedNames имена наушников, подключённых к телефону по A2DP;
+     *   пустой список — ничего не подключено, тогда главных нет, все наушники идут в «рядом»;
+     *   null — неизвестно (нет разрешения BLUETOOTH_CONNECT), тогда главные — ближайшие.
+     *   Если подключено что-то, но по имени не совпало (переименовали), тоже берём ближайшие.
+     */
+    fun snapshot(nowMs: Long, connectedNames: List<String>?): NearbyPods {
         devices.removeAll { nowMs - it.seenAtMs > staleAfterMs }
         if (primary !in devices) primary = null
 
-        val connectedModel = ConnectedNameMatcher.bestMatch(devices.mapNotNull { it.status.model }, connectedNames)
+        val connectedModel = connectedNames?.let { names ->
+            ConnectedNameMatcher.bestMatch(devices.mapNotNull { it.status.model }, names)
+        }
         val connected = connectedModel?.let { model -> devices.filter { it.status.model == model }.maxByOrNull { it.rssi } }
 
-        primary = connected ?: pickNearest()
-        val main = primary ?: return NearbyPods.EMPTY
+        primary = when {
+            connected != null -> connected
+            connectedNames != null && connectedNames.isEmpty() -> null
+            else -> pickNearest()
+        }
+        val main = primary
 
         val others = devices
             .filter { it !== main && it.rssi >= minRssi }
             .sortedByDescending { it.rssi }
             .map { it.status }
-        val status = main.status.copy(connected = main === connected, packetIntervalMs = main.averageIntervalMs())
+        val status = main?.status?.copy(connected = main === connected, packetIntervalMs = main.averageIntervalMs())
         return NearbyPods(status, others)
     }
 

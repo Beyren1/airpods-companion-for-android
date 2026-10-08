@@ -72,7 +72,7 @@ class BatteryViewModel @Inject constructor(
         .flatMapLatest {
             repository.observeNearby(ScanIntensity.LOW_LATENCY)
                 .map<NearbyPods, BatteryUiState> { nearby ->
-                    if (nearby.primary == null) BatteryUiState.Searching else BatteryUiState.Found(nearby)
+                    if (nearby.primary == null && nearby.others.isEmpty()) BatteryUiState.Searching else BatteryUiState.Found(nearby)
                 }
                 .onStart { emit(BatteryUiState.Searching) }
                 .catch { e ->

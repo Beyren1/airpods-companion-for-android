@@ -22,7 +22,7 @@ class PodsRepository @Inject constructor(
     private val caseCache: CaseBatteryCache,
 ) {
     /**
-     * Все наушники рядом; главные — подключённые к телефону, иначе ближайшие.
+     * Все наушники рядом; главные — подключённые к телефону (см. [NearbyPodsTracker.snapshot]).
      * Устройство пропадает из списка, если от него 15 с не было пакетов.
      *
      * channelFlow позволяет слить в один поток три источника: пакеты, смену подключённых
@@ -30,7 +30,7 @@ class PodsRepository @Inject constructor(
      */
     fun observeNearby(intensity: ScanIntensity): Flow<NearbyPods> = channelFlow {
         val tracker = NearbyPodsTracker()
-        var connectedNames = emptyList<String>()
+        var connectedNames: List<String>? = null
         fun now() = SystemClock.elapsedRealtime()
 
         launch {

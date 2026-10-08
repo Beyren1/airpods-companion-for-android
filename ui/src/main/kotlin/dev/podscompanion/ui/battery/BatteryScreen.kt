@@ -122,11 +122,9 @@ fun BatteryScreen(
                 is BatteryUiState.Error -> Message(Icons.Filled.ErrorOutline, stringResource(R.string.scan_error, state.message))
                 is BatteryUiState.Found -> {
                     val main = state.nearby.primary
-                    if (main != null) {
-                        PodsCard(main)
-                        if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others)
-                        if (showDebug) DebugCard(main, autoPauseLog)
-                    }
+                    if (main != null) PodsCard(main) else NotConnectedCard()
+                    if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others)
+                    if (showDebug && main != null) DebugCard(main, autoPauseLog)
                 }
             }
             footer()
@@ -222,6 +220,25 @@ private fun Header(status: PodsStatus) {
                 Spacer(Modifier.height(6.dp))
                 StatusPill(stringResource(R.string.connected_badge))
             }
+        }
+    }
+}
+
+/** К телефону ничего не подключено: заряд виден только в списке «рядом». */
+@Composable
+private fun NotConnectedCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+    ) {
+        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Headphones, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                stringResource(R.string.not_connected),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(start = 16.dp),
+            )
         }
     }
 }

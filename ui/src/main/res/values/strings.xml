@@ -33,7 +33,8 @@
     <string name="in_case">в кейсе</string>
     <string name="case_remembered">последний</string>
     <string name="connected_badge">подключены</string>
-    <string name="nearby_title">Ещё рядом</string>
+    <string name="nearby_title">Рядом</string>
+    <string name="not_connected">К телефону не подключены наушники</string>
     <string name="debug_packet_interval">Пакет от наушников раз в %1$.1f с</string>
     <string name="charging">Заряжается</string>
 </resources>

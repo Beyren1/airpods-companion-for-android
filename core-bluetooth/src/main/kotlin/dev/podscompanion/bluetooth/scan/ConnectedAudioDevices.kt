@@ -26,17 +26,17 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  *
  * MAC из BLE-рекламы случайный и с классическим адресом не связан, поэтому «какие из
  * наушников рядом подключены» определяем по имени («AirPods Max», «AirPods Pro Beyren»).
- * Нужно разрешение BLUETOOTH_CONNECT; без него поток отдаёт пустой список.
+ * Нужно разрешение BLUETOOTH_CONNECT; без него поток отдаёт null («неизвестно»).
  */
 @Singleton
 class ConnectedAudioDevices @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
     @SuppressLint("MissingPermission")
-    fun names(): Flow<List<String>> = callbackFlow {
+    fun names(): Flow<List<String>?> = callbackFlow<List<String>?> {
         val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
         if (adapter == null || !hasConnectPermission()) {
-            trySend(emptyList())
+            trySend(null)
             awaitClose { }
             return@callbackFlow
         }
