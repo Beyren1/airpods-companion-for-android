@@ -9,6 +9,7 @@ import androidx.core.app.NotificationCompat
 import dev.podscompanion.MainActivity
 import dev.podscompanion.R
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.displayText
 import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.Capability
 
@@ -63,7 +64,7 @@ internal class PodsNotifications(private val context: Context) {
     }
 
     private fun format(battery: BatteryLevel?, charging: Boolean): String {
-        val value = battery?.let { "${it.percent}%" } ?: "—"
+        val value = battery?.displayText() ?: "—"
         return if (charging) "⚡$value" else value
     }
 

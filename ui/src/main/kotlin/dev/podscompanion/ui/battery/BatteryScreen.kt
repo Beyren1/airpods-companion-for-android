@@ -60,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.displayText
 import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.Capability
 import dev.podscompanion.protocol.advertising.PodState
@@ -261,7 +262,7 @@ private fun BatteryRing(
                     )
                 }
                 Text(
-                    percent?.let { "$it%" } ?: "—",
+                    battery?.displayText() ?: "—",
                     style = if (size > 100.dp) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
