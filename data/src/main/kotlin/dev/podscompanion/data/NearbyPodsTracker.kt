@@ -1,5 +1,6 @@
 package dev.podscompanion.data
 
+import dev.podscompanion.protocol.advertising.PodsModel
 import kotlin.math.abs
 
 /**
@@ -92,10 +93,7 @@ class NearbyPodsTracker(
         devices.removeAll { nowMs - it.seenAtMs > staleAfterMs }
         if (primary !in devices) primary = null
 
-        val connectedModel = connectedNames?.let { names ->
-            ConnectedNameMatcher.bestMatch(devices.mapNotNull { it.status.model }, names)
-        }
-        val connected = connectedModel?.let { model -> devices.filter { it.status.model == model }.maxByOrNull { it.rssi } }
+        val connected = connectedNames?.let { pickConnected(ConnectedNameMatcher.knownModels(it)) }
 
         primary = when {
             connected != null -> connected
@@ -119,6 +117,21 @@ class NearbyPodsTracker(
         )
         return NearbyPods(status, others)
     }
+
+    /**
+     * Наушники рядом, похожие на подключённые по имени. Если имя общее («AirPods») и подходят
+     * несколько пар, выбираем надетые, затем уже выбранные раньше, затем с самым сильным сигналом.
+     * Без этого при общем имени главная карточка появлялась на полсекунды, пока были видны
+     * только одни наушники, и пропадала, когда приходили пакеты от вторых.
+     */
+    private fun pickConnected(models: Set<PodsModel>): Device? {
+        val candidates = devices.filter { it.status.model in models }
+        if (candidates.size <= 1) return candidates.firstOrNull()
+        val worn = candidates.filter { it.status.isWorn() }.ifEmpty { candidates }
+        return primary?.takeIf { it in worn } ?: worn.maxByOrNull { it.rssi }
+    }
+
+    private fun PodsStatus.isWorn() = left.inEar || right.inEar || primary.inEar
 
     private fun pickNearest(): Device? {
         val current = primary

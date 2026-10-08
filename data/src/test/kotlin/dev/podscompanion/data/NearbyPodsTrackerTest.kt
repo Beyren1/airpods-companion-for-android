@@ -121,4 +121,17 @@ class NearbyPodsTrackerTest {
         assertThat(nearby.primary?.left?.battery?.percent).isEqualTo(100)
         assertThat(nearby.others).hasSize(1)
     }
+
+    @Test
+    fun `общее имя AirPods — главными остаются надетые, а не пропадают`() {
+        packet("FOUR", status(PodsModel.AIRPODS_4_ANC, rssi = -60), 0)
+        assertThat(tracker.snapshot(0, listOf("AirPods")).primary?.model).isEqualTo(PodsModel.AIRPODS_4_ANC)
+
+        val max = status(PodsModel.AIRPODS_MAX_USB_C, rssi = -40, left = 90, right = null)
+        packet("MAX", max.copy(primary = max.primary.copy(inEar = false), left = max.left.copy(inEar = false)), 500)
+        val nearby = tracker.snapshot(500, listOf("AirPods"))
+
+        assertThat(nearby.primary?.model).isEqualTo(PodsModel.AIRPODS_4_ANC)
+        assertThat(nearby.primary?.connected).isTrue()
+    }
 }
