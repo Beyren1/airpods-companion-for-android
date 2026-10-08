@@ -297,7 +297,7 @@ private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>) {
     OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.debug_title), style = MaterialTheme.typography.titleSmall)
-            if (status.model == null || !status.model.verified) {
+            if (status.model?.verified != true) {
                 // Модель не сверена по реальным пакетам: просим прислать байты.
                 Text(
                     stringResource(R.string.debug_unverified_model),
