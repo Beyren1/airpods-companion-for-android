@@ -70,6 +70,10 @@ class BatteryViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setAutoPause(value) }
     }
 
+    fun setDebugEnabled(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setDebugEnabled(value) }
+    }
+
     /** Каждое новое значение перезапускает скан с нуля (и заново выбирает главные наушники). */
     private val restarts = MutableStateFlow(0)
 

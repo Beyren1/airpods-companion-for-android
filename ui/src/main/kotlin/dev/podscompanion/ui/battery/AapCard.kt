@@ -1,96 +1,120 @@
 package dev.podscompanion.ui.battery
 
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.SegmentedButton
-import androidx.compose.material3.SegmentedButtonDefaults
-import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.Hyphens
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.data.aap.FailureReason
-import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.protocol.advertising.Capability
 import dev.podscompanion.protocol.advertising.PodsModel
 import dev.podscompanion.ui.R
 
 /**
- * Расширенный режим (прямое подключение AAP): статус, режим шумоподавления и кнопка проверки.
- * Когда наушники Apple не подключены, карточку не показываем: проверять нечего.
+ * Прямое подключение ещё не работает: подключаемся, не вышло или нет разрешения.
+ * Когда подключение есть, карточки нет: об этом говорит подзаголовок «Подключены напрямую».
  */
 @Composable
-fun AapCard(
-    state: AapSessionState?,
-    noPermission: Boolean,
-    model: PodsModel?,
-    onCheck: () -> Unit,
-    onCommand: (address: String, AapCommand) -> Unit,
-) {
-    if (state == null && !noPermission) return
-
+fun AapStatusCard(state: AapSessionState?, noPermission: Boolean, onCheck: () -> Unit) {
+    if (state is AapSessionState.Connected || (state == null && !noPermission)) return
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(28.dp),
+        shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 when (state) {
-                    is AapSessionState.Connecting -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    is AapSessionState.Connected -> Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
+                    is AapSessionState.Connecting -> CircularProgressIndicator(Modifier.size(22.dp), strokeWidth = 2.dp)
                     is AapSessionState.Failed -> Icon(Icons.Filled.LinkOff, null, tint = MaterialTheme.colorScheme.error)
-                    null -> Icon(Icons.Filled.ErrorOutline, null, tint = MaterialTheme.colorScheme.error)
+                    else -> Icon(Icons.Filled.ErrorOutline, null, tint = MaterialTheme.colorScheme.error)
                 }
-                Text(
-                    stringResource(R.string.aap_title),
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.padding(start = 12.dp),
-                )
-            }
-            Text(
-                statusText(state),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (state is AapSessionState.Connected) {
-                val modes = availableModes(model)
-                if (modes.isNotEmpty()) {
-                    ModeSelector(modes, state.device.listeningMode) { onCommand(state.address, AapCommand.SetListeningMode(it)) }
-                } else {
-                    state.device.listeningMode?.let {
-                        Text(stringResource(R.string.aap_listening_mode, modeText(it)), style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
+                Text(statusText(state), style = MaterialTheme.typography.bodyMedium, modifier = Modifier.weight(1f))
             }
             if (state is AapSessionState.Failed) {
+                Text(
+                    state.details,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
                 FilledTonalButton(onClick = onCheck) { Text(stringResource(R.string.aap_check)) }
             }
         }
     }
 }
 
-/** Какие режимы показывать (и предлагать для долгого нажатия): у моделей без шумоподавления — никаких, Adaptive — только где он есть. */
+/**
+ * Режимы шумоподавления крупными плитками. Выделен режим, о котором сообщили наушники.
+ * Значки нарисованы в [ModeIcon].
+ */
+@Composable
+fun ModeTiles(modes: List<ListeningMode>, current: ListeningMode?, onSelect: (ListeningMode) -> Unit) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        modes.forEach { mode ->
+            val selected = mode == current
+            val colors = MaterialTheme.colorScheme
+            Surface(
+                onClick = { if (!selected) onSelect(mode) },
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(22.dp),
+                color = if (selected) colors.primaryContainer else colors.surfaceContainer,
+                contentColor = if (selected) colors.onPrimaryContainer else colors.onSurfaceVariant,
+            ) {
+                Column(
+                    Modifier.padding(horizontal = 4.dp, vertical = 14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Surface(
+                        shape = CircleShape,
+                        color = if (selected) colors.primary else colors.surfaceContainerHighest,
+                        modifier = Modifier.size(44.dp),
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            ModeIcon(
+                                mode,
+                                color = if (selected) colors.onPrimary else colors.onSurface,
+                                cutout = if (selected) colors.primary else colors.surfaceContainerHighest,
+                            )
+                        }
+                    }
+                    Text(
+                        stringResource(mode.title()),
+                        style = MaterialTheme.typography.labelMedium.copy(hyphens = Hyphens.Auto),
+                        textAlign = TextAlign.Center,
+                        maxLines = 2,
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Какие режимы показывать: у моделей без шумоподавления — никаких, Adaptive — только где он есть. */
 internal fun availableModes(model: PodsModel?): List<ListeningMode> {
     val caps = model?.capabilities ?: return emptyList()
     if (Capability.NOISE_CONTROL !in caps) return emptyList()
@@ -102,53 +126,20 @@ internal fun availableModes(model: PodsModel?): List<ListeningMode> {
     }
 }
 
-/** Ряд кнопок как в Пункте управления iPhone; выделен режим, о котором сообщили наушники. */
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun ModeSelector(modes: List<ListeningMode>, current: ListeningMode?, onSelect: (ListeningMode) -> Unit) {
-    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
-        modes.forEachIndexed { index, mode ->
-            SegmentedButton(
-                selected = mode == current,
-                onClick = { onSelect(mode) },
-                shape = SegmentedButtonDefaults.itemShape(index, modes.size),
-                icon = {},
-            ) {
-                Text(shortModeText(mode), maxLines = 1, style = MaterialTheme.typography.labelMedium)
-            }
-        }
-    }
+internal fun ListeningMode.title() = when (this) {
+    ListeningMode.OFF -> R.string.mode_tile_off
+    ListeningMode.NOISE_CANCELLATION -> R.string.mode_tile_nc
+    ListeningMode.TRANSPARENCY -> R.string.mode_tile_transparency
+    ListeningMode.ADAPTIVE -> R.string.mode_tile_adaptive
+    ListeningMode.UNKNOWN -> R.string.mode_unknown
 }
-
-@Composable
-private fun shortModeText(mode: ListeningMode): String = stringResource(
-    when (mode) {
-        ListeningMode.OFF -> R.string.mode_short_off
-        ListeningMode.NOISE_CANCELLATION -> R.string.mode_short_nc
-        ListeningMode.TRANSPARENCY -> R.string.mode_short_transparency
-        ListeningMode.ADAPTIVE -> R.string.mode_short_adaptive
-        ListeningMode.UNKNOWN -> R.string.mode_unknown
-    },
-)
 
 @Composable
 private fun statusText(state: AapSessionState?): String = when (state) {
-    null -> stringResource(R.string.aap_no_permission)
+    null, is AapSessionState.Connected -> stringResource(R.string.aap_no_permission)
     is AapSessionState.Connecting -> stringResource(R.string.aap_connecting, state.deviceName)
-    is AapSessionState.Connected -> stringResource(R.string.aap_connected, state.deviceName)
     is AapSessionState.Failed -> when (state.reason) {
         FailureReason.SOCKET_BLOCKED -> stringResource(R.string.aap_socket_blocked)
         FailureReason.CONNECTION_FAILED -> stringResource(R.string.aap_connection_failed, state.retryInSec)
-    } + "\n" + state.details
+    }
 }
-
-@Composable
-private fun modeText(mode: ListeningMode): String = stringResource(
-    when (mode) {
-        ListeningMode.OFF -> R.string.mode_off
-        ListeningMode.NOISE_CANCELLATION -> R.string.mode_nc
-        ListeningMode.TRANSPARENCY -> R.string.mode_transparency
-        ListeningMode.ADAPTIVE -> R.string.mode_adaptive
-        ListeningMode.UNKNOWN -> R.string.mode_unknown
-    },
-)

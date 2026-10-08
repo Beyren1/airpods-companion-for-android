@@ -16,6 +16,8 @@ data class AppSettings(
     val backgroundEnabled: Boolean = false,
     /** Пауза музыки, когда наушник вынут из уха (и продолжение, когда вставлен обратно). */
     val autoPause: Boolean = true,
+    /** Отладка: сырые пакеты и журналы на экране настроек приложения. */
+    val debugEnabled: Boolean = false,
 )
 
 // DataStore — асинхронная замена SharedPreferences: файл с ключами, изменения приходят как Flow.
@@ -30,6 +32,7 @@ class SettingsRepository @Inject constructor(
             AppSettings(
                 backgroundEnabled = prefs[BACKGROUND] ?: false,
                 autoPause = prefs[AUTO_PAUSE] ?: true,
+                debugEnabled = prefs[DEBUG] ?: false,
             )
         }
         .distinctUntilChanged()
@@ -42,8 +45,13 @@ class SettingsRepository @Inject constructor(
         context.settingsStore.edit { it[AUTO_PAUSE] = value }
     }
 
+    suspend fun setDebugEnabled(value: Boolean) {
+        context.settingsStore.edit { it[DEBUG] = value }
+    }
+
     private companion object {
         val BACKGROUND = booleanPreferencesKey("background_enabled")
         val AUTO_PAUSE = booleanPreferencesKey("auto_pause")
+        val DEBUG = booleanPreferencesKey("debug_enabled")
     }
 }
