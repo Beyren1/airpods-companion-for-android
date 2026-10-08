@@ -61,6 +61,12 @@ data class ProximityPairingMessage(
             raw.contentEquals(other.raw)
 
     override fun hashCode(): Int = raw.contentHashCode()
+
+    /**
+     * Наушник, который отправил пакет. У Max есть только он: второй nibble заряда там всегда 0,
+     * а «сторона» отправителя меняется (на голове был левый, снятые прислали правый).
+     */
+    val primary: PodState get() = if (primaryIsLeft) left else right
 }
 
 object ProximityPairingParser {

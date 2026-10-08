@@ -10,6 +10,8 @@ data class PodsStatus(
     val modelId: Int,
     val left: PodState,
     val right: PodState,
+    /** Наушник-отправитель пакета; для Max это единственный источник заряда. */
+    val primary: PodState,
     val caseBattery: BatteryLevel?,
     val caseCharging: Boolean,
     val lidCounter: Int,

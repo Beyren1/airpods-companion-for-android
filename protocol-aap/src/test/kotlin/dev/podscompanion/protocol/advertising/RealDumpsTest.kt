@@ -65,8 +65,14 @@ class RealDumpsTest {
         val msg = parse("07 19 01 1F 20 2B 0A 80 04 56 44 6D 43 28 CB 88 F3 EE EA 7D 1C 82 BE C6 F4 1E B7")
 
         assertThat(msg.model).isEqualTo(PodsModel.AIRPODS_MAX_USB_C)
-        assertThat(msg.left.inEar).isTrue()
-        // Заряд Max: по стандартной раскладке получается 100 %, но автор говорит, что это не так.
-        // Тест на заряд добавим, когда будет значение из iOS.
+        assertThat(msg.primary).isEqualTo(PodState(BatteryLevel(100), charging = false, inEar = true))
+    }
+
+    @Test
+    fun `AirPods Max USB-C сняты с головы`() {
+        // Отправителем стал правый (бит 0x20 сброшен), второй nibble = 0: брать надо только primary.
+        val msg = parse("07 19 01 1F 20 01 09 80 04 56 44 3E 0B 61 8E 7D D8 92 72 35 C2 41 8A CA 5E FE 5E")
+
+        assertThat(msg.primary).isEqualTo(PodState(BatteryLevel(90), charging = false, inEar = false))
     }
 }

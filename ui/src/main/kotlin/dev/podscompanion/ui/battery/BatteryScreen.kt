@@ -152,8 +152,7 @@ private fun PodsCard(status: PodsStatus) {
                     }
                 }
             } else {
-                // У Max в пакете одно значение; где именно оно лежит, уточним по дампу.
-                val pod = status.left.takeIf { it.battery != null } ?: status.right
+                val pod = status.primary
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     BatteryRing(
                         stringResource(R.string.headphones), pod.battery, pod.charging,
@@ -370,6 +369,7 @@ private val previewStatus = PodsStatus(
     model = PodsModel.AIRPODS_4_ANC, modelId = 0x1B20,
     left = PodState(BatteryLevel(90), charging = true, inEar = false, inCase = true),
     right = PodState(BatteryLevel(100), charging = false, inEar = true),
+    primary = PodState(BatteryLevel(100), charging = false, inEar = true),
     caseBattery = BatteryLevel(50), caseCharging = false,
     lidCounter = 0x11, colorCode = 0, rssi = -52, lastSeenMs = 0,
     rawHex = "07 19 01 1B 20 13 9A AF 11 00 04 …",
@@ -391,6 +391,7 @@ private fun MaxPreview() {
                     model = PodsModel.AIRPODS_MAX_USB_C, modelId = 0x1F20,
                     left = PodState(BatteryLevel(70), charging = false, inEar = true),
                     right = PodState(null, charging = false, inEar = false),
+                    primary = PodState(BatteryLevel(70), charging = false, inEar = true),
                 ),
             ),
             false, {}, showDebug = false,

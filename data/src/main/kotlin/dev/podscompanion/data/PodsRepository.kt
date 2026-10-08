@@ -42,6 +42,7 @@ class PodsRepository @Inject constructor(
         modelId = message.modelId,
         left = message.left,
         right = message.right,
+        primary = message.primary,
         caseBattery = message.caseBattery,
         caseCharging = message.caseCharging,
         lidCounter = message.lidCounter,
