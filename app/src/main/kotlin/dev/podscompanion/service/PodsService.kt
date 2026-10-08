@@ -62,6 +62,7 @@ class PodsService : LifecycleService() {
     private var scanJob: Job? = null
     private var scanIntensity: ScanIntensity? = null
     private var lastWorn: Boolean? = null
+    private var lastLoggedName: String? = null
     private var lastActivityMs = 0L
     private var settings = AppSettings()
 
@@ -182,15 +183,17 @@ class PodsService : LifecycleService() {
         if (!settings.autoPause) return
 
         val worn = status?.let(::isWorn)
-        if (worn != lastWorn) {
+        val name = status?.model?.displayName
+        if (worn != lastWorn || name != lastLoggedName) {
             lastWorn = worn
-            autoPauseLog.add(
-                when (worn) {
-                    null -> "наушников не видно"
-                    true -> "надеты"
-                    false -> "сняты"
-                },
-            )
+            lastLoggedName = name
+            val state = when (worn) {
+                null -> "наушников не видно"
+                true -> "надеты"
+                false -> "сняты"
+            }
+            // Модель в журнале показывает, если решение принималось по чужим наушникам рядом.
+            autoPauseLog.add(if (name != null) "$state · $name" else state)
         }
         // Музыку трогаем, только если звук идёт в Bluetooth: иначе это чужие наушники рядом
         // или пользователь слушает через динамик.
