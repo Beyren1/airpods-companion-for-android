@@ -7,6 +7,7 @@ import dev.podscompanion.bluetooth.scan.BluetoothUnavailableException
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.settings.AppSettings
 import dev.podscompanion.data.settings.SettingsRepository
 import javax.inject.Inject
@@ -36,7 +37,11 @@ sealed interface BatteryUiState {
 class BatteryViewModel @Inject constructor(
     private val repository: PodsRepository,
     private val settingsRepository: SettingsRepository,
+    autoPauseLog: AutoPauseLog,
 ) : ViewModel() {
+
+    /** Журнал автопаузы из сервиса, показывается в карточке отладки. */
+    val autoPauseLines: StateFlow<List<String>> = autoPauseLog.lines
 
     val settings: StateFlow<AppSettings> = settingsRepository.settings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())

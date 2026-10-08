@@ -82,7 +82,8 @@ fun BatteryRoute(showDebug: Boolean) {
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
                 val settings by viewModel.settings.collectAsStateWithLifecycle()
-                BatteryScreen(state, refreshing, viewModel::refresh, showDebug) {
+                val logLines by viewModel.autoPauseLines.collectAsStateWithLifecycle()
+                BatteryScreen(state, refreshing, viewModel::refresh, showDebug, logLines) {
                     BackgroundCard(settings, viewModel::setBackgroundEnabled, viewModel::setAutoPause)
                 }
             }
@@ -97,6 +98,7 @@ fun BatteryScreen(
     refreshing: Boolean,
     onRefresh: () -> Unit,
     showDebug: Boolean,
+    autoPauseLog: List<String> = emptyList(),
     footer: @Composable () -> Unit = {},
 ) {
     // PullToRefreshBox ловит свайп вниз; содержимое должно прокручиваться, иначе жест не дойдёт.
@@ -118,7 +120,7 @@ fun BatteryScreen(
                 is BatteryUiState.Error -> Message(Icons.Filled.ErrorOutline, stringResource(R.string.scan_error, state.message))
                 is BatteryUiState.Found -> {
                     PodsCard(state.status)
-                    if (showDebug) DebugCard(state.status)
+                    if (showDebug) DebugCard(state.status, autoPauseLog)
                 }
             }
             footer()
@@ -153,7 +155,13 @@ private fun PodsCard(status: PodsStatus) {
                     BatteryRing(stringResource(R.string.left), status.left.battery, status.left.charging, podNote(status.left))
                     BatteryRing(stringResource(R.string.right), status.right.battery, status.right.charging, podNote(status.right))
                     if (hasCase) {
-                        BatteryRing(stringResource(R.string.case_label), status.caseBattery, status.caseCharging, null)
+                        BatteryRing(
+                            stringResource(R.string.case_label),
+                            status.caseBattery,
+                            status.caseCharging,
+                            if (status.caseBatteryRemembered) stringResource(R.string.case_remembered) else null,
+                            dimmed = status.caseBatteryRemembered,
+                        )
                     }
                 }
             } else {
@@ -224,10 +232,11 @@ private fun BatteryRing(
     charging: Boolean,
     note: String?,
     size: Dp = 88.dp,
+    dimmed: Boolean = false,
 ) {
     val percent = battery?.percent
     val color = when {
-        percent == null -> MaterialTheme.colorScheme.outline
+        percent == null || dimmed -> MaterialTheme.colorScheme.outline
         percent <= 20 -> MaterialTheme.colorScheme.error
         charging -> MaterialTheme.colorScheme.tertiary
         else -> MaterialTheme.colorScheme.primary
@@ -283,7 +292,7 @@ private fun StatusPill(text: String?) {
 }
 
 @Composable
-private fun DebugCard(status: PodsStatus) {
+private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>) {
     OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.debug_title), style = MaterialTheme.typography.titleSmall)
@@ -296,6 +305,16 @@ private fun DebugCard(status: PodsStatus) {
             // Долгое нажатие выделяет текст: байты можно скопировать и прислать вместо скриншота.
             SelectionContainer {
                 Text(status.rawHex, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+            }
+            if (autoPauseLog.isNotEmpty()) {
+                Text(stringResource(R.string.debug_autopause_log), style = MaterialTheme.typography.titleSmall)
+                SelectionContainer {
+                    Text(
+                        autoPauseLog.joinToString("\n"),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
             }
         }
     }

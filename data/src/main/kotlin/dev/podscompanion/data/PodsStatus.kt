@@ -14,6 +14,8 @@ data class PodsStatus(
     val primary: PodState,
     val caseBattery: BatteryLevel?,
     val caseCharging: Boolean,
+    /** Заряд кейса не из этого пакета, а последний запомненный (крышка закрыта). */
+    val caseBatteryRemembered: Boolean = false,
     val lidCounter: Int,
     val colorCode: Int,
     val rssi: Int,

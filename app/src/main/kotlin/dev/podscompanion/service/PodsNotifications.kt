@@ -56,7 +56,8 @@ internal class PodsNotifications(private val context: Context) {
             context.getString(R.string.notif_right, format(status.right.battery, status.right.charging)),
         )
         if (status.caseBattery != null) {
-            parts += context.getString(R.string.notif_case, format(status.caseBattery, status.caseCharging))
+            val case = format(status.caseBattery, status.caseCharging)
+            parts += context.getString(R.string.notif_case, if (status.caseBatteryRemembered) "~$case" else case)
         }
         return parts.joinToString(" · ")
     }

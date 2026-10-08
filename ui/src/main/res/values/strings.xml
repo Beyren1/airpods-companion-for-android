@@ -16,6 +16,7 @@
     <string name="signal_good">хороший</string>
     <string name="signal_weak">слабый</string>
     <string name="debug_title">Отладка</string>
+    <string name="debug_autopause_log">Журнал автопаузы</string>
     <string name="bg_title">Фоновый режим</string>
     <string name="bg_description">Заряд в шторке уведомлений, даже когда приложение закрыто. Android попросит разрешить уведомления и подключение к устройствам поблизости: второе нужно, чтобы сразу замечать подключение наушников.</string>
     <string name="autopause_title">Автопауза</string>
@@ -29,5 +30,6 @@
     <string name="in_ear">в ухе</string>
     <string name="on_head">на голове</string>
     <string name="in_case">в кейсе</string>
+    <string name="case_remembered">последний</string>
     <string name="charging">Заряжается</string>
 </resources>

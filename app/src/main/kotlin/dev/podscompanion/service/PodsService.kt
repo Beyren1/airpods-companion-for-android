@@ -9,6 +9,7 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
+import android.media.AudioDeviceCallback
 import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
@@ -22,6 +23,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.autopause.EarDetectionPolicy
 import dev.podscompanion.data.autopause.MediaAction
 import dev.podscompanion.data.settings.AppSettings
@@ -40,7 +42,8 @@ import timber.log.Timber
  * Фоновый сервис: держит уведомление с зарядом и делает автопаузу.
  *
  * Экономия батареи:
- * - скан всегда LOW_POWER и с аппаратным фильтром (телефон не просыпается из-за чужих пакетов);
+ * - скан с аппаратным фильтром (телефон не просыпается из-за чужих пакетов);
+ * - LOW_LATENCY только пока подключено Bluetooth-аудио (нужна быстрая автопауза), иначе LOW_POWER;
  * - если наушников не видно [IDLE_AFTER_MS] и Bluetooth-аудио не подключено, скан останавливается;
  * - будит его включение экрана, подключение Bluetooth-устройства или включение Bluetooth.
  */
@@ -49,14 +52,23 @@ class PodsService : LifecycleService() {
 
     @Inject lateinit var repository: PodsRepository
     @Inject lateinit var settingsRepository: SettingsRepository
+    @Inject lateinit var autoPauseLog: AutoPauseLog
 
     private lateinit var notifications: PodsNotifications
     private lateinit var audioManager: AudioManager
     private val policy = EarDetectionPolicy()
 
     private var scanJob: Job? = null
+    private var scanIntensity: ScanIntensity? = null
+    private var lastWorn: Boolean? = null
     private var lastActivityMs = 0L
     private var settings = AppSettings()
+
+    /** Подключили/отключили Bluetooth-наушники: меняем частоту скана. */
+    private val audioDeviceCallback = object : AudioDeviceCallback() {
+        override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = restartScanIfIntensityChanged()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = restartScanIfIntensityChanged()
+    }
 
     private val wakeReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -86,6 +98,7 @@ class PodsService : LifecycleService() {
         }
 
         registerWakeReceiver()
+        audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
 
         lifecycleScope.launch {
             settingsRepository.settings.collect { new ->
@@ -100,6 +113,7 @@ class PodsService : LifecycleService() {
 
     override fun onDestroy() {
         runCatching { unregisterReceiver(wakeReceiver) }
+        runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
         super.onDestroy()
     }
 
@@ -113,12 +127,25 @@ class PodsService : LifecycleService() {
         ContextCompat.registerReceiver(this, wakeReceiver, filter, ContextCompat.RECEIVER_NOT_EXPORTED)
     }
 
+    private fun desiredIntensity() =
+        if (bluetoothAudioConnected()) ScanIntensity.LOW_LATENCY else ScanIntensity.LOW_POWER
+
+    private fun restartScanIfIntensityChanged() {
+        if (scanJob?.isActive == true && scanIntensity != desiredIntensity()) {
+            scanJob?.cancel()
+            scanJob = null
+        }
+        startScan()
+    }
+
     private fun startScan() {
         if (scanJob?.isActive == true) return
         lastActivityMs = SystemClock.elapsedRealtime()
-        Timber.d("scan start")
+        val intensity = desiredIntensity()
+        scanIntensity = intensity
+        Timber.d("scan start %s", intensity)
         scanJob = lifecycleScope.launch {
-            repository.observeNearest(ScanIntensity.LOW_POWER)
+            repository.observeNearest(intensity)
                 .catch { e ->
                     Timber.w(e, "scan stopped")
                     emit(null)
@@ -153,12 +180,28 @@ class PodsService : LifecycleService() {
         if (!settings.autoPause) return
 
         val worn = status?.let(::isWorn)
+        if (worn != lastWorn) {
+            lastWorn = worn
+            autoPauseLog.add(
+                when (worn) {
+                    null -> "наушников не видно"
+                    true -> "надеты"
+                    false -> "сняты"
+                },
+            )
+        }
         // Музыку трогаем, только если звук идёт в Bluetooth: иначе это чужие наушники рядом
         // или пользователь слушает через динамик.
         val playing = audioManager.isMusicActive && bluetoothAudioConnected()
-        when (policy.onUpdate(worn, playing)) {
-            MediaAction.PAUSE -> sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
-            MediaAction.RESUME -> sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+        when (policy.onUpdate(worn, playing, SystemClock.elapsedRealtime())) {
+            MediaAction.PAUSE -> {
+                autoPauseLog.add("→ пауза")
+                sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
+            }
+            MediaAction.RESUME -> {
+                autoPauseLog.add("→ продолжение")
+                sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+            }
             null -> Unit
         }
     }

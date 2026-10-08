@@ -5,25 +5,35 @@ import org.junit.jupiter.api.Test
 
 class NearestPodsSelectorTest {
 
-    private val selector = NearestPodsSelector(minRssi = -75, stickinessDb = 8, staleAfterMs = 10_000)
+    private val selector = NearestPodsSelector(minRssi = -80, stickinessDb = 8, staleAfterMs = 10_000)
+
+    private val mine = PairFingerprint(modelId = 0x1B20, colorCode = 0, leftPercent = 90, rightPercent = 100)
+    private val other = PairFingerprint(modelId = 0x1420, colorCode = 0, leftPercent = 40, rightPercent = 50)
 
     @Test
-    fun `слабый сигнал игнорируется`() {
-        assertThat(selector.accept("A", rssi = -90, nowMs = 0)).isFalse()
+    fun `слабый сигнал незнакомых наушников игнорируется`() {
+        assertThat(selector.accept("A", rssi = -90, fingerprint = mine, nowMs = 0)).isFalse()
     }
 
     @Test
-    fun `прилипаем к первым наушникам, пока чужие не станут заметно ближе`() {
-        assertThat(selector.accept("MINE", -60, 0)).isTrue()
-        assertThat(selector.accept("OTHER", -55, 100)).isFalse() // лучше всего на 5 дБ: не переключаемся
-        assertThat(selector.accept("MINE", -61, 200)).isTrue()
-        assertThat(selector.accept("OTHER", -45, 300)).isTrue() // лучше на 16 дБ: переключаемся
+    fun `прилипаем к своим, пока чужие не станут заметно ближе`() {
+        assertThat(selector.accept("MINE", -60, mine, 0)).isTrue()
+        assertThat(selector.accept("OTHER", -55, other, 100)).isFalse()
+        assertThat(selector.accept("MINE", -61, mine, 200)).isTrue()
+        assertThat(selector.accept("OTHER", -45, other, 300)).isTrue()
+    }
+
+    @Test
+    fun `второй наушник с другого адреса принимается сразу, даже со слабым сигналом`() {
+        assertThat(selector.accept("LEFT", -60, mine, 0)).isTrue()
+        assertThat(selector.accept("RIGHT", -88, mine.copy(rightPercent = null), 500)).isTrue()
+        assertThat(selector.accept("LEFT", -86, mine, 1_000)).isTrue()
     }
 
     @Test
     fun `пропавшие наушники заменяются любыми подходящими`() {
-        assertThat(selector.accept("MINE", -50, 0)).isTrue()
-        assertThat(selector.accept("OTHER", -70, 5_000)).isFalse()
-        assertThat(selector.accept("OTHER", -70, 11_000)).isTrue()
+        assertThat(selector.accept("MINE", -50, mine, 0)).isTrue()
+        assertThat(selector.accept("OTHER", -70, other, 5_000)).isFalse()
+        assertThat(selector.accept("OTHER", -70, other, 11_000)).isTrue()
     }
 }
