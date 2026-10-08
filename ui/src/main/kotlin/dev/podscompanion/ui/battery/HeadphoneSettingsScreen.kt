@@ -2,6 +2,7 @@ package dev.podscompanion.ui.battery
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material.icons.filled.Call
@@ -77,6 +78,16 @@ fun HeadphoneSettingsScreen(
     onBack: () -> Unit,
     gestures: GesturesUi = GesturesUi(),
 ) {
+    val context = LocalContext.current
+    val setAlias = rememberAliasSetter { result ->
+        val text = when (result) {
+            AliasResult.DONE -> R.string.rename_done
+            AliasResult.DECLINED -> R.string.rename_declined
+            AliasResult.FAILED -> R.string.rename_failed
+            AliasResult.UNSUPPORTED -> R.string.rename_old_android
+        }
+        Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -96,7 +107,10 @@ fun HeadphoneSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (session is AapSessionState.Connected) {
-                NameRow(session.deviceName) { onCommand(session.address, AapCommand.Rename(it)) }
+                NameRow(session.deviceName) { name ->
+                    onCommand(session.address, AapCommand.Rename(name))
+                    setAlias(session.address, name)
+                }
                 if (model == null || Capability.HEAD_GESTURES in model.capabilities) {
                     HeadGesturesSection(gestures, onCalibrate = { gestures.onCalibrate(session.address) })
                 }
@@ -128,13 +142,16 @@ data class GesturesUi(
 @Composable
 private fun NameRow(current: String, onRename: (String) -> Unit) {
     var editing by rememberSaveable { mutableStateOf(false) }
+    // Android отдаёт новое имя только после переподключения, поэтому сразу показываем сохранённое.
+    var saved by rememberSaveable(current) { mutableStateOf<String?>(null) }
+    val shown = saved ?: current
     SettingsGroup {
         row {
-            NavRow(stringResource(R.string.setting_name), { editing = true }, icon = Icons.Filled.Edit, description = current)
+            NavRow(stringResource(R.string.setting_name), { editing = true }, icon = Icons.Filled.Edit, description = shown)
         }
     }
     if (editing) {
-        var text by rememberSaveable { mutableStateOf(current) }
+        var text by rememberSaveable { mutableStateOf(shown) }
         val valid = text.isNotBlank() && text.trim().toByteArray().size <= Aap.MAX_NAME_BYTES
         AlertDialog(
             onDismissRequest = { editing = false },
@@ -156,7 +173,7 @@ private fun NameRow(current: String, onRename: (String) -> Unit) {
                 }
             },
             confirmButton = {
-                TextButton(onClick = { onRename(text.trim()); editing = false }, enabled = valid) {
+                TextButton(onClick = { saved = text.trim(); onRename(text.trim()); editing = false }, enabled = valid) {
                     Text(stringResource(R.string.save))
                 }
             },

@@ -53,7 +53,7 @@ data class AapSessions(
             .filter { (_, models) -> model in models }
             .minByOrNull { (_, models) -> models.size }
             ?.first
-            // Переименованные наушники («Мои уши»): если сессия одна, считаем, что это они.
-            ?: sessions.singleOrNull()?.takeIf { ConnectedNameMatcher.modelsForName(it.deviceName).isEmpty() }
+            // Переименованные наушники («Мои уши»): если такая сессия одна, считаем, что это они.
+            ?: sessions.filter { ConnectedNameMatcher.modelsForName(it.deviceName).isEmpty() }.singleOrNull()
     }
 }

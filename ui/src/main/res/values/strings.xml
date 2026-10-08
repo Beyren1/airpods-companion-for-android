@@ -105,7 +105,11 @@
     <string name="mode_tile_nc">Шумоподавление</string>
     <string name="setting_name">Имя</string>
     <string name="rename_limit">Не длиннее %1$d байт (кириллица считается за два)</string>
-    <string name="rename_hint">Android может показывать старое имя, пока наушники не переподключатся.</string>
+    <string name="rename_hint">В первый раз Android спросит разрешение управлять наушниками: без него он не даёт сменить имя в настройках Bluetooth.</string>
+    <string name="rename_done">Имя сохранено</string>
+    <string name="rename_declined">Имя отправлено в наушники, но в Android осталось старое: нужно разрешение управлять наушниками</string>
+    <string name="rename_failed">Имя отправлено в наушники, но Android не дал его сменить</string>
+    <string name="rename_old_android">Имя отправлено в наушники. Android 11 и старше обновит его только после нового сопряжения</string>
     <string name="save">Сохранить</string>
     <string name="cancel">Отмена</string>
     <string name="retry">Повторить</string>
