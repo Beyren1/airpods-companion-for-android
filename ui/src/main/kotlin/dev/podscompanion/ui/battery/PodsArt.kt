@@ -49,11 +49,19 @@ object PodsArt {
         }
     }
 
+    /**
+     * Полноразмерные: жёсткая дуга, под ней сетчатый оголовок (полупрозрачный), короткие штанги,
+     * вытянутые чашки с полоской амбушюры с внутренней стороны и колёсико на правой чашке.
+     */
     val OverEar: ImageVector by lazy {
-        icon("OverEar", 48f, 48f) {
-            stroke("M8 28a16 16 0 0 1 32 0", width = 4f)
-            fill("M9 25h1a5 5 0 0 1 5 5v7a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5v-7a5 5 0 0 1 5-5z")
-            fill("M38 25h1a5 5 0 0 1 5 5v7a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5v-7a5 5 0 0 1 5-5z")
+        icon("OverEar", 64f, 64f) {
+            stroke("M14 31V24a18 18 0 0 1 36 0v7", width = 3.5f)
+            stroke("M19 25a13 11 0 0 1 26 0", width = 5f, alpha = 0.55f)
+            fill("M12.5 28h3v5h-3z")
+            fill("M48.5 28h3v5h-3z")
+            fill("M10 32h8a5 5 0 0 1 5 5v16a5 5 0 0 1-5 5h-8a5 5 0 0 1-5-5V37a5 5 0 0 1 5-5z" + "M18.5 36h1.6v18h-1.6z")
+            fill("M46 32h8a5 5 0 0 1 5 5v16a5 5 0 0 1-5 5h-8a5 5 0 0 1-5-5V37a5 5 0 0 1 5-5z" + "M43.9 36h1.6v18h-1.6z")
+            fill("M54 28.5h3.5v3.5h-3.5z")
         }
     }
 
@@ -66,10 +74,11 @@ object PodsArt {
             )
         }
 
-        fun stroke(d: String, width: Float) {
+        fun stroke(d: String, width: Float, alpha: Float = 1f) {
             builder.addPath(
                 pathData = PathParser().parsePathString(d).toNodes(),
                 stroke = SolidColor(Color.Black),
+                strokeAlpha = alpha,
                 strokeLineWidth = width,
                 strokeLineCap = StrokeCap.Round,
             )
