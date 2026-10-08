@@ -14,6 +14,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.qualifiers.ApplicationContext
+import dev.podscompanion.protocol.aap.Aap
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.channels.awaitClose
@@ -28,8 +29,16 @@ import kotlinx.coroutines.flow.distinctUntilChanged
  * наушников рядом подключены» определяем по имени («AirPods Max», «AirPods Pro Beyren»).
  * Нужно разрешение BLUETOOTH_CONNECT; без него поток отдаёт null («неизвестно»).
  */
-/** Подключённые наушники: имя и заряд, который Android получил от них по HFP (null — неизвестно). */
-data class ConnectedAudioDevice(val name: String, val batteryPercent: Int?)
+/**
+ * Подключённые наушники: имя и заряд, который Android получил от них по HFP (null — неизвестно).
+ * [supportsAap] — в SDP-записи есть сервис AAP, значит это AirPods/Beats и к ним можно подключиться напрямую.
+ */
+data class ConnectedAudioDevice(
+    val name: String,
+    val batteryPercent: Int?,
+    val device: BluetoothDevice,
+    val supportsAap: Boolean,
+)
 
 @Singleton
 class ConnectedAudioDevices @Inject constructor(
@@ -51,7 +60,12 @@ class ConnectedAudioDevices @Inject constructor(
             val devices = runCatching {
                 proxy?.connectedDevices.orEmpty().mapNotNull { device ->
                     val name = device.displayName() ?: return@mapNotNull null
-                    ConnectedAudioDevice(name, batteryByAddress[device.address] ?: device.batteryLevelOrNull())
+                    ConnectedAudioDevice(
+                        name,
+                        batteryByAddress[device.address] ?: device.batteryLevelOrNull(),
+                        device,
+                        supportsAap = device.uuids.orEmpty().any { it.uuid.toString().equals(Aap.SERVICE_UUID, ignoreCase = true) },
+                    )
                 }
             }.getOrDefault(emptyList())
             trySend(devices)

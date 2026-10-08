@@ -61,6 +61,8 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.aap.AapSessions
+import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.data.displayText
 import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.Capability
@@ -85,7 +87,13 @@ fun BatteryRoute(showDebug: Boolean) {
                 val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
                 val settings by viewModel.settings.collectAsStateWithLifecycle()
                 val logLines by viewModel.autoPauseLines.collectAsStateWithLifecycle()
-                BatteryScreen(state, refreshing, viewModel::refresh, showDebug, logLines) {
+                val aapSessions by viewModel.aapSessions.collectAsStateWithLifecycle()
+                val aapLog by viewModel.aapLog.collectAsStateWithLifecycle()
+                BatteryScreen(
+                    state, refreshing, viewModel::refresh, showDebug, logLines,
+                    aapSessions = aapSessions, aapLog = aapLog, onAapCheck = viewModel::checkAap,
+                    onModeSelected = viewModel::setListeningMode,
+                ) {
                     BackgroundCard(settings, viewModel::setBackgroundEnabled, viewModel::setAutoPause)
                 }
             }
@@ -101,6 +109,10 @@ fun BatteryScreen(
     onRefresh: () -> Unit,
     showDebug: Boolean,
     autoPauseLog: List<String> = emptyList(),
+    aapSessions: AapSessions = AapSessions(),
+    aapLog: List<String> = emptyList(),
+    onAapCheck: () -> Unit = {},
+    onModeSelected: (address: String, ListeningMode) -> Unit = { _, _ -> },
     footer: @Composable () -> Unit = {},
 ) {
     // PullToRefreshBox ловит свайп вниз; содержимое должно прокручиваться, иначе жест не дойдёт.
@@ -123,8 +135,11 @@ fun BatteryScreen(
                 is BatteryUiState.Found -> {
                     val main = state.nearby.primary
                     if (main != null) PodsCard(main) else NotConnectedCard()
+                    if (main?.connected == true) {
+                        AapCard(aapSessions.forModel(main.model), aapSessions.noPermission, main.model, onAapCheck, onModeSelected)
+                    }
                     if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others, showDebug)
-                    if (showDebug && main != null) DebugCard(main, autoPauseLog)
+                    if (showDebug && main != null) DebugCard(main, autoPauseLog, aapLog)
                 }
             }
             footer()
@@ -156,8 +171,9 @@ private fun PodsCard(status: PodsStatus) {
             Header(status)
             if (stereo) {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    BatteryRing(stringResource(R.string.left), status.left.battery, status.left.charging, podNote(status.left))
-                    BatteryRing(stringResource(R.string.right), status.right.battery, status.right.charging, podNote(status.right))
+                    val exact = status.exactBattery
+                    BatteryRing(stringResource(R.string.left), status.left.battery, status.left.charging, podNote(status.left), exact = exact)
+                    BatteryRing(stringResource(R.string.right), status.right.battery, status.right.charging, podNote(status.right), exact = exact)
                     if (hasCase) {
                         BatteryRing(
                             stringResource(R.string.case_label),
@@ -165,6 +181,7 @@ private fun PodsCard(status: PodsStatus) {
                             status.caseCharging,
                             if (status.caseBatteryRemembered) stringResource(R.string.case_remembered) else null,
                             dimmed = status.caseBatteryRemembered,
+                            exact = status.aap?.case != null,
                         )
                     }
                 }
@@ -173,7 +190,7 @@ private fun PodsCard(status: PodsStatus) {
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
                     BatteryRing(
                         stringResource(R.string.headphones), pod.battery, pod.charging,
-                        podNote(pod, onHead = true), size = 140.dp,
+                        podNote(pod, onHead = true), size = 140.dp, exact = status.exactBattery,
                     )
                 }
             }
@@ -312,6 +329,7 @@ private fun BatteryRing(
     note: String?,
     size: Dp = 88.dp,
     dimmed: Boolean = false,
+    exact: Boolean = false,
 ) {
     val percent = battery?.percent
     val color = when {
@@ -340,7 +358,7 @@ private fun BatteryRing(
                     )
                 }
                 Text(
-                    battery?.displayText() ?: "—",
+                    battery?.displayText(exact) ?: "—",
                     style = if (size > 100.dp) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                 )
@@ -371,7 +389,7 @@ private fun StatusPill(text: String?) {
 }
 
 @Composable
-private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>) {
+private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>, aapLog: List<String>) {
     OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.debug_title), style = MaterialTheme.typography.titleSmall)
@@ -411,6 +429,16 @@ private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>) {
                 SelectionContainer {
                     Text(
                         autoPauseLog.joinToString("\n"),
+                        style = MaterialTheme.typography.bodySmall,
+                        fontFamily = FontFamily.Monospace,
+                    )
+                }
+            }
+            if (aapLog.isNotEmpty()) {
+                Text(stringResource(R.string.debug_aap_log), style = MaterialTheme.typography.titleSmall)
+                SelectionContainer {
+                    Text(
+                        aapLog.joinToString("\n"),
                         style = MaterialTheme.typography.bodySmall,
                         fontFamily = FontFamily.Monospace,
                     )

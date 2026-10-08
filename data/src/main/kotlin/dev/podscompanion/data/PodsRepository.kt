@@ -5,6 +5,10 @@ import dev.podscompanion.bluetooth.scan.AdvertisementEvent
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.bluetooth.scan.PodsScanner
 import dev.podscompanion.bluetooth.scan.ScanIntensity
+import dev.podscompanion.data.aap.AapOverlay
+import dev.podscompanion.data.aap.AapRepository
+import dev.podscompanion.data.aap.AapSessionState
+import dev.podscompanion.data.aap.AapSessions
 import dev.podscompanion.protocol.advertising.Capability
 import dev.podscompanion.protocol.util.Hex
 import javax.inject.Inject
@@ -20,6 +24,7 @@ class PodsRepository @Inject constructor(
     private val scanner: PodsScanner,
     private val connectedAudio: ConnectedAudioDevices,
     private val caseCache: CaseBatteryCache,
+    private val aap: AapRepository,
 ) {
     /**
      * Все наушники рядом; главные — подключённые к телефону (см. [NearbyPodsTracker.snapshot]).
@@ -36,8 +41,32 @@ class PodsRepository @Inject constructor(
         // главными становятся ближайшие наушники, а потом прыгают в список «рядом».
         var namesKnown = false
         fun now() = SystemClock.elapsedRealtime()
+        var aapSessions = AapSessions()
+        var aapSide: AapOverlay.Side? = null
         suspend fun emit() {
-            if (namesKnown) send(tracker.snapshot(now(), connectedNames, connectedBatteries))
+            if (!namesKnown) return
+            val nearby = tracker.snapshot(now(), connectedNames, connectedBatteries)
+            val primary = nearby.primary
+            val session = aapSessions.forModel(primary?.model)
+            // Прямое подключение есть только к подключённым наушникам: накладываем его только на них.
+            send(
+                if (session is AapSessionState.Connected && primary != null && primary.connected) {
+                    val side = AapOverlay.resolveSide(primary, session.device, aapSide)
+                    aapSide = side
+                    nearby.copy(primary = AapOverlay.apply(primary, session.device, side.primaryIsLeftNow(session.device)))
+                } else {
+                    aapSide = null
+                    nearby
+                },
+            )
+        }
+
+        launch {
+            // Каждое событие AAP (вынули наушник) сразу даёт новое состояние, без ожидания рекламы.
+            aap.state.collect {
+                aapSessions = it
+                emit()
+            }
         }
 
         launch {
@@ -84,6 +113,7 @@ class PodsRepository @Inject constructor(
         rssi = rssi,
         lastSeenMs = elapsedRealtimeMs,
         rawHex = Hex.encode(message.raw),
+        primaryIsLeft = message.primaryIsLeft,
     )
 
     private companion object {
