@@ -42,6 +42,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import dev.podscompanion.protocol.util.Hex
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -62,7 +69,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.aap.AapSessions
-import dev.podscompanion.protocol.aap.ListeningMode
+import dev.podscompanion.data.aap.AapSessionState
+import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.data.displayText
 import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.Capability
@@ -92,7 +100,7 @@ fun BatteryRoute(showDebug: Boolean) {
                 BatteryScreen(
                     state, refreshing, viewModel::refresh, showDebug, logLines,
                     aapSessions = aapSessions, aapLog = aapLog, onAapCheck = viewModel::checkAap,
-                    onModeSelected = viewModel::setListeningMode,
+                    onCommand = viewModel::send,
                 ) {
                     BackgroundCard(settings, viewModel::setBackgroundEnabled, viewModel::setAutoPause)
                 }
@@ -112,7 +120,7 @@ fun BatteryScreen(
     aapSessions: AapSessions = AapSessions(),
     aapLog: List<String> = emptyList(),
     onAapCheck: () -> Unit = {},
-    onModeSelected: (address: String, ListeningMode) -> Unit = { _, _ -> },
+    onCommand: (address: String, AapCommand) -> Unit = { _, _ -> },
     footer: @Composable () -> Unit = {},
 ) {
     // PullToRefreshBox ловит свайп вниз; содержимое должно прокручиваться, иначе жест не дойдёт.
@@ -135,11 +143,18 @@ fun BatteryScreen(
                 is BatteryUiState.Found -> {
                     val main = state.nearby.primary
                     if (main != null) PodsCard(main) else NotConnectedCard()
+                    val session = if (main?.connected == true) aapSessions.forModel(main.model) else null
                     if (main?.connected == true) {
-                        AapCard(aapSessions.forModel(main.model), aapSessions.noPermission, main.model, onAapCheck, onModeSelected)
+                        AapCard(session, aapSessions.noPermission, main.model, onAapCheck, onCommand)
                     }
+                    if (session is AapSessionState.Connected) HeadphoneSettingsCard(session, main?.model, onCommand)
                     if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others, showDebug)
-                    if (showDebug && main != null) DebugCard(main, autoPauseLog, aapLog)
+                    if (showDebug && main != null) {
+                        val onSendRaw = (session as? AapSessionState.Connected)?.let { connected ->
+                            { bytes: ByteArray -> onCommand(connected.address, AapCommand.Raw(bytes)) }
+                        }
+                        DebugCard(main, autoPauseLog, aapLog, onSendRaw)
+                    }
                 }
             }
             footer()
@@ -389,7 +404,12 @@ private fun StatusPill(text: String?) {
 }
 
 @Composable
-private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>, aapLog: List<String>) {
+private fun DebugCard(
+    status: PodsStatus,
+    autoPauseLog: List<String>,
+    aapLog: List<String>,
+    onSendRaw: ((ByteArray) -> Unit)? = null,
+) {
     OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Text(stringResource(R.string.debug_title), style = MaterialTheme.typography.titleSmall)
@@ -434,6 +454,7 @@ private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>, aapLog: Li
                     )
                 }
             }
+            if (onSendRaw != null) RawSender(onSendRaw)
             if (aapLog.isNotEmpty()) {
                 Text(stringResource(R.string.debug_aap_log), style = MaterialTheme.typography.titleSmall)
                 SelectionContainer {
@@ -444,6 +465,30 @@ private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>, aapLog: Li
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * Отправка своих байтов наушникам: так сверяем команды, в которых не уверены.
+ * Ответ наушников появится в журнале AAP ниже.
+ */
+@Composable
+private fun RawSender(onSend: (ByteArray) -> Unit) {
+    var text by rememberSaveable { mutableStateOf("04 00 04 00 09 00 ") }
+    val bytes = remember(text) { runCatching { Hex.decode(text) }.getOrNull()?.takeIf { it.size >= 6 } }
+    Text(stringResource(R.string.debug_send_title), style = MaterialTheme.typography.titleSmall)
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        OutlinedTextField(
+            value = text,
+            onValueChange = { text = it.uppercase() },
+            modifier = Modifier.weight(1f),
+            textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+            isError = bytes == null,
+            singleLine = true,
+        )
+        FilledTonalButton(onClick = { bytes?.let(onSend) }, enabled = bytes != null) {
+            Text(stringResource(R.string.debug_send))
         }
     }
 }

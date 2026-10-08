@@ -45,6 +45,37 @@ class AapParserTest {
     }
 
     @Test
+    fun `прочие настройки сохраняются и читаются`() {
+        val event = AapParser.parse(Hex.decode("04 00 04 00 09 00 16 05 01 00 00"))
+        assertThat(event).isEqualTo(AapEvent.ControlChanged(ControlId.PRESS_AND_HOLD, listOf(0x05, 0x01, 0x00, 0x00)))
+
+        val state = AapDeviceState()
+            .apply(event!!)
+            .apply(AapParser.parse(Hex.decode("04 00 04 00 09 00 01 02 00 00 00"))!!)
+            .apply(AapParser.parse(Hex.decode("04 00 04 00 09 00 1A 0E 00 00 00"))!!)
+            .apply(AapParser.parse(Hex.decode("04 00 04 00 09 00 28 02 00 00 00"))!!)
+        assertThat(state.pressAndHold).isEqualTo(PressAndHold(right = PressAction.NOISE_CONTROL, left = PressAction.VOICE_ASSISTANT))
+        assertThat(state.micMode).isEqualTo(MicMode.ALWAYS_LEFT)
+        assertThat(state.modeCycle).containsExactly(
+            ListeningMode.NOISE_CANCELLATION, ListeningMode.TRANSPARENCY, ListeningMode.ADAPTIVE,
+        )
+        assertThat(state.toggle(AapToggle.CONVERSATIONAL_AWARENESS)).isFalse()
+        assertThat(state.toggle(AapToggle.EAR_DETECTION)).isNull()
+    }
+
+    @Test
+    fun `команды настроек`() {
+        assertThat(Hex.encode(AapCommand.SetToggle(AapToggle.CONVERSATIONAL_AWARENESS, true).bytes))
+            .isEqualTo("04 00 04 00 09 00 28 01 00 00 00")
+        assertThat(Hex.encode(AapCommand.SetMicMode(MicMode.ALWAYS_RIGHT).bytes))
+            .isEqualTo("04 00 04 00 09 00 01 01 00 00 00")
+        assertThat(Hex.encode(AapCommand.SetPressAndHold(PressAction.NOISE_CONTROL, PressAction.VOICE_ASSISTANT).bytes))
+            .isEqualTo("04 00 04 00 09 00 16 05 01 00 00")
+        assertThat(Hex.encode(AapCommand.SetModeCycle(setOf(ListeningMode.OFF, ListeningMode.NOISE_CANCELLATION)).bytes))
+            .isEqualTo("04 00 04 00 09 00 1A 03 00 00 00")
+    }
+
+    @Test
     fun `неизвестное и битое — Unknown, не AAP — null`() {
         assertThat(AapParser.parse(Hex.decode("04 00 04 00 2B 00 01"))).isInstanceOf(AapEvent.Unknown::class.java)
         assertThat(AapParser.parse(Hex.decode("04 00 04 00 04 00 05 02"))).isInstanceOf(AapEvent.Unknown::class.java)

@@ -111,6 +111,9 @@ sealed interface AapEvent {
 
     data class ConversationalAwarenessChanged(val enabled: Boolean) : AapEvent
 
+    /** Любая другая настройка из пакета CONTROL: [id] из [ControlId], значение — 4 байта. */
+    data class ControlChanged(val id: Int, val value: List<Int>) : AapEvent
+
     /** Всё, что пока не разбираем: попадёт в журнал AAP для реверса. */
     data class Unknown(val opcode: Int, val raw: ByteArray) : AapEvent {
         override fun equals(other: Any?) = other is Unknown && opcode == other.opcode && raw.contentEquals(other.raw)
@@ -119,9 +122,6 @@ sealed interface AapEvent {
 }
 
 object AapParser {
-    private const val CONTROL_LISTENING_MODE = 0x0D
-    private const val CONTROL_CONVERSATIONAL_AWARENESS = 0x28
-
     /** null — не AAP-пакет (например, ответ на handshake другого формата). */
     fun parse(data: ByteArray): AapEvent? {
         if (!Aap.isAapPacket(data)) return null
@@ -153,9 +153,9 @@ object AapParser {
     }
 
     // 04 00 04 00 09 00 <id> <value> 00 00 00
-    private fun parseControl(data: ByteArray): AapEvent? = when (data.u8(6)) {
-        CONTROL_LISTENING_MODE -> AapEvent.ListeningModeChanged(ListeningMode.of(data.u8(7)))
-        CONTROL_CONVERSATIONAL_AWARENESS -> AapEvent.ConversationalAwarenessChanged(data.u8(7) == 0x01)
-        else -> null
+    private fun parseControl(data: ByteArray): AapEvent = when (val id = data.u8(6)) {
+        ControlId.LISTENING_MODE -> AapEvent.ListeningModeChanged(ListeningMode.of(data.u8(7)))
+        ControlId.CONVERSATIONAL_AWARENESS -> AapEvent.ConversationalAwarenessChanged(data.u8(7) == 0x01)
+        else -> AapEvent.ControlChanged(id, (7 until minOf(data.size, 11)).map { data.u8(it) })
     }
 }
