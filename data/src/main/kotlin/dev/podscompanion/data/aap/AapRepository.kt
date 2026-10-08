@@ -137,6 +137,8 @@ class AapRepository @Inject constructor(
                         is AapIo.Received -> {
                             val event = AapParser.parse(io.data)
                             if (event is AapEvent.HeadMotion) {
+                                // Первый пакет целиком: по нему проверяем, где в нём лежат углы.
+                                if (motionPackets == 0) log.add("← ${Hex.encode(io.data)} · датчики головы")
                                 if (motionPackets++ % MOTION_LOG_EVERY == 0) log.add("${target.name}: датчики головы ${event.orientation}")
                                 _headMotion.tryEmit(HeadSample(address, SystemClock.elapsedRealtime(), event))
                                 return@collect

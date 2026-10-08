@@ -241,9 +241,15 @@ private fun CalibrationDialog(state: CalibrationState, onRetry: () -> Unit, onDi
                         LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
                     }
                     CalibrationState.Done -> Text(stringResource(R.string.calibration_done))
-                    is CalibrationState.Failed -> Text(
-                        stringResource(if (state.noData) R.string.calibration_no_data else R.string.calibration_failed),
-                    )
+                    is CalibrationState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(if (state.noData) R.string.calibration_no_data else R.string.calibration_failed))
+                        // Цифры для отладки: пришлите их, если ошибка повторяется.
+                        Text(
+                            state.details,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                     CalibrationState.Idle -> Unit
                 }
             }

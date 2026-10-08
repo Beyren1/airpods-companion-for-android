@@ -46,7 +46,8 @@ sealed interface CalibrationState {
     data object Idle : CalibrationState
     data class Recording(val step: Step, val progress: Float) : CalibrationState
     data object Done : CalibrationState
-    data class Failed(val noData: Boolean) : CalibrationState
+    /** [details] — сколько пакетов пришло и размах углов: по ним видно, что пошло не так. */
+    data class Failed(val noData: Boolean, val details: String = "") : CalibrationState
 }
 
 sealed interface BatteryUiState {
@@ -62,12 +63,12 @@ class BatteryViewModel @Inject constructor(
     private val settingsRepository: SettingsRepository,
     autoPauseLog: AutoPauseLog,
     private val aapRepository: AapRepository,
-    aapLog: AapLog,
+    private val aapLogger: AapLog,
 ) : ViewModel() {
 
     /** Прямое подключение к наушникам (расширенный режим) и его журнал для отладки. */
     val aapSessions: StateFlow<AapSessions> = aapRepository.state
-    val aapLog: StateFlow<List<String>> = aapLog.lines
+    val aapLog: StateFlow<List<String>> = aapLogger.lines
 
     /** Кнопка «Проверить расширенный режим». */
     fun checkAap() = aapRepository.retryNow()
@@ -98,8 +99,11 @@ class BatteryViewModel @Inject constructor(
                 val nod = record(address, CalibrationState.Step.NOD)
                 val shake = record(address, CalibrationState.Step.SHAKE)
                 val result = HeadCalibrator.calibrate(nod, shake)
+                val details = "кивок: ${nod.size} пак., размах ${nod.ranges().joinToString("/")}; " +
+                    "покачивание: ${shake.size} пак., размах ${shake.ranges().joinToString("/")}"
+                aapLogger.add("калибровка жестов: $details")
                 if (result == null) {
-                    _calibration.value = CalibrationState.Failed(noData = nod.size == 0)
+                    _calibration.value = CalibrationState.Failed(noData = nod.size == 0 && shake.size == 0, details = details)
                 } else {
                     settingsRepository.setHeadCalibration(result)
                     settingsRepository.setHeadGestures(true)
