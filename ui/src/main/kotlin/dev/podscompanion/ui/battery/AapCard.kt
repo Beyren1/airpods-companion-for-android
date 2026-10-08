@@ -10,7 +10,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -41,12 +40,13 @@ import dev.podscompanion.ui.R
  */
 @Composable
 fun AapCard(
-    state: AapSessionState,
+    state: AapSessionState?,
+    noPermission: Boolean,
     model: PodsModel?,
     onCheck: () -> Unit,
-    onModeSelected: (ListeningMode) -> Unit,
+    onModeSelected: (address: String, ListeningMode) -> Unit,
 ) {
-    if (state is AapSessionState.NoDevice) return
+    if (state == null && !noPermission) return
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -59,8 +59,7 @@ fun AapCard(
                     is AapSessionState.Connecting -> CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                     is AapSessionState.Connected -> Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
                     is AapSessionState.Failed -> Icon(Icons.Filled.LinkOff, null, tint = MaterialTheme.colorScheme.error)
-                    AapSessionState.NoPermission -> Icon(Icons.Filled.ErrorOutline, null, tint = MaterialTheme.colorScheme.error)
-                    AapSessionState.NoDevice -> Icon(Icons.Filled.Link, null)
+                    null -> Icon(Icons.Filled.ErrorOutline, null, tint = MaterialTheme.colorScheme.error)
                 }
                 Text(
                     stringResource(R.string.aap_title),
@@ -76,7 +75,7 @@ fun AapCard(
             if (state is AapSessionState.Connected) {
                 val modes = availableModes(model)
                 if (modes.isNotEmpty()) {
-                    ModeSelector(modes, state.device.listeningMode, onModeSelected)
+                    ModeSelector(modes, state.device.listeningMode) { onModeSelected(state.address, it) }
                 } else {
                     state.device.listeningMode?.let {
                         Text(stringResource(R.string.aap_listening_mode, modeText(it)), style = MaterialTheme.typography.bodyMedium)
@@ -138,9 +137,8 @@ private fun shortModeText(mode: ListeningMode): String = stringResource(
 )
 
 @Composable
-private fun statusText(state: AapSessionState): String = when (state) {
-    AapSessionState.NoPermission -> stringResource(R.string.aap_no_permission)
-    AapSessionState.NoDevice -> ""
+private fun statusText(state: AapSessionState?): String = when (state) {
+    null -> stringResource(R.string.aap_no_permission)
     is AapSessionState.Connecting -> stringResource(R.string.aap_connecting, state.deviceName)
     is AapSessionState.Connected -> stringResource(R.string.aap_connected, state.deviceName)
     is AapSessionState.Failed -> when (state.reason) {

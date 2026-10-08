@@ -61,7 +61,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.PodsStatus
-import dev.podscompanion.data.aap.AapSessionState
+import dev.podscompanion.data.aap.AapSessions
 import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.data.displayText
 import dev.podscompanion.protocol.advertising.BatteryLevel
@@ -87,11 +87,11 @@ fun BatteryRoute(showDebug: Boolean) {
                 val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
                 val settings by viewModel.settings.collectAsStateWithLifecycle()
                 val logLines by viewModel.autoPauseLines.collectAsStateWithLifecycle()
-                val aapState by viewModel.aapState.collectAsStateWithLifecycle()
+                val aapSessions by viewModel.aapSessions.collectAsStateWithLifecycle()
                 val aapLog by viewModel.aapLog.collectAsStateWithLifecycle()
                 BatteryScreen(
                     state, refreshing, viewModel::refresh, showDebug, logLines,
-                    aapState = aapState, aapLog = aapLog, onAapCheck = viewModel::checkAap,
+                    aapSessions = aapSessions, aapLog = aapLog, onAapCheck = viewModel::checkAap,
                     onModeSelected = viewModel::setListeningMode,
                 ) {
                     BackgroundCard(settings, viewModel::setBackgroundEnabled, viewModel::setAutoPause)
@@ -109,10 +109,10 @@ fun BatteryScreen(
     onRefresh: () -> Unit,
     showDebug: Boolean,
     autoPauseLog: List<String> = emptyList(),
-    aapState: AapSessionState = AapSessionState.NoDevice,
+    aapSessions: AapSessions = AapSessions(),
     aapLog: List<String> = emptyList(),
     onAapCheck: () -> Unit = {},
-    onModeSelected: (ListeningMode) -> Unit = {},
+    onModeSelected: (address: String, ListeningMode) -> Unit = { _, _ -> },
     footer: @Composable () -> Unit = {},
 ) {
     // PullToRefreshBox ловит свайп вниз; содержимое должно прокручиваться, иначе жест не дойдёт.
@@ -135,7 +135,9 @@ fun BatteryScreen(
                 is BatteryUiState.Found -> {
                     val main = state.nearby.primary
                     if (main != null) PodsCard(main) else NotConnectedCard()
-                    AapCard(aapState, main?.model, onAapCheck, onModeSelected)
+                    if (main?.connected == true) {
+                        AapCard(aapSessions.forModel(main.model), aapSessions.noPermission, main.model, onAapCheck, onModeSelected)
+                    }
                     if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others, showDebug)
                     if (showDebug && main != null) DebugCard(main, autoPauseLog, aapLog)
                 }

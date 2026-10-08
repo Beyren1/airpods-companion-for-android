@@ -9,7 +9,7 @@ import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.aap.AapLog
 import dev.podscompanion.data.aap.AapRepository
-import dev.podscompanion.data.aap.AapSessionState
+import dev.podscompanion.data.aap.AapSessions
 import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.settings.AppSettings
@@ -47,13 +47,13 @@ class BatteryViewModel @Inject constructor(
 ) : ViewModel() {
 
     /** Прямое подключение к наушникам (расширенный режим) и его журнал для отладки. */
-    val aapState: StateFlow<AapSessionState> = aapRepository.state
+    val aapSessions: StateFlow<AapSessions> = aapRepository.state
     val aapLog: StateFlow<List<String>> = aapLog.lines
 
     /** Кнопка «Проверить расширенный режим». */
     fun checkAap() = aapRepository.retryNow()
 
-    fun setListeningMode(mode: ListeningMode) = aapRepository.setListeningMode(mode)
+    fun setListeningMode(address: String, mode: ListeningMode) = aapRepository.setListeningMode(address, mode)
 
     /** Журнал автопаузы из сервиса, показывается в карточке отладки. */
     val autoPauseLines: StateFlow<List<String>> = autoPauseLog.lines

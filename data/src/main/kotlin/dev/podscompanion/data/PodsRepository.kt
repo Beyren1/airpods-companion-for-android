@@ -8,6 +8,7 @@ import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.aap.AapOverlay
 import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.aap.AapSessionState
+import dev.podscompanion.data.aap.AapSessions
 import dev.podscompanion.protocol.advertising.Capability
 import dev.podscompanion.protocol.util.Hex
 import javax.inject.Inject
@@ -40,13 +41,13 @@ class PodsRepository @Inject constructor(
         // главными становятся ближайшие наушники, а потом прыгают в список «рядом».
         var namesKnown = false
         fun now() = SystemClock.elapsedRealtime()
-        var aapState: AapSessionState = AapSessionState.NoDevice
+        var aapSessions = AapSessions()
         var aapPrimaryIsLeft: Boolean? = null
         suspend fun emit() {
             if (!namesKnown) return
             val nearby = tracker.snapshot(now(), connectedNames, connectedBatteries)
-            val session = aapState
             val primary = nearby.primary
+            val session = aapSessions.forModel(primary?.model)
             // Прямое подключение есть только к подключённым наушникам: накладываем его только на них.
             send(
                 if (session is AapSessionState.Connected && primary != null && primary.connected) {
@@ -63,7 +64,7 @@ class PodsRepository @Inject constructor(
         launch {
             // Каждое событие AAP (вынули наушник) сразу даёт новое состояние, без ожидания рекламы.
             aap.state.collect {
-                aapState = it
+                aapSessions = it
                 emit()
             }
         }
