@@ -66,7 +66,7 @@ class HeadGesturesTest {
     @Test
     fun `пакет датчиков и переименование`() {
         val data = ByteArray(60).also {
-            Hex.decode("04 00 04 00 17 00").copyInto(it)
+            Hex.decode("04 00 04 00 17 00 00 00 10 00").copyInto(it)
             it[43] = 0x10; it[44] = 0x00       // 16
             it[45] = 0xF0.toByte(); it[46] = 0xFF.toByte() // −16
             it[51] = 0x02; it[52] = 0x01       // 258
@@ -74,6 +74,14 @@ class HeadGesturesTest {
         val event = AapParser.parse(data) as AapEvent.HeadMotion
         assertThat(event.orientation).containsExactly(16, -16, 0).inOrder()
         assertThat(event.horizontal).isEqualTo(258)
+
+        // Список блоков от AirPods 4 сразу после подключения — не датчики.
+        val directory = Hex.decode(
+            "04 00 04 00 17 00 00 00 04 00 00 34 00 06 00 00 06 41 50 00 00 00 80 00 00 41 4F 50 " +
+                "00 00 80 00 00 52 54 50 00 00 80 00 00 42 54 4D 00 00 80 00 00 44 53 50 31 00 80 00 00 " +
+                "44 53 50 32 00 80 00 00",
+        )
+        assertThat(AapParser.parse(directory)).isInstanceOf(AapEvent.Unknown::class.java)
 
         assertThat(Hex.encode(Aap.rename("Мои"))).isEqualTo("04 00 04 00 1A 00 01 06 00 D0 9C D0 BE D0 B8")
         assertThat(Aap.rename("x".repeat(40)).size).isEqualTo(9 + Aap.MAX_NAME_BYTES)

@@ -194,8 +194,10 @@ object AapParser {
 
     // Пакет датчиков: углы со смещения 43, 45, 47, ускорения с 51 и 53 (little-endian, со знаком).
     // Другие пакеты 0x17 (короче) остаются Unknown.
+    // На опкоде 0x17 идут разные сообщения: после подключения AirPods 4 присылают по нему список
+    // своих блоков («AP», «AOP», «BTM», «DSP1»…, байт 8 = 0x04). Углы — только в потоке с байтом 8 = 0x10.
     private fun parseHeadMotion(data: ByteArray): AapEvent? {
-        if (data.size < HEAD_MOTION_MIN_SIZE) return null
+        if (data.size < HEAD_MOTION_MIN_SIZE || data.u8(8) != HEAD_STREAM) return null
         return AapEvent.HeadMotion(
             orientation = listOf(data.s16(43), data.s16(45), data.s16(47)),
             horizontal = data.s16(51),
@@ -206,6 +208,7 @@ object AapParser {
     private fun ByteArray.s16(index: Int): Int = ((u8(index) or (u8(index + 1) shl 8)).toShort()).toInt()
 
     private const val HEAD_MOTION_MIN_SIZE = 55
+    private const val HEAD_STREAM = 0x10
 
     // 04 00 04 00 09 00 <id> <value> 00 00 00
     private fun parseControl(data: ByteArray): AapEvent = when (val id = data.u8(6)) {
