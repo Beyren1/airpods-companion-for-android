@@ -44,12 +44,7 @@
             </intent-filter>
         </activity>
 
-        <!-- Этап 2. -->
-        <service
-            android:name=".service.PodsService"
-            android:exported="false"
-            android:foregroundServiceType="connectedDevice" />
-
-        <!-- Этап 5: виджет и Quick Settings Tile добавим здесь. -->
+        <!-- Код 2: здесь появится PodsService (foregroundServiceType="connectedDevice"). -->
+        <!-- Код 5: виджет и Quick Settings Tile. -->
     </application>
 </manifest>
