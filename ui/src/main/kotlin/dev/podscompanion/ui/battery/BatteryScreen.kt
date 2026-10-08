@@ -466,7 +466,7 @@ private val previewStatus = PodsStatus(
 @Preview(showBackground = true)
 @Composable
 private fun FoundPreview() {
-    PodsCompanionTheme { BatteryScreen(BatteryUiState.Found(NearbyPods(previewStatus.copy(connected = true), listOf(previewStatus.copy(model = PodsModel.AIRPODS_MAX_USB_C, modelId = 0x1F20))))), false, {}, showDebug = true) }
+    PodsCompanionTheme { BatteryScreen(BatteryUiState.Found(NearbyPods(previewStatus.copy(connected = true), listOf(previewStatus.copy(model = PodsModel.AIRPODS_MAX_USB_C, modelId = 0x1F20)))), false, {}, showDebug = true) }
 }
 
 @Preview(showBackground = true)
