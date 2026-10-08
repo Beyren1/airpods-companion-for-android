@@ -56,7 +56,7 @@ object PodsArt {
     val OverEar: ImageVector by lazy {
         icon("OverEar", 64f, 64f) {
             stroke("M14 31V24a18 18 0 0 1 36 0v7", width = 3.5f)
-            stroke("M19 25a13 11 0 0 1 26 0", width = 5f, alpha = 0.55f)
+            stroke("M18 31a14 13 0 0 1 28 0", width = 4.5f, alpha = 0.55f)
             fill("M12.5 28h3v5h-3z")
             fill("M48.5 28h3v5h-3z")
             fill("M10 32h8a5 5 0 0 1 5 5v16a5 5 0 0 1-5 5h-8a5 5 0 0 1-5-5V37a5 5 0 0 1 5-5z" + "M18.5 36h1.6v18h-1.6z")
