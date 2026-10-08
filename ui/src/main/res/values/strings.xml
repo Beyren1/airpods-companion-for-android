@@ -14,5 +14,7 @@
     <string name="headphones">Наушники</string>
     <string name="case_label">Кейс</string>
     <string name="in_ear">в ухе</string>
+    <string name="on_head">на голове</string>
+    <string name="in_case">в кейсе</string>
     <string name="charging">Заряжается</string>
 </resources>

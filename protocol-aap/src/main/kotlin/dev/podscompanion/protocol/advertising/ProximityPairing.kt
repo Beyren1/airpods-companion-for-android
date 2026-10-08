@@ -18,6 +18,7 @@ data class PodState(
     val battery: BatteryLevel?,
     val charging: Boolean,
     val inEar: Boolean,
+    val inCase: Boolean = false,
 )
 
 /**
@@ -29,8 +30,8 @@ data class PodState(
  * 1      длина = 0x19
  * 2      префикс
  * 3..4   model ID (big-endian)
- * 5      статус (ухо, какой наушник основной)
- * 6      заряд: младший nibble = основной наушник, старший = второй
+ * 5      статус: флаги «в ухе» / «в кейсе», какой стороной является отправитель
+ * 6      заряд: младший nibble = наушник-отправитель, старший = второй
  * 7      старший nibble = флаги зарядки, младший = заряд кейса
  * 8      счётчик открытий крышки
  * 9      цвет
@@ -63,9 +64,14 @@ data class ProximityPairingMessage(
 }
 
 object ProximityPairingParser {
+    // Пакет шлёт один наушник («этот», primary), а про второй сообщает с его слов.
+    // Значения битов сверены по реальным пакетам AirPods 4 ANC (см. RealDumpsTest):
     private const val STATUS_PRIMARY_IN_EAR = 0x02
+    private const val STATUS_BOTH_IN_CASE = 0x04 // гипотеза, в дампах пока не встречался
     private const val STATUS_SECONDARY_IN_EAR = 0x08
+    private const val STATUS_ONE_IN_CASE = 0x10 // ровно один наушник в кейсе (какой, говорит 0x40)
     private const val STATUS_PRIMARY_IS_LEFT = 0x20
+    private const val STATUS_PRIMARY_IN_CASE = 0x40
 
     private const val CHARGING_PRIMARY = 0x1
     private const val CHARGING_SECONDARY = 0x2
@@ -89,15 +95,24 @@ object ProximityPairingParser {
         val primaryIsLeft = status and STATUS_PRIMARY_IS_LEFT != 0
         val chargingFlags = chargeAndCase shr 4
 
+        val bothInCase = status and STATUS_BOTH_IN_CASE != 0
+        val oneInCase = status and STATUS_ONE_IN_CASE != 0
+        val primaryInCase = bothInCase || status and STATUS_PRIMARY_IN_CASE != 0
+        val secondaryInCase = bothInCase || (oneInCase && !primaryInCase)
+
+        // Флаг «в ухе» у наушника, только что положенного в кейс, бывает ещё не сброшен
+        // (реальный пакет: правый в кейсе, а бит 0x02 стоит), поэтому «в кейсе» важнее.
         val primary = PodState(
             battery = nibbleToBattery(batteries and 0x0F),
             charging = chargingFlags and CHARGING_PRIMARY != 0,
-            inEar = status and STATUS_PRIMARY_IN_EAR != 0,
+            inEar = !primaryInCase && status and STATUS_PRIMARY_IN_EAR != 0,
+            inCase = primaryInCase,
         )
         val secondary = PodState(
             battery = nibbleToBattery(batteries shr 4),
             charging = chargingFlags and CHARGING_SECONDARY != 0,
-            inEar = status and STATUS_SECONDARY_IN_EAR != 0,
+            inEar = !secondaryInCase && status and STATUS_SECONDARY_IN_EAR != 0,
+            inCase = secondaryInCase,
         )
 
         return ProximityPairingMessage(

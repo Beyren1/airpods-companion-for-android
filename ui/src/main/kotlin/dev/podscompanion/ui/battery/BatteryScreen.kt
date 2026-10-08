@@ -87,7 +87,11 @@ private fun PodsCard(status: PodsStatus, showDebug: Boolean) {
                 PodRow(stringResource(R.string.right), status.right)
             } else {
                 // У Max в пакете одно значение; где именно оно лежит, уточним по дампу.
-                PodRow(stringResource(R.string.headphones), status.left.takeIf { it.battery != null } ?: status.right)
+                PodRow(
+                    stringResource(R.string.headphones),
+                    status.left.takeIf { it.battery != null } ?: status.right,
+                    onHead = true,
+                )
             }
             if (model == null || Capability.CHARGING_CASE in model.capabilities) {
                 BatteryRow(stringResource(R.string.case_label), status.caseBattery, status.caseCharging, null)
@@ -104,8 +108,13 @@ private fun PodsCard(status: PodsStatus, showDebug: Boolean) {
 }
 
 @Composable
-private fun PodRow(label: String, pod: PodState) {
-    val ear = if (pod.inEar) stringResource(R.string.in_ear) else null
+private fun PodRow(label: String, pod: PodState, onHead: Boolean = false) {
+    val ear = when {
+        pod.inCase -> stringResource(R.string.in_case)
+        !pod.inEar -> null
+        onHead -> stringResource(R.string.on_head)
+        else -> stringResource(R.string.in_ear)
+    }
     BatteryRow(label, pod.battery, pod.charging, ear)
 }
 

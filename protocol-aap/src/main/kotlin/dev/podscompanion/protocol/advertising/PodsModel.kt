@@ -29,14 +29,13 @@ enum class PodsModel(
         0x1B20, "AirPods 4 (ANC)",
         BASIC + Capability.NOISE_CONTROL + Capability.ADAPTIVE_AUDIO +
             Capability.CONVERSATIONAL_AWARENESS + Capability.HEAD_GESTURES,
-        verified = false,
     ),
     AIRPODS_PRO(0x0E20, "AirPods Pro", BASIC + Capability.NOISE_CONTROL),
     AIRPODS_PRO_2(0x1420, "AirPods Pro 2", PRO_2),
     AIRPODS_PRO_2_USB_C(0x2420, "AirPods Pro 2 (USB-C)", PRO_2),
     AIRPODS_PRO_3(0x2720, "AirPods Pro 3", PRO_2, verified = false),
     AIRPODS_MAX(0x0A20, "AirPods Max", MAX),
-    AIRPODS_MAX_USB_C(0x1F20, "AirPods Max (USB-C)", MAX, verified = false),
+    AIRPODS_MAX_USB_C(0x1F20, "AirPods Max (USB-C)", MAX),
     ;
 
     companion object {
