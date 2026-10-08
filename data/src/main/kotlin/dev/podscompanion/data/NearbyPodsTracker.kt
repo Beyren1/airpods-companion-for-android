@@ -49,11 +49,18 @@ class NearbyPodsTracker(
         /** Время последних пакетов: из них считаем, как часто наушники шлют advertising. */
         val packetTimes: ArrayDeque<Long> = ArrayDeque(),
         /** Последний пакет с каждого адреса, для отладки. */
-        val rawByAddress: LinkedHashMap<String, String> = LinkedHashMap(),
+        val byAddress: LinkedHashMap<String, PodsStatus> = LinkedHashMap(),
+        /** Последние пакеты пары: из них выбираем достоверный заряд (один адрес шлёт то 100, то 70). */
+        val recent: ArrayDeque<PodsStatus> = ArrayDeque(),
     ) {
         fun addPacket(nowMs: Long) {
             packetTimes.addLast(nowMs)
             if (packetTimes.size > INTERVAL_WINDOW) packetTimes.removeFirst()
+        }
+
+        fun remember(status: PodsStatus) {
+            recent.addLast(status)
+            if (recent.size > RECENT_WINDOW) recent.removeFirst()
         }
 
         fun averageIntervalMs(): Long? =
@@ -64,20 +71,21 @@ class NearbyPodsTracker(
     private var primary: Device? = null
 
     fun onPacket(address: String, fingerprint: PairFingerprint, status: PodsStatus, nowMs: Long) {
-        // Только по признакам, не по адресу: один и тот же адрес Pro 2 шлёт то 100/100, то 70/70,
-        // и при поиске по адресу заряд в карточке прыгал на секунду.
         val device = devices.firstOrNull { it.fingerprint.matches(fingerprint) }
         if (device == null) {
             devices += Device(mutableSetOf(address), fingerprint, status, nowMs, status.rssi).apply {
                 addPacket(nowMs)
-                rawByAddress[address] = status.rawHex
+                remember(status)
+                byAddress[address] = status
             }
         } else {
             device.addPacket(nowMs)
-            device.rawByAddress[address] = status.rawHex
+            device.remember(status)
+            device.byAddress.remove(address)
+            device.byAddress[address] = status
             device.addresses += address
             if (device.addresses.size > MAX_ADDRESSES) device.addresses.remove(device.addresses.first())
-            device.rawByAddress.keys.retainAll(device.addresses)
+            device.byAddress.keys.retainAll(device.addresses)
             device.fingerprint = fingerprint
             device.status = status
             device.seenAtMs = nowMs
@@ -108,22 +116,39 @@ class NearbyPodsTracker(
         }
         val main = primary
 
-        // Один наушник подключённой пары иногда рекламирует другой заряд (Pro 2: 70/70 при реальных 100),
-        // и такой «двойник» той же модели и цвета показывался в «Рядом». Пока пара подключена, скрываем его.
-        fun isTwinOfConnected(device: Device) = connected != null && main === connected &&
-            device.fingerprint.modelId == main.fingerprint.modelId &&
-            device.fingerprint.colorCode == main.fingerprint.colorCode
         val others = devices
-            .filter { it !== main && it.rssi >= minRssi && !isTwinOfConnected(it) }
+            .filter { it !== main && it.rssi >= minRssi }
             .sortedByDescending { it.rssi }
-            .map { it.status.copy(rawByAddress = it.rawByAddress.toMap()) }
-        val status = main?.status?.copy(
-            connected = main === connected,
-            packetIntervalMs = main.averageIntervalMs(),
-            rawByAddress = main.rawByAddress.toMap(),
-        )
+            .map { display(it, nowMs, emptyList()) }
+        val status = main?.let { display(it, nowMs, if (it === connected) connectedBatteries else emptyList()) }
+            ?.copy(connected = main === connected, packetIntervalMs = main.averageIntervalMs())
         return NearbyPods(status, others)
     }
+
+    /**
+     * Что показать для пары. Положение в ухе/кейсе берём из самого свежего пакета, а заряд из самого
+     * достоверного: наушники одной пары рекламируют разное (Pro 2: 100/100 с одного наушника,
+     * 70/70 и «правый 70, левый неизвестно» с другого при реальных 100 %). Достоверный — ближе всего
+     * к заряду, который наушники сообщили телефону; если его нет — где известно больше значений,
+     * а при равенстве — где заряд выше.
+     */
+    private fun display(device: Device, nowMs: Long, batteries: List<Int>): PodsStatus {
+        val latest = device.status
+        val fresh = device.recent.filter { nowMs - it.lastSeenMs <= staleAfterMs }.ifEmpty { listOf(latest) }
+        val source = if (batteries.isNotEmpty()) {
+            fresh.minBy { batteryDistance(it, batteries) ?: Int.MAX_VALUE }
+        } else {
+            fresh.maxWith(compareBy<PodsStatus>({ knownCount(it) }, { batterySum(it) }))
+        }
+        return latest.copy(
+            left = latest.left.copy(battery = source.left.battery, charging = source.left.charging),
+            right = latest.right.copy(battery = source.right.battery, charging = source.right.charging),
+            rawByAddress = device.byAddress.mapValues { it.value.rawHex },
+        )
+    }
+
+    private fun knownCount(s: PodsStatus) = listOfNotNull(s.left.battery, s.right.battery).size
+    private fun batterySum(s: PodsStatus) = listOfNotNull(s.left.battery, s.right.battery).sumOf { it.percent }
 
     /**
      * Наушники рядом, похожие на подключённые по имени. Если имя общее («AirPods») и подходят
@@ -167,16 +192,10 @@ class NearbyPodsTracker(
         }
     }
 
-    // Заряд сравниваем обязательно: рядом часто бывают чужие наушники той же модели и цвета
-    // (у Pro 2 так и было: своя пара 100/100, чужие 80/80 и 30/20).
+    // Заряд не сравниваем: наушники одной пары Pro 2 рекламировали 100/100, 70/70 и «70 и неизвестно»,
+    // и пара распадалась на несколько. Две пары одной модели и цвета рядом редки, их покажем как одну.
     private fun PairFingerprint.matches(other: PairFingerprint): Boolean =
-        modelId == other.modelId &&
-            colorCode == other.colorCode &&
-            close(leftPercent, other.leftPercent) &&
-            close(rightPercent, other.rightPercent)
-
-    // null = наушник не на связи в одном из пакетов: по нему не судим.
-    private fun close(a: Int?, b: Int?) = a == null || b == null || abs(a - b) <= 10
+        modelId == other.modelId && colorCode == other.colorCode
 
     companion object {
         const val DEFAULT_MIN_RSSI = -80
@@ -184,5 +203,6 @@ class NearbyPodsTracker(
         const val DEFAULT_STALE_AFTER_MS = 15_000L
         private const val MAX_ADDRESSES = 6
         private const val INTERVAL_WINDOW = 10
+        private const val RECENT_WINDOW = 12
     }
 }

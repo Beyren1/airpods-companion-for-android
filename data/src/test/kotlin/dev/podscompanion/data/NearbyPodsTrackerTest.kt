@@ -112,14 +112,15 @@ class NearbyPodsTrackerTest {
     }
 
     @Test
-    fun `чужие наушники той же модели с другим зарядом — отдельная пара`() {
+    fun `разный заряд с разных наушников одной пары — одна пара с достоверным зарядом`() {
         packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -50, left = 100, right = 100), 0)
-        packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -55, left = 30, right = 20), 500)
+        packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -72, left = null, right = 70), 500)
 
-        val nearby = tracker.snapshot(500, null)
+        val nearby = tracker.snapshot(500, emptyList())
 
-        assertThat(nearby.primary?.left?.battery?.percent).isEqualTo(100)
-        assertThat(nearby.others).hasSize(1) // не подключены: обе пары показываем
+        assertThat(nearby.others).hasSize(1)
+        assertThat(nearby.others[0].left.battery?.percent).isEqualTo(100)
+        assertThat(nearby.others[0].right.battery?.percent).isEqualTo(100)
     }
 
     @Test
@@ -136,7 +137,7 @@ class NearbyPodsTrackerTest {
     }
 
     @Test
-    fun `две пары одной модели — подключённой считаем ту, чей заряд совпадает с сообщённым телефону`() {
+    fun `70 и 100 от одной пары — показываем заряд, совпадающий с сообщённым телефону`() {
         packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -66, left = 70, right = 70), 0)
         packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -68, left = 100, right = 100), 0)
 
