@@ -1,0 +1,16 @@
+*.iml
+.gradle/
+/local.properties
+/.idea/
+.DS_Store
+build/
+/captures
+.externalNativeBuild
+.cxx
+*.apk
+*.aab
+# Дампы с устройств могут содержать MAC-адреса и имена: храним их в tests только обезличенными.
+*.btsnoop
+btsnoop_hci.log
+*.pklg
+sysdiagnose_*
