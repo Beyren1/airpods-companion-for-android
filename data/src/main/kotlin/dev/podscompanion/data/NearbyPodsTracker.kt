@@ -111,7 +111,7 @@ class NearbyPodsTracker(
         val others = devices
             .filter { it !== main && it.rssi >= minRssi }
             .sortedByDescending { it.rssi }
-            .map { it.status }
+            .map { it.status.copy(rawByAddress = it.rawByAddress.toMap()) }
         val status = main?.status?.copy(
             connected = main === connected,
             packetIntervalMs = main.averageIntervalMs(),

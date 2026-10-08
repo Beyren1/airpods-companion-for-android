@@ -123,7 +123,7 @@ fun BatteryScreen(
                 is BatteryUiState.Found -> {
                     val main = state.nearby.primary
                     if (main != null) PodsCard(main) else NotConnectedCard()
-                    if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others)
+                    if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others, showDebug)
                     if (showDebug && main != null) DebugCard(main, autoPauseLog)
                 }
             }
@@ -245,7 +245,7 @@ private fun NotConnectedCard() {
 
 /** Другие наушники рядом (не подключённые): одна строка на пару. */
 @Composable
-private fun OthersCard(others: List<PodsStatus>) {
+private fun OthersCard(others: List<PodsStatus>, showDebug: Boolean) {
     OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Text(stringResource(R.string.nearby_title), style = MaterialTheme.typography.titleSmall)
@@ -266,6 +266,19 @@ private fun OthersCard(others: List<PodsStatus>) {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                if (showDebug) {
+                    // Сырые пакеты: по ним видно, чьи это наушники и правильно ли разобран заряд.
+                    SelectionContainer {
+                        Text(
+                            "RSSI ${pods.rssi} dBm\n" + pods.rawByAddress.entries
+                                .joinToString("\n") { (address, hex) -> "$address\n$hex" }
+                                .ifEmpty { pods.rawHex },
+                            style = MaterialTheme.typography.bodySmall,
+                            fontFamily = FontFamily.Monospace,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }
