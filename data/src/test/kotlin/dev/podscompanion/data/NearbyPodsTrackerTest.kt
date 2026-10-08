@@ -100,4 +100,14 @@ class NearbyPodsTrackerTest {
 
         assertThat(tracker.snapshot(10_000, null).primary?.packetIntervalMs).isEqualTo(5_000)
     }
+
+    @Test
+    fun `подключённые Max не видны — других наушников главными не делаем`() {
+        packet("PRO", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -50), 0)
+
+        val nearby = tracker.snapshot(0, connectedNames = listOf("AirPods Max"))
+
+        assertThat(nearby.primary).isNull()
+        assertThat(nearby.others.map { it.model }).containsExactly(PodsModel.AIRPODS_PRO_2_USB_C)
+    }
 }

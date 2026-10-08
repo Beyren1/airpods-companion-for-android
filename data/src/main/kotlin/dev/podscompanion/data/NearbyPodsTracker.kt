@@ -79,7 +79,7 @@ class NearbyPodsTracker(
      * @param connectedNames имена наушников, подключённых к телефону по A2DP;
      *   пустой список — ничего не подключено, тогда главных нет, все наушники идут в «рядом»;
      *   null — неизвестно (нет разрешения BLUETOOTH_CONNECT), тогда главные — ближайшие.
-     *   Если подключено что-то, но по имени не совпало (переименовали), тоже берём ближайшие.
+     *   Если имя подключённого устройства не похоже ни на одну модель (переименовали), тоже ближайшие.
      */
     fun snapshot(nowMs: Long, connectedNames: List<String>?): NearbyPods {
         devices.removeAll { nowMs - it.seenAtMs > staleAfterMs }
@@ -92,7 +92,11 @@ class NearbyPodsTracker(
 
         primary = when {
             connected != null -> connected
-            connectedNames != null && connectedNames.isEmpty() -> null
+            connectedNames == null -> pickNearest()
+            connectedNames.isEmpty() -> null
+            // Подключена известная модель, но её пакетов нет (Max сняли, они «уснули»): чужие не показываем.
+            ConnectedNameMatcher.knownModels(connectedNames).isNotEmpty() -> null
+            // Имя не похоже ни на одну модель (переименовали): берём ближайшие.
             else -> pickNearest()
         }
         val main = primary

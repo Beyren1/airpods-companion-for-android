@@ -26,4 +26,10 @@ class ConnectedNameMatcherTest {
         assertThat(ConnectedNameMatcher.bestMatch(nearby, listOf("Мои уши"))).isNull()
         assertThat(ConnectedNameMatcher.bestMatch(nearby, emptyList())).isNull()
     }
+
+    @Test
+    fun `подключены Max, но их не видно — Pro 2 рядом не считаются подключёнными`() {
+        assertThat(ConnectedNameMatcher.bestMatch(listOf(PodsModel.AIRPODS_PRO_2_USB_C), listOf("AirPods Max"))).isNull()
+        assertThat(ConnectedNameMatcher.knownModels(listOf("AirPods Max"))).contains(PodsModel.AIRPODS_MAX_USB_C)
+    }
 }
