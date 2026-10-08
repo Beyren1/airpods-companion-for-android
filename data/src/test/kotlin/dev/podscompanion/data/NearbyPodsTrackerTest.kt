@@ -110,4 +110,15 @@ class NearbyPodsTrackerTest {
         assertThat(nearby.primary).isNull()
         assertThat(nearby.others.map { it.model }).containsExactly(PodsModel.AIRPODS_PRO_2_USB_C)
     }
+
+    @Test
+    fun `пакеты одной пары с разным зарядом не раздваивают её`() {
+        packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -50, left = 100, right = 100), 0)
+        packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -55, left = 80, right = 80), 500)
+
+        val nearby = tracker.snapshot(500, null)
+
+        assertThat(nearby.others).isEmpty()
+        assertThat(nearby.primary?.rawByAddress?.keys).containsExactly("A", "B")
+    }
 }

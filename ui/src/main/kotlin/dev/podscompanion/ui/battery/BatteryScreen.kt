@@ -385,7 +385,13 @@ private fun DebugCard(status: PodsStatus, autoPauseLog: List<String>) {
             }
             // Долгое нажатие выделяет текст: байты можно скопировать и прислать вместо скриншота.
             SelectionContainer {
-                Text(status.rawHex, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                val text = if (status.rawByAddress.size > 1) {
+                    // Несколько адресов: показываем последний пакет с каждого.
+                    status.rawByAddress.entries.joinToString("\n\n") { (address, hex) -> "$address\n$hex" }
+                } else {
+                    status.rawHex
+                }
+                Text(text, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
             }
             if (autoPauseLog.isNotEmpty()) {
                 Text(stringResource(R.string.debug_autopause_log), style = MaterialTheme.typography.titleSmall)

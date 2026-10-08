@@ -1,7 +1,5 @@
 package dev.podscompanion.data
 
-import kotlin.math.abs
-
 /**
  * Признаки, по которым два пакета с разных MAC-адресов считаются одной парой наушников.
  * Каждый наушник рекламирует себя сам и со своего адреса, а «отправитель» меняется,
@@ -47,6 +45,8 @@ class NearbyPodsTracker(
         var rssi: Int,
         /** Время последних пакетов: из них считаем, как часто наушники шлют advertising. */
         val packetTimes: ArrayDeque<Long> = ArrayDeque(),
+        /** Последний пакет с каждого адреса, для отладки. */
+        val rawByAddress: LinkedHashMap<String, String> = LinkedHashMap(),
     ) {
         fun addPacket(nowMs: Long) {
             packetTimes.addLast(nowMs)
@@ -63,11 +63,16 @@ class NearbyPodsTracker(
     fun onPacket(address: String, fingerprint: PairFingerprint, status: PodsStatus, nowMs: Long) {
         val device = devices.firstOrNull { address in it.addresses || it.fingerprint.matches(fingerprint) }
         if (device == null) {
-            devices += Device(mutableSetOf(address), fingerprint, status, nowMs, status.rssi).apply { addPacket(nowMs) }
+            devices += Device(mutableSetOf(address), fingerprint, status, nowMs, status.rssi).apply {
+                addPacket(nowMs)
+                rawByAddress[address] = status.rawHex
+            }
         } else {
             device.addPacket(nowMs)
+            device.rawByAddress[address] = status.rawHex
             device.addresses += address
             if (device.addresses.size > MAX_ADDRESSES) device.addresses.remove(device.addresses.first())
+            device.rawByAddress.keys.retainAll(device.addresses)
             device.fingerprint = fingerprint
             device.status = status
             device.seenAtMs = nowMs
@@ -105,7 +110,11 @@ class NearbyPodsTracker(
             .filter { it !== main && it.rssi >= minRssi }
             .sortedByDescending { it.rssi }
             .map { it.status }
-        val status = main?.status?.copy(connected = main === connected, packetIntervalMs = main.averageIntervalMs())
+        val status = main?.status?.copy(
+            connected = main === connected,
+            packetIntervalMs = main.averageIntervalMs(),
+            rawByAddress = main.rawByAddress.toMap(),
+        )
         return NearbyPods(status, others)
     }
 
@@ -121,14 +130,10 @@ class NearbyPodsTracker(
         }
     }
 
+    // Заряд не сравниваем: с разных адресов одной пары Pro 2 приходили пакеты 100/100 и 80/80,
+    // и пара раздваивалась. Две пары одной модели и цвета рядом редки, их объединим в одну.
     private fun PairFingerprint.matches(other: PairFingerprint): Boolean =
-        modelId == other.modelId &&
-            colorCode == other.colorCode &&
-            close(leftPercent, other.leftPercent) &&
-            close(rightPercent, other.rightPercent)
-
-    // null = наушник не на связи в одном из пакетов: по нему не судим.
-    private fun close(a: Int?, b: Int?) = a == null || b == null || abs(a - b) <= 10
+        modelId == other.modelId && colorCode == other.colorCode
 
     companion object {
         const val DEFAULT_MIN_RSSI = -80

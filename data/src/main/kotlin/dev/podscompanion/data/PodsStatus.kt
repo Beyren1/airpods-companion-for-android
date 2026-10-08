@@ -25,4 +25,6 @@ data class PodsStatus(
     val connected: Boolean = false,
     /** Средний интервал между пакетами этих наушников (для отладки задержек), null — мало данных. */
     val packetIntervalMs: Long? = null,
+    /** Последний пакет с каждого MAC-адреса этой пары (для отладки). */
+    val rawByAddress: Map<String, String> = emptyMap(),
 )
