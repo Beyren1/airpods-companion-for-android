@@ -14,6 +14,12 @@ data class AapDeviceState(
     val secondaryEar: EarState = EarState.UNKNOWN,
     val listeningMode: ListeningMode? = null,
     val conversationalAwareness: Boolean? = null,
+    /**
+     * Сколько раз наушники поменялись ролями primary/secondary. Когда вынимают primary, роль переходит
+     * к наушнику в ухе, и следующий пакет уха приходит «зеркальным»: (вынут, в ухе) → (в ухе, вынут).
+     * По счётчику [dev.podscompanion.data.aap.AapOverlay] переворачивает сторону, не дожидаясь рекламы.
+     */
+    val primarySwaps: Int = 0,
 ) {
     fun apply(event: AapEvent): AapDeviceState = when (event) {
         is AapEvent.Battery -> event.components.fold(this) { state, battery ->
@@ -25,11 +31,19 @@ data class AapDeviceState(
                 BatteryComponent.UNKNOWN -> state
             }
         }
-        is AapEvent.EarDetection -> copy(primaryEar = event.primary, secondaryEar = event.secondary)
+        is AapEvent.EarDetection -> copy(
+            primaryEar = event.primary,
+            secondaryEar = event.secondary,
+            primarySwaps = if (isMirrorOf(event)) primarySwaps + 1 else primarySwaps,
+        )
         is AapEvent.ListeningModeChanged -> copy(listeningMode = event.mode)
         is AapEvent.ConversationalAwarenessChanged -> copy(conversationalAwareness = event.enabled)
         is AapEvent.Unknown -> this
     }
+
+    private fun isMirrorOf(event: AapEvent.EarDetection): Boolean =
+        primaryEar != secondaryEar && primaryEar != EarState.UNKNOWN && secondaryEar != EarState.UNKNOWN &&
+            event.primary == secondaryEar && event.secondary == primaryEar
 
     /** Ухо уже пришло хотя бы раз: можно доверять ему больше, чем рекламным пакетам. */
     val earKnown: Boolean get() = primaryEar != EarState.UNKNOWN

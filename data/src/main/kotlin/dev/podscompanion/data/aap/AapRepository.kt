@@ -101,7 +101,7 @@ class AapRepository @Inject constructor(
                             attempt = 0
                             method = io.method
                             log.add("${target.name}: подключено (${io.method})")
-                            emit(AapSessionState.Connected(target.name, io.method, device))
+                            emit(AapSessionState.Connected(target.name, address, io.method, device))
                         }
                         is AapIo.Sent -> log.add("→ ${Hex.encode(io.data)}")
                         is AapIo.Received -> {

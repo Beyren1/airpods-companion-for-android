@@ -4,6 +4,7 @@ import com.google.common.truth.Truth.assertThat
 import dev.podscompanion.data.aap.AapOverlay
 import dev.podscompanion.protocol.aap.AapBattery
 import dev.podscompanion.protocol.aap.AapDeviceState
+import dev.podscompanion.protocol.aap.AapEvent
 import dev.podscompanion.protocol.aap.BatteryComponent
 import dev.podscompanion.protocol.aap.EarState
 import dev.podscompanion.protocol.advertising.BatteryLevel
@@ -55,13 +56,30 @@ class AapOverlayTest {
         val leftOut = advertised.copy(left = worn.copy(inEar = false), primaryIsLeft = true)
 
         // Реклама: левый вынут, правый в ухе → primary (в ухе) — правый, хотя отправитель левый.
-        val side = AapOverlay.resolvePrimaryIsLeft(leftOut, aap, previous = null)
-        assertThat(side).isFalse()
-        val result = AapOverlay.apply(leftOut, aap, side)
+        val side = AapOverlay.resolveSide(leftOut, aap, previous = null)
+        assertThat(side.primaryIsLeftNow(aap)).isFalse()
+        val result = AapOverlay.apply(leftOut, aap, side.primaryIsLeftNow(aap))
         assertThat(result.right.inEar).isTrue()
         assertThat(result.left.inEar).isFalse()
 
         // Следующий пакет от другого наушника, реклама ещё не обновилась (оба в ухе): решение не меняется.
-        assertThat(AapOverlay.resolvePrimaryIsLeft(advertised.copy(primaryIsLeft = true), aap, previous = side)).isFalse()
+        assertThat(AapOverlay.resolveSide(advertised.copy(primaryIsLeft = true), aap, previous = side).primaryIsLeftNow(aap)).isFalse()
+    }
+
+    @Test
+    fun `смена ролей переворачивает сторону до прихода рекламы`() {
+        // Оба в ухе, primary — левый (из рекламы).
+        var aap = AapDeviceState().apply(AapEvent.EarDetection(EarState.IN_EAR, EarState.IN_EAR))
+        val side = AapOverlay.resolveSide(advertised.copy(primaryIsLeft = true), aap, previous = null)
+
+        // Вынули левый (primary): сначала (вынут, в ухе), затем роль переходит к правому — (в ухе, вынут).
+        aap = aap.apply(AapEvent.EarDetection(EarState.OUT_OF_EAR, EarState.IN_EAR))
+        aap = aap.apply(AapEvent.EarDetection(EarState.IN_EAR, EarState.OUT_OF_EAR))
+
+        // Реклама ещё старая (оба в ухе), а показываем уже верно: левый вынут.
+        val now = AapOverlay.resolveSide(advertised.copy(primaryIsLeft = true), aap, side)
+        val result = AapOverlay.apply(advertised, aap, now.primaryIsLeftNow(aap))
+        assertThat(result.left.inEar).isFalse()
+        assertThat(result.right.inEar).isTrue()
     }
 }

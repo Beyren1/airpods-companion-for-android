@@ -42,7 +42,7 @@ class PodsRepository @Inject constructor(
         var namesKnown = false
         fun now() = SystemClock.elapsedRealtime()
         var aapSessions = AapSessions()
-        var aapPrimaryIsLeft: Boolean? = null
+        var aapSide: AapOverlay.Side? = null
         suspend fun emit() {
             if (!namesKnown) return
             val nearby = tracker.snapshot(now(), connectedNames, connectedBatteries)
@@ -51,11 +51,11 @@ class PodsRepository @Inject constructor(
             // Прямое подключение есть только к подключённым наушникам: накладываем его только на них.
             send(
                 if (session is AapSessionState.Connected && primary != null && primary.connected) {
-                    val side = AapOverlay.resolvePrimaryIsLeft(primary, session.device, aapPrimaryIsLeft)
-                    aapPrimaryIsLeft = side
-                    nearby.copy(primary = AapOverlay.apply(primary, session.device, side))
+                    val side = AapOverlay.resolveSide(primary, session.device, aapSide)
+                    aapSide = side
+                    nearby.copy(primary = AapOverlay.apply(primary, session.device, side.primaryIsLeftNow(session.device)))
                 } else {
-                    aapPrimaryIsLeft = null
+                    aapSide = null
                     nearby
                 },
             )
