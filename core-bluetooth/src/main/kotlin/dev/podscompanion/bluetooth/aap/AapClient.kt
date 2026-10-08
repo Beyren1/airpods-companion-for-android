@@ -7,6 +7,7 @@ import java.io.IOException
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -27,7 +28,8 @@ sealed interface AapIo {
 class AapClient @Inject constructor() {
 
     @SuppressLint("MissingPermission")
-    fun connect(device: BluetoothDevice): Flow<AapIo> = callbackFlow {
+    /** @param outgoing команды, которые нужно отправить наушникам, пока соединение открыто. */
+    fun connect(device: BluetoothDevice, outgoing: ReceiveChannel<ByteArray>): Flow<AapIo> = callbackFlow {
         val socket = L2capSockets.create(device, Aap.PSM)
         // read() блокирует поток, поэтому читаем на IO. Отмена Flow закроет сокет в awaitClose,
         // и read() сразу выбросит исключение (аналог shutdown() у сокета в C++).
@@ -40,6 +42,13 @@ class AapClient @Inject constructor() {
                     output.write(packet)
                     output.flush()
                     send(AapIo.Sent(packet))
+                }
+                launch {
+                    for (command in outgoing) {
+                        output.write(command)
+                        output.flush()
+                        send(AapIo.Sent(command))
+                    }
                 }
                 val input = socket.inputStream
                 val buffer = ByteArray(MAX_PACKET)

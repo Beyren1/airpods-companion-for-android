@@ -48,4 +48,20 @@ class AapOverlayTest {
         assertThat(result.left).isEqualTo(worn)
         assertThat(result.caseBattery?.percent).isEqualTo(50)
     }
+
+    @Test
+    fun `сторона primary берётся из рекламы, а не из прыгающего отправителя`() {
+        val aap = AapDeviceState(primaryEar = EarState.IN_EAR, secondaryEar = EarState.OUT_OF_EAR)
+        val leftOut = advertised.copy(left = worn.copy(inEar = false), primaryIsLeft = true)
+
+        // Реклама: левый вынут, правый в ухе → primary (в ухе) — правый, хотя отправитель левый.
+        val side = AapOverlay.resolvePrimaryIsLeft(leftOut, aap, previous = null)
+        assertThat(side).isFalse()
+        val result = AapOverlay.apply(leftOut, aap, side)
+        assertThat(result.right.inEar).isTrue()
+        assertThat(result.left.inEar).isFalse()
+
+        // Следующий пакет от другого наушника, реклама ещё не обновилась (оба в ухе): решение не меняется.
+        assertThat(AapOverlay.resolvePrimaryIsLeft(advertised.copy(primaryIsLeft = true), aap, previous = side)).isFalse()
+    }
 }

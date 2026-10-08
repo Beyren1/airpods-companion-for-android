@@ -15,6 +15,10 @@ import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -27,6 +31,8 @@ import androidx.compose.ui.unit.dp
 import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.data.aap.FailureReason
 import dev.podscompanion.protocol.aap.ListeningMode
+import dev.podscompanion.protocol.advertising.Capability
+import dev.podscompanion.protocol.advertising.PodsModel
 import dev.podscompanion.ui.R
 
 /**
@@ -34,7 +40,12 @@ import dev.podscompanion.ui.R
  * Когда наушники Apple не подключены, карточку не показываем: проверять нечего.
  */
 @Composable
-fun AapCard(state: AapSessionState, onCheck: () -> Unit) {
+fun AapCard(
+    state: AapSessionState,
+    model: PodsModel?,
+    onCheck: () -> Unit,
+    onModeSelected: (ListeningMode) -> Unit,
+) {
     if (state is AapSessionState.NoDevice) return
 
     Card(
@@ -63,8 +74,13 @@ fun AapCard(state: AapSessionState, onCheck: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             if (state is AapSessionState.Connected) {
-                state.device.listeningMode?.let {
-                    Text(stringResource(R.string.aap_listening_mode, modeText(it)), style = MaterialTheme.typography.bodyMedium)
+                val modes = availableModes(model)
+                if (modes.isNotEmpty()) {
+                    ModeSelector(modes, state.device.listeningMode, onModeSelected)
+                } else {
+                    state.device.listeningMode?.let {
+                        Text(stringResource(R.string.aap_listening_mode, modeText(it)), style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
                 state.device.conversationalAwareness?.let {
                     Text(
@@ -79,6 +95,47 @@ fun AapCard(state: AapSessionState, onCheck: () -> Unit) {
         }
     }
 }
+
+/** Какие режимы показывать: у моделей без шумоподавления — никаких, Adaptive — только где он есть. */
+private fun availableModes(model: PodsModel?): List<ListeningMode> {
+    val caps = model?.capabilities ?: return emptyList()
+    if (Capability.NOISE_CONTROL !in caps) return emptyList()
+    return buildList {
+        add(ListeningMode.OFF)
+        add(ListeningMode.TRANSPARENCY)
+        if (Capability.ADAPTIVE_AUDIO in caps) add(ListeningMode.ADAPTIVE)
+        add(ListeningMode.NOISE_CANCELLATION)
+    }
+}
+
+/** Ряд кнопок как в Пункте управления iPhone; выделен режим, о котором сообщили наушники. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ModeSelector(modes: List<ListeningMode>, current: ListeningMode?, onSelect: (ListeningMode) -> Unit) {
+    SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth()) {
+        modes.forEachIndexed { index, mode ->
+            SegmentedButton(
+                selected = mode == current,
+                onClick = { onSelect(mode) },
+                shape = SegmentedButtonDefaults.itemShape(index, modes.size),
+                icon = {},
+            ) {
+                Text(shortModeText(mode), maxLines = 1, style = MaterialTheme.typography.labelMedium)
+            }
+        }
+    }
+}
+
+@Composable
+private fun shortModeText(mode: ListeningMode): String = stringResource(
+    when (mode) {
+        ListeningMode.OFF -> R.string.mode_short_off
+        ListeningMode.NOISE_CANCELLATION -> R.string.mode_short_nc
+        ListeningMode.TRANSPARENCY -> R.string.mode_short_transparency
+        ListeningMode.ADAPTIVE -> R.string.mode_short_adaptive
+        ListeningMode.UNKNOWN -> R.string.mode_unknown
+    },
+)
 
 @Composable
 private fun statusText(state: AapSessionState): String = when (state) {

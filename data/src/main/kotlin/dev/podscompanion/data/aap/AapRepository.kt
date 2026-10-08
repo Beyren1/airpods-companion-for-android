@@ -6,9 +6,11 @@ import dev.podscompanion.bluetooth.aap.L2capUnavailableException
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevice
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.data.ConnectedNameMatcher
+import dev.podscompanion.protocol.aap.Aap
 import dev.podscompanion.protocol.aap.AapDeviceState
 import dev.podscompanion.protocol.aap.AapEvent
 import dev.podscompanion.protocol.aap.AapParser
+import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.protocol.util.Hex
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -16,6 +18,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -67,6 +70,8 @@ class AapRepository @Inject constructor(
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val retryRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Команды для текущего соединения. CONFLATED: важна только последняя (два быстрых нажатия → один режим). */
+    private val outgoing = Channel<ByteArray>(Channel.CONFLATED)
 
     private sealed interface Target {
         data object NoPermission : Target
@@ -99,6 +104,14 @@ class AapRepository @Inject constructor(
         retryRequests.tryEmit(Unit)
     }
 
+    /** Переключить шумоподавление. Ничего не делает, если прямого подключения сейчас нет. */
+    fun setListeningMode(mode: ListeningMode) {
+        if (state.value is AapSessionState.Connected) {
+            log.add("выбран режим $mode")
+            outgoing.trySend(Aap.setListeningMode(mode))
+        }
+    }
+
     private fun pickTarget(devices: List<ConnectedAudioDevice>): ConnectedAudioDevice? =
         devices.firstOrNull { it.supportsAap }
             ?: devices.firstOrNull { ConnectedNameMatcher.knownModels(listOf(it.name)).isNotEmpty() }
@@ -113,7 +126,7 @@ class AapRepository @Inject constructor(
             var connected = false
             var method = "?"
             val failure = runCatching {
-                client.connect(target.device).collect { io ->
+                client.connect(target.device, outgoing).collect { io ->
                     when (io) {
                         is AapIo.Connected -> {
                             connected = true

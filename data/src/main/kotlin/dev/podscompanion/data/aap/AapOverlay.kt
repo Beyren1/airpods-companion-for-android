@@ -12,15 +12,29 @@ import dev.podscompanion.protocol.advertising.PodState
  * поэтому всё, что пришло по AAP, заменяет рекламное. Чего AAP не прислал — остаётся из рекламы.
  */
 object AapOverlay {
-    fun apply(status: PodsStatus, aap: AapDeviceState): PodsStatus {
+    /**
+     * Какой наушник AAP называет primary — левый? AAP сообщает ухо как primary/secondary без сторон,
+     * а «отправитель» рекламного пакета прыгает между наушниками, поэтому брать сторону из него нельзя:
+     * плашка «в ухе» скакала между левым и правым. Решаем так: если по AAP и по рекламе ровно один
+     * наушник в ухе, сопоставляем их; иначе оставляем прошлое решение [previous].
+     */
+    fun resolvePrimaryIsLeft(status: PodsStatus, aap: AapDeviceState, previous: Boolean?): Boolean {
+        val primaryIn = aap.primaryEar == EarState.IN_EAR
+        val secondaryIn = aap.secondaryEar == EarState.IN_EAR
+        val aapDiffers = primaryIn != secondaryIn && aap.secondaryEar != EarState.UNKNOWN
+        val adDiffers = status.left.inEar != status.right.inEar
+        return if (aapDiffers && adDiffers) primaryIn == status.left.inEar else previous ?: status.primaryIsLeft
+    }
+
+    fun apply(status: PodsStatus, aap: AapDeviceState, primaryIsLeft: Boolean = status.primaryIsLeft): PodsStatus {
         val primaryEar = aap.primaryEar
         val secondaryEar = aap.secondaryEar
-        val leftEar = if (status.primaryIsLeft) primaryEar else secondaryEar
-        val rightEar = if (status.primaryIsLeft) secondaryEar else primaryEar
+        val leftEar = if (primaryIsLeft) primaryEar else secondaryEar
+        val rightEar = if (primaryIsLeft) secondaryEar else primaryEar
 
         val left = status.left.with(aap.left, leftEar)
         val right = status.right.with(aap.right, rightEar)
-        val primarySource = aap.single ?: if (status.primaryIsLeft) aap.left else aap.right
+        val primarySource = aap.single ?: if (primaryIsLeft) aap.left else aap.right
         val primary = status.primary.with(primarySource, primaryEar)
         return status.copy(
             left = left,

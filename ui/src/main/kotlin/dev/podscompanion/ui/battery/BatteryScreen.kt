@@ -62,6 +62,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.aap.AapSessionState
+import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.data.displayText
 import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.Capability
@@ -91,6 +92,7 @@ fun BatteryRoute(showDebug: Boolean) {
                 BatteryScreen(
                     state, refreshing, viewModel::refresh, showDebug, logLines,
                     aapState = aapState, aapLog = aapLog, onAapCheck = viewModel::checkAap,
+                    onModeSelected = viewModel::setListeningMode,
                 ) {
                     BackgroundCard(settings, viewModel::setBackgroundEnabled, viewModel::setAutoPause)
                 }
@@ -110,6 +112,7 @@ fun BatteryScreen(
     aapState: AapSessionState = AapSessionState.NoDevice,
     aapLog: List<String> = emptyList(),
     onAapCheck: () -> Unit = {},
+    onModeSelected: (ListeningMode) -> Unit = {},
     footer: @Composable () -> Unit = {},
 ) {
     // PullToRefreshBox ловит свайп вниз; содержимое должно прокручиваться, иначе жест не дойдёт.
@@ -132,7 +135,7 @@ fun BatteryScreen(
                 is BatteryUiState.Found -> {
                     val main = state.nearby.primary
                     if (main != null) PodsCard(main) else NotConnectedCard()
-                    AapCard(aapState, onAapCheck)
+                    AapCard(aapState, main?.model, onAapCheck, onModeSelected)
                     if (state.nearby.others.isNotEmpty()) OthersCard(state.nearby.others, showDebug)
                     if (showDebug && main != null) DebugCard(main, autoPauseLog, aapLog)
                 }

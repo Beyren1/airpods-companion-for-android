@@ -52,5 +52,9 @@
     <string name="mode_transparency">прозрачность</string>
     <string name="mode_adaptive">адаптивный</string>
     <string name="mode_unknown">неизвестный</string>
+    <string name="mode_short_off">Выкл</string>
+    <string name="mode_short_nc">Шумоподавл.</string>
+    <string name="mode_short_transparency">Прозрачн.</string>
+    <string name="mode_short_adaptive">Адаптив.</string>
     <string name="charging">Заряжается</string>
 </resources>

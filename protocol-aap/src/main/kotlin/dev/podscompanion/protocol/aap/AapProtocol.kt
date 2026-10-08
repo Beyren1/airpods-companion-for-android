@@ -27,6 +27,18 @@ object Aap {
     /** Подписка на все уведомления: заряд, ухо, режим шумоподавления. */
     val REQUEST_NOTIFICATIONS: ByteArray = packet(Opcode.REQUEST_NOTIFICATIONS, 0xFF, 0xFF, 0xFF, 0xFF)
 
+    /** Сменить режим: 04 00 04 00 09 00 0D <режим> 00 00 00. Наушники ответят тем же пакетом-уведомлением. */
+    fun setListeningMode(mode: ListeningMode): ByteArray {
+        val code = when (mode) {
+            ListeningMode.OFF -> 0x01
+            ListeningMode.NOISE_CANCELLATION -> 0x02
+            ListeningMode.TRANSPARENCY -> 0x03
+            ListeningMode.ADAPTIVE -> 0x04
+            ListeningMode.UNKNOWN -> error("Нельзя выбрать неизвестный режим")
+        }
+        return packet(Opcode.CONTROL, 0x0D, code, 0x00, 0x00, 0x00)
+    }
+
     fun packet(opcode: Int, vararg payload: Int): ByteArray =
         HEADER + byteArrayOf((opcode and 0xFF).toByte(), (opcode shr 8 and 0xFF).toByte()) + bytes(*payload)
 
