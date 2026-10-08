@@ -1,4 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Pods Companion</string>
+    <string name="notif_channel_name">Заряд наушников</string>
+    <string name="notif_channel_description">Постоянное уведомление с зарядом, пока работает фоновый режим</string>
+    <string name="notif_title_idle">Pods Companion</string>
+    <string name="notif_text_idle">Наушников рядом нет. Откройте кейс, чтобы увидеть заряд</string>
+    <string name="notif_left">Л %1$s</string>
+    <string name="notif_right">П %1$s</string>
+    <string name="notif_case">Кейс %1$s</string>
 </resources>

@@ -44,7 +44,18 @@
             </intent-filter>
         </activity>
 
-        <!-- Код 2: здесь появится PodsService (foregroundServiceType="connectedDevice"). -->
+        <service
+            android:name=".service.PodsService"
+            android:exported="false"
+            android:foregroundServiceType="connectedDevice" />
+
+        <receiver
+            android:name=".service.BootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
         <!-- Код 5: виджет и Quick Settings Tile. -->
     </application>
 </manifest>

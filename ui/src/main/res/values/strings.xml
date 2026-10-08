@@ -16,6 +16,10 @@
     <string name="signal_good">хороший</string>
     <string name="signal_weak">слабый</string>
     <string name="debug_title">Отладка</string>
+    <string name="bg_title">Фоновый режим</string>
+    <string name="bg_description">Заряд в шторке уведомлений, даже когда приложение закрыто. Android попросит разрешить уведомления и подключение к устройствам поблизости: второе нужно, чтобы сразу замечать подключение наушников.</string>
+    <string name="autopause_title">Автопауза</string>
+    <string name="autopause_description">Пауза, когда вынимаете наушник или снимаете Max, и продолжение, когда возвращаете. Работает в фоновом режиме.</string>
     <string name="bt_open_settings">Открыть настройки Bluetooth</string>
     <string name="unknown_model">Неизвестная модель (0x%1$04X)</string>
     <string name="left">Левый</string>

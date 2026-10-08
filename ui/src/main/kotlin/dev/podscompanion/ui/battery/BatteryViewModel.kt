@@ -7,6 +7,8 @@ import dev.podscompanion.bluetooth.scan.BluetoothUnavailableException
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.settings.AppSettings
+import dev.podscompanion.data.settings.SettingsRepository
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -33,7 +35,19 @@ sealed interface BatteryUiState {
 @HiltViewModel
 class BatteryViewModel @Inject constructor(
     private val repository: PodsRepository,
+    private val settingsRepository: SettingsRepository,
 ) : ViewModel() {
+
+    val settings: StateFlow<AppSettings> = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
+
+    fun setBackgroundEnabled(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setBackgroundEnabled(value) }
+    }
+
+    fun setAutoPause(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setAutoPause(value) }
+    }
 
     /** Каждое новое значение перезапускает скан с нуля (и заново выбирает ближайшие наушники). */
     private val restarts = MutableStateFlow(0)

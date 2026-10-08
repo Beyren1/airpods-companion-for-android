@@ -81,7 +81,10 @@ fun BatteryRoute(showDebug: Boolean) {
                 val viewModel: BatteryViewModel = hiltViewModel()
                 val state by viewModel.state.collectAsStateWithLifecycle()
                 val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
-                BatteryScreen(state, refreshing, viewModel::refresh, showDebug)
+                val settings by viewModel.settings.collectAsStateWithLifecycle()
+                BatteryScreen(state, refreshing, viewModel::refresh, showDebug) {
+                    BackgroundCard(settings, viewModel::setBackgroundEnabled, viewModel::setAutoPause)
+                }
             }
         }
     }
@@ -94,6 +97,7 @@ fun BatteryScreen(
     refreshing: Boolean,
     onRefresh: () -> Unit,
     showDebug: Boolean,
+    footer: @Composable () -> Unit = {},
 ) {
     // PullToRefreshBox ловит свайп вниз; содержимое должно прокручиваться, иначе жест не дойдёт.
     PullToRefreshBox(
@@ -117,6 +121,7 @@ fun BatteryScreen(
                     if (showDebug) DebugCard(state.status)
                 }
             }
+            footer()
             Text(
                 stringResource(R.string.pull_hint),
                 style = MaterialTheme.typography.bodySmall,
