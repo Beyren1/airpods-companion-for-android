@@ -36,5 +36,21 @@
     <string name="nearby_title">Рядом</string>
     <string name="not_connected">К телефону не подключены наушники</string>
     <string name="debug_packet_interval">Пакет от наушников раз в %1$.1f с</string>
+    <string name="debug_aap_log">Журнал AAP</string>
+    <string name="aap_title">Расширенный режим</string>
+    <string name="aap_no_permission">Нужно разрешение «Устройства поблизости», чтобы подключиться к наушникам напрямую.</string>
+    <string name="aap_connecting">Подключаюсь к %1$s напрямую…</string>
+    <string name="aap_connected">Работает: %1$s. Точный заряд и мгновенная автопауза.</string>
+    <string name="aap_socket_blocked">Android на этом телефоне не дал открыть прямое подключение. Приложение работает в базовом режиме.</string>
+    <string name="aap_connection_failed">Наушники не ответили. Повторю через %1$d с.</string>
+    <string name="aap_check">Проверить расширенный режим</string>
+    <string name="aap_listening_mode">Режим: %1$s</string>
+    <string name="aap_ca_on">Адаптация к разговору: вкл</string>
+    <string name="aap_ca_off">Адаптация к разговору: выкл</string>
+    <string name="mode_off">выкл</string>
+    <string name="mode_nc">шумоподавление</string>
+    <string name="mode_transparency">прозрачность</string>
+    <string name="mode_adaptive">адаптивный</string>
+    <string name="mode_unknown">неизвестный</string>
     <string name="charging">Заряжается</string>
 </resources>

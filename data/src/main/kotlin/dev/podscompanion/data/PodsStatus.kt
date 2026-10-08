@@ -1,5 +1,6 @@
 package dev.podscompanion.data
 
+import dev.podscompanion.protocol.aap.AapDeviceState
 import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.PodState
 import dev.podscompanion.protocol.advertising.PodsModel
@@ -27,4 +28,11 @@ data class PodsStatus(
     val packetIntervalMs: Long? = null,
     /** Последний пакет с каждого MAC-адреса этой пары (для отладки). */
     val rawByAddress: Map<String, String> = emptyMap(),
-)
+    /** Отправитель пакета — левый наушник: нужно, чтобы разложить «primary/secondary» из AAP по сторонам. */
+    val primaryIsLeft: Boolean = true,
+    /** Данные прямого подключения (AAP), если оно есть: точный заряд, ухо без задержки, режим шумоподавления. */
+    val aap: AapDeviceState? = null,
+) {
+    /** Заряд точный (из AAP), а не десятками из рекламы. */
+    val exactBattery: Boolean get() = aap != null && (aap.left != null || aap.right != null || aap.single != null)
+}
