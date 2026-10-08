@@ -31,23 +31,30 @@ class PodsRepository @Inject constructor(
     fun observeNearby(intensity: ScanIntensity): Flow<NearbyPods> = channelFlow {
         val tracker = NearbyPodsTracker()
         var connectedNames: List<String>? = null
+        // Пока система не ответила, что подключено, ничего не показываем: иначе на долю секунды
+        // главными становятся ближайшие наушники, а потом прыгают в список «рядом».
+        var namesKnown = false
         fun now() = SystemClock.elapsedRealtime()
+        suspend fun emit() {
+            if (namesKnown) send(tracker.snapshot(now(), connectedNames))
+        }
 
         launch {
             connectedAudio.names().collect { names ->
                 connectedNames = names
-                send(tracker.snapshot(now(), connectedNames))
+                namesKnown = true
+                emit()
             }
         }
         launch {
             while (true) {
                 delay(TICK_MS)
-                send(tracker.snapshot(now(), connectedNames))
+                emit()
             }
         }
         scanner.scan(intensity).collect { event ->
             tracker.onPacket(event.address, event.fingerprint(), caseCache.apply(event.toStatus()), event.elapsedRealtimeMs)
-            send(tracker.snapshot(now(), connectedNames))
+            emit()
         }
     }.distinctUntilChanged()
 
