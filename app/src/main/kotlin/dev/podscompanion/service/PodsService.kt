@@ -106,10 +106,15 @@ class PodsService : LifecycleService() {
     private var lastActivityMs = 0L
     private var settings = AppSettings()
 
-    /** Подключили/отключили Bluetooth-наушники: меняем частоту скана. */
+    private var disconnectPauseJob: Job? = null
+
+    /** Подключили/отключили Bluetooth-наушники: меняем частоту скана, при отключении страхуем паузу. */
     private val audioDeviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = restartScanIfIntensityChanged()
-        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) = restartScanIfIntensityChanged()
+        override fun onAudioDevicesRemoved(removedDevices: Array<out AudioDeviceInfo>) {
+            restartScanIfIntensityChanged()
+            if (removedDevices.any { it.isSink && it.type in BLUETOOTH_MEDIA_TYPES }) onBluetoothAudioRemoved()
+        }
     }
 
     private val wakeReceiver = object : BroadcastReceiver() {
@@ -297,6 +302,29 @@ class PodsService : LifecycleService() {
         }
     }
 
+    /**
+     * Наушники отключились (положили в кейс, связь пропала), а музыка продолжила играть в динамик.
+     * Плееры должны сами останавливаться по системному «звук сейчас пойдёт в динамик», но не все это
+     * делают, а наша пауза по уху могла не успеть: AirPods рвут связь сразу, как закрыли кейс.
+     * Поэтому несколько секунд после отключения следим: заиграло из динамика — ставим на паузу.
+     */
+    private fun onBluetoothAudioRemoved() {
+        if (!settings.autoPause) return
+        disconnectPauseJob?.cancel()
+        disconnectPauseJob = lifecycleScope.launch {
+            repeat(DISCONNECT_CHECKS) {
+                delay(DISCONNECT_CHECK_MS)
+                // Наушники вернулись (переподключение) — звук снова идёт в них, ничего не трогаем.
+                if (bluetoothAudioConnected()) return@launch
+                if (audioManager.isMusicActive) {
+                    autoPauseLog.add("отключились, звук в динамике → пауза")
+                    sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
+                    return@launch
+                }
+            }
+        }
+    }
+
     private fun sendMediaKey(code: Int) {
         Timber.d("auto-pause: key %d", code)
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
@@ -326,7 +354,7 @@ class PodsService : LifecycleService() {
 
     private fun bluetoothAudioConnected(): Boolean =
         audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
-            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+            it.type in BLUETOOTH_MEDIA_TYPES
         }
 
     private fun hasConnectPermission(): Boolean =
@@ -342,6 +370,16 @@ class PodsService : LifecycleService() {
 
         private const val IDLE_AFTER_MS = 2 * 60_000L
         private const val WATCHDOG_PERIOD_MS = 30_000L
+
+        /** Музыка после отключения наушников: проверяем каждые полсекунды в течение 5 с. */
+        private const val DISCONNECT_CHECK_MS = 500L
+        private const val DISCONNECT_CHECKS = 10
+
+        /** Куда Bluetooth-наушники выводят музыку: A2DP, а на Android 12+ ещё LE Audio. */
+        private val BLUETOOTH_MEDIA_TYPES = buildSet {
+            add(AudioDeviceInfo.TYPE_BLUETOOTH_A2DP)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(AudioDeviceInfo.TYPE_BLE_HEADSET)
+        }
 
         fun start(context: Context) {
             ContextCompat.startForegroundService(context, Intent(context, PodsService::class.java))
