@@ -1,7 +1,10 @@
 package dev.podscompanion.ui.battery
 
 import android.Manifest
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -15,6 +18,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -48,6 +52,7 @@ fun AppSettingsScreen(
     settings: AppSettings,
     onBackgroundChange: (Boolean) -> Unit,
     onAutoPauseChange: (Boolean) -> Unit,
+    onCasePopupChange: (Boolean) -> Unit,
     onDebugChange: (Boolean) -> Unit,
     debug: DebugInfo,
     onBack: () -> Unit,
@@ -59,6 +64,14 @@ fun AppSettingsScreen(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(Manifest.permission.BLUETOOTH_CONNECT)
     }.toTypedArray()
+
+    // Окно при открытии кейса рисуется поверх других приложений: без разрешения «Поверх других
+    // приложений» Android не даст фоновому сервису его открыть. Ведём в системные настройки,
+    // а переключатель включаем, когда пользователь вернётся с разрешением.
+    val context = LocalContext.current
+    val overlayLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) { if (Settings.canDrawOverlays(context)) onCasePopupChange(true) }
 
     Scaffold(
         topBar = {
@@ -95,6 +108,23 @@ fun AppSettingsScreen(
                         stringResource(R.string.autopause_title), settings.autoPause, onAutoPauseChange,
                         icon = Icons.Filled.Pause,
                         description = stringResource(R.string.autopause_description),
+                        enabled = settings.backgroundEnabled,
+                    )
+                }
+                row {
+                    SwitchRow(
+                        stringResource(R.string.case_popup_title), settings.casePopup,
+                        { enable ->
+                            if (enable && !Settings.canDrawOverlays(context)) {
+                                overlayLauncher.launch(
+                                    Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:${context.packageName}")),
+                                )
+                            } else {
+                                onCasePopupChange(enable)
+                            }
+                        },
+                        icon = Icons.Filled.Inventory2,
+                        description = stringResource(R.string.case_popup_description),
                         enabled = settings.backgroundEnabled,
                     )
                 }

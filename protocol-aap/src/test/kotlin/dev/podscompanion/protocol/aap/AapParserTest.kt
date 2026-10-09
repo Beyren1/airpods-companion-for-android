@@ -85,7 +85,7 @@ class AapParserTest {
     @Test
     fun `команды собираются с opcode в little-endian`() {
         assertThat(Hex.encode(Aap.REQUEST_NOTIFICATIONS)).isEqualTo("04 00 04 00 0F 00 FF FF FF FF")
-        assertThat(Hex.encode(Aap.SET_FEATURES)).isEqualTo("04 00 04 00 4D 00 FF 00 00 00 00 00 00 00")
+        assertThat(Hex.encode(Aap.SET_FEATURES)).isEqualTo("04 00 04 00 4D 00 D7 00 00 00 00 00 00 00")
         assertThat(Hex.encode(Aap.setListeningMode(ListeningMode.TRANSPARENCY))).isEqualTo("04 00 04 00 09 00 0D 03 00 00 00")
         // Команда и уведомление совпадают по формату: свой же пакет разбирается обратно.
         assertThat(AapParser.parse(Aap.setListeningMode(ListeningMode.ADAPTIVE)))

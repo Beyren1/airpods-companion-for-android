@@ -15,6 +15,7 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import android.os.SystemClock
+import android.provider.Settings
 import android.service.quicksettings.TileService
 import android.view.KeyEvent
 import androidx.core.app.ServiceCompat
@@ -28,6 +29,9 @@ import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.gestures.HeadGestureController
+import dev.podscompanion.data.popup.CaseOpenDetector
+import dev.podscompanion.data.popup.LiveStatus
+import dev.podscompanion.popup.CasePopupActivity
 import dev.podscompanion.data.autopause.EarDetectionPolicy
 import dev.podscompanion.data.autopause.MediaAction
 import dev.podscompanion.data.settings.AppSettings
@@ -67,6 +71,9 @@ class PodsService : LifecycleService() {
     @Inject lateinit var autoPauseLog: AutoPauseLog
     @Inject lateinit var headGestures: HeadGestureController
     @Inject lateinit var snapshotStore: StatusSnapshotStore
+    @Inject lateinit var liveStatus: LiveStatus
+
+    private val caseOpenDetector = CaseOpenDetector()
 
     /** Последнее состояние для виджета и плитки: пишем в файл, только когда изменились цифры. */
     private val latestStatus = MutableStateFlow<PodsStatus?>(null)
@@ -219,6 +226,8 @@ class PodsService : LifecycleService() {
     private fun onStatus(status: PodsStatus?) {
         notifications.update(status)
         latestStatus.value = status
+        liveStatus.update(status)
+        maybeShowCasePopup(status)
         if (!settings.autoPause) return
 
         val worn = status?.let(::isWorn)
@@ -263,6 +272,21 @@ class PodsService : LifecycleService() {
         Timber.d("auto-pause: key %d", code)
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+    }
+
+    /** Первый раз открыли кейс этих наушников рядом с телефоном: показываем карточку с зарядом. */
+    private fun maybeShowCasePopup(status: PodsStatus?) {
+        val show = caseOpenDetector.onStatus(status, settings.casePopupShown)
+        if (!show || status == null || !settings.casePopup || !Settings.canDrawOverlays(this)) return
+        // Сразу помечаем в памяти, чтобы не открыть окно дважды, пока DataStore пишет файл.
+        settings = settings.copy(casePopupShown = settings.casePopupShown + status.modelId)
+        lifecycleScope.launch { settingsRepository.markCasePopupShown(status.modelId) }
+        runCatching {
+            startActivity(
+                Intent(this, CasePopupActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_ANIMATION),
+            )
+        }.onFailure { Timber.w(it, "case popup") }
     }
 
     private fun bluetoothAudioConnected(): Boolean =

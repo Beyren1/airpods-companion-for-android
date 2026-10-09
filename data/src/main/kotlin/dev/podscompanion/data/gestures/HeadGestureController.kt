@@ -63,8 +63,12 @@ class HeadGestureController @Inject constructor(
             .distinctUntilChanged()
             .collectLatest { calibration ->
                 if (calibration == null) return@collectLatest
+                if (!granted(Manifest.permission.READ_PHONE_STATE)) log.add("жесты: нет разрешения «Телефон», звонки не видны")
                 ringing().distinctUntilChanged().collectLatest { ringing ->
-                    if (ringing) handleRinging(calibration)
+                    if (ringing) {
+                        log.add("жесты: входящий звонок")
+                        handleRinging(calibration)
+                    }
                 }
             }
     }
@@ -77,15 +81,32 @@ class HeadGestureController @Inject constructor(
                 aap.state.map { sessions ->
                     sessions.sessions.filterIsInstance<AapSessionState.Connected>().firstOrNull(::supportsGestures)
                 }.filterNotNull().first()
-            } ?: return@coroutineScope
+            } ?: run {
+                log.add("жесты: нет прямого подключения к наушникам с жестами")
+                return@coroutineScope
+            }
             val address = session.address
             log.add("${session.deviceName}: звонок, жду кивок или покачивание")
             aap.send(address, AapCommand.StartHeadTracking)
             try {
                 val detector = HeadGestureDetector(calibration)
+                var samples = 0
+                var bestNod = 0f
+                var bestShake = 0f
                 val gesture = aap.headMotion
                     .filter { it.address == address }
-                    .mapNotNull { detector.onSample(it.timeMs, it.motion.orientation) }
+                    .mapNotNull { sample ->
+                        detector.onSample(sample.timeMs, sample.motion.axes).also {
+                            bestNod = maxOf(bestNod, detector.lastNod)
+                            bestShake = maxOf(bestShake, detector.lastShake)
+                            // Раз в ~2 с — насколько движение похоже на жест (1.0 — засчитан).
+                            if (++samples % SCORE_LOG_EVERY == 0) {
+                                log.add("жесты: пакетов $samples, кивок %.2f, покачивание %.2f".format(bestNod, bestShake))
+                                bestNod = 0f
+                                bestShake = 0f
+                            }
+                        }
+                    }
                     .first()
                 log.add("${session.deviceName}: ${if (gesture == HeadGesture.NOD) "кивок — отвечаю" else "покачивание — отклоняю"}")
                 act(gesture)
@@ -153,5 +174,6 @@ class HeadGestureController @Inject constructor(
 
     private companion object {
         const val CONNECT_TIMEOUT_MS = 5_000L
+        const val SCORE_LOG_EVERY = 50
     }
 }

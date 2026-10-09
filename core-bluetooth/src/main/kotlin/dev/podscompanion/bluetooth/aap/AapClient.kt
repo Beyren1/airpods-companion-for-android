@@ -38,7 +38,7 @@ class AapClient @Inject constructor() {
                 socket.connect()
                 send(AapIo.Connected(L2capSockets.lastMethod ?: "?"))
                 val output = socket.outputStream
-                for (packet in listOf(Aap.HANDSHAKE, Aap.SET_FEATURES, Aap.REQUEST_NOTIFICATIONS)) {
+                for (packet in listOf(Aap.HANDSHAKE, Aap.SET_FEATURES, Aap.REQUEST_NOTIFICATIONS, Aap.REQUEST_PROXIMITY_KEYS)) {
                     output.write(packet)
                     output.flush()
                     send(AapIo.Sent(packet))

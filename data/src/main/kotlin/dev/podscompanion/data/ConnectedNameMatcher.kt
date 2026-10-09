@@ -17,12 +17,21 @@ object ConnectedNameMatcher {
         return words(model.displayName).count { it in name }
     }
 
-    /** Модели каталога, на которые имя похоже больше всего; пусто, если имя не похоже ни на одну. */
+    /**
+     * Модели каталога, на которые имя похоже больше всего; пусто, если имя не похоже ни на одну.
+     *
+     * Apple называет наушники по линейке: «AirPods», «AirPods Pro», «AirPods Max». Поэтому имя
+     * без слова линейки («AirPods» у AirPods 4) не подходит к Pro и Max. Иначе при подключении
+     * AirPods 4 главными становились лежащие рядом Max или Pro 2.
+     */
     fun modelsForName(deviceName: String): Set<PodsModel> {
         val scored = PodsModel.entries.map { it to score(it, deviceName) }
         val best = scored.maxOf { it.second }
         if (best == 0) return emptySet()
-        return scored.filter { it.second == best }.map { it.first }.toSet()
+        val matched = scored.filter { it.second == best }.map { it.first }
+        val name = words(deviceName)
+        val sameLine = matched.filter { model -> LINE_WORDS.all { it in name || it !in words(model.displayName) } }
+        return sameLine.ifEmpty { matched }.toSet()
     }
 
     /** Все модели, на которые похожи имена подключённых устройств. */
@@ -32,6 +41,8 @@ object ConnectedNameMatcher {
     /** Модель из [candidates] (наушники рядом), которая однозначно соответствует одному из имён. */
     fun bestMatch(candidates: Collection<PodsModel>, deviceNames: List<String>): PodsModel? =
         candidates.distinct().filter { it in knownModels(deviceNames) }.singleOrNull()
+
+    private val LINE_WORDS = setOf("pro", "max")
 
     // «AirPods Pro 2 (USB-C)» → [airpods, pro, 2, usb, c]
     private fun words(text: String): Set<String> =

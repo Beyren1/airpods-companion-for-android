@@ -133,7 +133,7 @@ class BatteryViewModel @Inject constructor(
             }
         }
         withTimeoutOrNull(RECORD_MS) {
-            aapRepository.headMotion.filter { it.address == address }.collect { recorder.add(it.motion.orientation) }
+            aapRepository.headMotion.filter { it.address == address }.collect { recorder.add(it.motion.axes) }
         }
         ticker.cancel()
         recorder
@@ -151,6 +151,10 @@ class BatteryViewModel @Inject constructor(
 
     fun setAutoPause(value: Boolean) {
         viewModelScope.launch { settingsRepository.setAutoPause(value) }
+    }
+
+    fun setCasePopup(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setCasePopup(value) }
     }
 
     fun setDebugEnabled(value: Boolean) {

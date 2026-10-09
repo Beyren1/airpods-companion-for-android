@@ -32,7 +32,15 @@ data class PodsStatus(
     val primaryIsLeft: Boolean = true,
     /** Данные прямого подключения (AAP), если оно есть: точный заряд, ухо без задержки, режим шумоподавления. */
     val aap: AapDeviceState? = null,
+    /**
+     * Свои наушники: постоянный адрес Bluetooth Classic пары, чей ключ IRK подошёл к адресу рекламы.
+     * null — чужие или ключа ещё нет.
+     */
+    val owner: String? = null,
+    /** Заряд расшифрован из рекламы ключом наушников: точный, а не десятками. */
+    val exactFromAdvert: Boolean = false,
 ) {
-    /** Заряд точный (из AAP), а не десятками из рекламы. */
-    val exactBattery: Boolean get() = aap != null && (aap.left != null || aap.right != null || aap.single != null)
+    /** Заряд точный (из AAP или расшифрованной рекламы), а не десятками. */
+    val exactBattery: Boolean get() = exactFromAdvert ||
+        aap != null && (aap.left != null || aap.right != null || aap.single != null)
 }

@@ -65,15 +65,29 @@ class HeadGesturesTest {
 
     @Test
     fun `пакет датчиков и переименование`() {
-        val data = ByteArray(60).also {
-            Hex.decode("04 00 04 00 17 00 00 00 10 00").copyInto(it)
-            it[43] = 0x10; it[44] = 0x00       // 16
-            it[45] = 0xF0.toByte(); it[46] = 0xFF.toByte() // −16
-            it[51] = 0x02; it[52] = 0x01       // 258
-        }
-        val event = AapParser.parse(data) as AapEvent.HeadMotion
-        assertThat(event.orientation).containsExactly(16, -16, 0).inOrder()
-        assertThat(event.horizontal).isEqualTo(258)
+        // Настоящие пакеты Pro 2 (поток 16): одна запись и пакет с тремя склеенными записями.
+        val single = Hex.decode(
+            "04 00 04 00 17 00 00 00 10 00 44 00 08 0F 10 03 3A 3E 08 10 1A 3A 01 98 D3 35 10 D4 42 00 00 03 00 82 " +
+                "FA 72 57 48 00 00 00 00 00 00 00 00 00 00 04 00 FE FF 01 00 CB 84 03 FD F8 E0 70 FC 5C 01 C8 02 71 " +
+                "FC 5D 01 CA FE DB F9 B8 3B 09 00 00 00",
+        )
+        val event = AapParser.parse(single) as AapEvent.HeadMotion
+        assertThat(event.samples).hasSize(1)
+        assertThat(event.axes).containsExactly(4, -2, 1, -911, 349, -310).inOrder()
+
+        val batch = Hex.decode(
+            "04 00 04 00 17 00 00 00 10 00 C4 00 08 12 10 03 " +
+                "3A 3E 08 10 1A 3A 01 E8 80 63 17 D4 42 00 00 03 00 83 6C 49 59 48 00 00 00 00 EB E4 7C B9 00 00 FB FF 00 00 03 00 CB 84 03 FD F8 E0 03 00 01 00 00 00 71 FC 5D 01 CA FE 77 9D AF 3B 21 00 00 00 " +
+                "3A 3E 08 10 1A 3A 01 50 11 C8 19 D4 42 00 00 03 00 83 3D E6 59 48 00 00 00 00 DD E4 76 B9 0A 00 02 00 FD FF 04 00 CB 84 03 FD F8 E0 00 00 00 00 00 00 71 FC 5E 01 CA FE 09 B2 86 3B 29 00 00 00 " +
+                "3A 3E 08 10 1A 3A 01 B8 A1 2C 1C D4 42 00 00 03 00 83 0E 83 5A 48 00 00 00 00 E9 E4 7F B9 0A 00 00 00 00 00 03 00 CB 84 03 FD F8 E0 01 00 FF FF 00 00 71 FC 5E 01 CA FE 68 53 59 3A 31 00 00 00",
+        )
+        val batchEvent = AapParser.parse(batch) as AapEvent.HeadMotion
+        assertThat(batchEvent.samples).hasSize(3)
+        assertThat(batchEvent.samples[1]).containsExactly(2, -3, 4, -911, 350, -310).inOrder()
+
+        // Подтверждение запроса потока — не датчики.
+        assertThat(AapParser.parse(Hex.decode("04 00 04 00 17 00 00 00 10 00 08 00 08 0D 10 03 4A 02 08 10")))
+            .isInstanceOf(AapEvent.Unknown::class.java)
 
         // Список блоков от AirPods 4 сразу после подключения — не датчики.
         val directory = Hex.decode(

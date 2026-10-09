@@ -13,6 +13,8 @@ data class PairFingerprint(
     val colorCode: Int,
     val leftPercent: Int?,
     val rightPercent: Int?,
+    /** Свои наушники (см. [PodsStatus.owner]): пакеты чужих такой же модели и цвета с ними не смешиваем. */
+    val owner: String? = null,
 )
 
 /** Все наушники рядом: [primary] показывается крупно, для него работают уведомление и автопауза. */
@@ -38,7 +40,14 @@ class NearbyPodsTracker(
     private val minRssi: Int = DEFAULT_MIN_RSSI,
     private val stickinessDb: Int = DEFAULT_STICKINESS_DB,
     private val staleAfterMs: Long = DEFAULT_STALE_AFTER_MS,
+    /**
+     * Какие именно наушники (модель и цвет) подключены под этим именем. Запоминаем, когда выбор
+     * был однозначным, и потом не путаем свои Max с чужими Max рядом. Живёт дольше трекера.
+     */
+    private val knownPairs: MutableMap<String, KnownPair> = HashMap(),
 ) {
+    data class KnownPair(val modelId: Int, val colorCode: Int)
+
     private class Device(
         val addresses: MutableSet<String>,
         var fingerprint: PairFingerprint,
@@ -99,11 +108,18 @@ class NearbyPodsTracker(
      *   null — неизвестно (нет разрешения BLUETOOTH_CONNECT), тогда главные — ближайшие.
      *   Если имя подключённого устройства не похоже ни на одну модель (переименовали), тоже ближайшие.
      */
-    fun snapshot(nowMs: Long, connectedNames: List<String>?, connectedBatteries: List<Int> = emptyList()): NearbyPods {
+    fun snapshot(
+        nowMs: Long,
+        connectedNames: List<String>?,
+        connectedBatteries: List<Int> = emptyList(),
+        /** Адреса Bluetooth Classic подключённых наушников: по ним узнаём свои пары с ключами. */
+        connectedAddresses: Set<String> = emptySet(),
+    ): NearbyPods {
         devices.removeAll { nowMs - it.seenAtMs > staleAfterMs }
         if (primary !in devices) primary = null
 
-        val connected = connectedNames?.let { pickConnected(ConnectedNameMatcher.knownModels(it), connectedBatteries) }
+        val connected = devices.firstOrNull { it.fingerprint.owner != null && it.fingerprint.owner in connectedAddresses }
+            ?: connectedNames?.let { pickConnected(it, connectedBatteries, connectedAddresses) }
 
         primary = when {
             connected != null -> connected
@@ -158,16 +174,36 @@ class NearbyPodsTracker(
      * Без этого при общем имени главная карточка появлялась на полсекунды, пока были видны
      * только одни наушники, и пропадала, когда приходили пакеты от вторых.
      */
-    private fun pickConnected(models: Set<PodsModel>, batteries: List<Int>): Device? {
-        val candidates = devices.filter { it.status.model in models }
-        if (candidates.size <= 1) return candidates.firstOrNull()
+    private fun pickConnected(names: List<String>, batteries: List<Int>, connectedAddresses: Set<String>): Device? {
+        val models = ConnectedNameMatcher.knownModels(names)
+        // Свои наушники с ключом, но не подключённые сейчас (например, Pro 2 в кармане), — точно не те.
+        val candidates = devices.filter { it.status.model in models && (it.fingerprint.owner == null || it.fingerprint.owner in connectedAddresses) }
+        // Одно подключённое имя: его пару можно запомнить и потом узнавать среди похожих.
+        val name = names.singleOrNull()
+        val known = name?.let { knownPairs[it] }
+        if (known != null) {
+            val same = candidates.filter { it.fingerprint.modelId == known.modelId && it.fingerprint.colorCode == known.colorCode }
+            same.singleOrNull()?.let { return it }
+        }
+        if (candidates.size <= 1) {
+            candidates.firstOrNull()?.let { if (name != null) remember(name, it) }
+            return candidates.firstOrNull()
+        }
         var best = candidates.filter { it.status.isWorn() }.ifEmpty { candidates }
         if (batteries.isNotEmpty()) {
             val distances = best.associateWith { batteryDistance(it.status, batteries) }
             val min = distances.values.filterNotNull().minOrNull()
-            if (min != null) best = best.filter { distances[it] == min }
+            if (min != null) {
+                best = best.filter { distances[it] == min }
+                // Заряд совпал только у одних наушников: это точно они.
+                if (name != null && min <= BATTERY_MATCH_PERCENT) best.singleOrNull()?.let { remember(name, it) }
+            }
         }
         return primary?.takeIf { it in best } ?: best.maxByOrNull { it.rssi }
+    }
+
+    private fun remember(name: String, device: Device) {
+        knownPairs[name] = KnownPair(device.fingerprint.modelId, device.fingerprint.colorCode)
     }
 
     /** Насколько заряд в рекламе далёк от заряда, сообщённого телефону; null — сравнить не с чем. */
@@ -193,9 +229,9 @@ class NearbyPodsTracker(
     }
 
     // Заряд не сравниваем: наушники одной пары Pro 2 рекламировали 100/100, 70/70 и «70 и неизвестно»,
-    // и пара распадалась на несколько. Две пары одной модели и цвета рядом редки, их покажем как одну.
+    // и пара распадалась на несколько. Две пары одной модели и цвета различаем только по ключу (owner).
     private fun PairFingerprint.matches(other: PairFingerprint): Boolean =
-        modelId == other.modelId && colorCode == other.colorCode
+        modelId == other.modelId && colorCode == other.colorCode && owner == other.owner
 
     companion object {
         const val DEFAULT_MIN_RSSI = -80
@@ -204,5 +240,7 @@ class NearbyPodsTracker(
         private const val MAX_ADDRESSES = 6
         private const val INTERVAL_WINDOW = 10
         private const val RECENT_WINDOW = 12
+        /** Заряд в рекламе идёт шагом 10 %: расхождение до 10 — те же наушники. */
+        private const val BATTERY_MATCH_PERCENT = 10
     }
 }

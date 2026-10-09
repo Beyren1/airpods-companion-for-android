@@ -14,6 +14,9 @@ object AapStreams {
     /** Поток из описания протокола LibrePods (прошивка 7A305). */
     const val DOCUMENTED_HEAD_STREAM = 14
 
+    /** Поток, который LibrePods включает по умолчанию («альтернативный» пакет): на новых прошивках углы идут в нём. */
+    const val ALTERNATE_HEAD_STREAM = 16
+
     private const val STREAM_MESSAGE = 0x10
     private const val OFF_FLAG = 0x40
 

@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -53,6 +54,7 @@ class AapRepository @Inject constructor(
     connectedAudio: ConnectedAudioDevices,
     private val client: AapClient,
     private val log: AapLog,
+    private val keyStore: ProximityKeyStore,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val retryRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -105,6 +107,12 @@ class AapRepository @Inject constructor(
     private val announcedStreams = ConcurrentHashMap<String, Set<Int>>()
     private var streamSeq = 1
 
+    /**
+     * После включения датчиков пишем в журнал первые [STREAM_LOG_AFTER_START] пакетов каждого потока:
+     * иначе журнал забивает самый частый поток, и пакеты с углами в него не попадают.
+     */
+    private val streamLogCounts = ConcurrentHashMap<String, ConcurrentHashMap<Int, Int>>()
+
     /** Сколько пакетов датчиков после включения записать в журнал целиком (для разбора формата). */
     private val motionLogBudget = ConcurrentHashMap<String, Int>()
 
@@ -114,12 +122,23 @@ class AapRepository @Inject constructor(
      */
     private fun packets(address: String, command: AapCommand): List<ByteArray> {
         val on = when (command) {
-            AapCommand.StartHeadTracking -> true.also { motionLogBudget[address] = MOTION_LOG_FULL }
+            AapCommand.StartHeadTracking -> true.also {
+                motionLogBudget[address] = MOTION_LOG_FULL
+                streamLogCounts[address] = ConcurrentHashMap()
+            }
             AapCommand.StopHeadTracking -> false
             else -> return listOf(command.bytes)
         }
-        val streams = listOf(AapStreams.DOCUMENTED_HEAD_STREAM) + announcedStreams[address].orEmpty().sorted()
+        val streams = listOf(AapStreams.ALTERNATE_HEAD_STREAM, AapStreams.DOCUMENTED_HEAD_STREAM) + announcedStreams[address].orEmpty().sorted()
         return streams.distinct().map { AapStreams.request(streamSeq++ % 120 + 1, it, on) }
+    }
+
+    /** Номер потока в пакете данных: поле 7 (байт 0x3A), внутри поле 1 (0x08). -1 — не нашли. */
+    private fun streamId(data: ByteArray): Int {
+        for (i in STREAM_PROTO_START until data.size - 3) {
+            if (data[i] == 0x3A.toByte() && data[i + 2] == 0x08.toByte()) return data[i + 3].toInt() and 0xFF
+        }
+        return -1
     }
 
     private fun isApple(device: ConnectedAudioDevice): Boolean =
@@ -167,8 +186,16 @@ class AapRepository @Inject constructor(
                                     motionLogBudget[address] = budget - 1
                                     log.add("← ${Hex.encode(io.data)} · датчики головы")
                                 }
-                                if (motionPackets++ % MOTION_LOG_EVERY == 0) log.add("${target.name}: датчики головы ${event.orientation}")
-                                _headMotion.tryEmit(HeadSample(address, SystemClock.elapsedRealtime(), event))
+                                if (motionPackets++ % MOTION_LOG_EVERY == 0) log.add("${target.name}: датчики головы ${event.axes}")
+                                // В пакете бывает до 8 записей: отдаём каждую отдельно, детектору нужен ряд значений.
+                                val now = SystemClock.elapsedRealtime()
+                                event.samples.forEach { _headMotion.tryEmit(HeadSample(address, now, AapEvent.HeadMotion(listOf(it)))) }
+                                return@collect
+                            }
+                            if (event is AapEvent.ProximityKeys) {
+                                // Сами ключи в журнал не пишем: его показывают на скриншотах.
+                                log.add("${target.name}: ${event.label()}")
+                                scope.launch { keyStore.save(OwnPodsKeys(address, event.irk, event.encryptionKey)) }
                                 return@collect
                             }
                             AapStreams.announced(io.data).takeIf { it.isNotEmpty() }?.let { streams ->
@@ -177,7 +204,19 @@ class AapRepository @Inject constructor(
                             }
                             // Данные потоков идут десятки раз в секунду: в журнал — только первые.
                             val isStreamData = event is AapEvent.Unknown && event.opcode == Opcode.HEAD_TRACKING && io.data.size > STREAM_DATA_MIN
-                            if (isStreamData && streamPackets++ >= STREAM_LOG_FIRST) return@collect
+                            if (isStreamData) {
+                                val stream = streamId(io.data)
+                                val counts = streamLogCounts[address]
+                                val logged = when {
+                                    counts != null -> {
+                                        val n = counts.merge(stream, 1, Int::plus) ?: 1
+                                        n <= STREAM_LOG_AFTER_START
+                                    }
+                                    else -> streamPackets++ < STREAM_LOG_FIRST
+                                }
+                                if (logged) log.add("← ${Hex.encode(io.data)} · поток $stream")
+                                return@collect
+                            }
                             log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
                             if (event != null) {
                                 val updated = device.apply(event)
@@ -209,6 +248,7 @@ class AapRepository @Inject constructor(
         is AapEvent.ListeningModeChanged -> "режим $mode"
         is AapEvent.ConversationalAwarenessChanged -> "адаптация к разговору ${if (enabled) "вкл" else "выкл"}"
         is AapEvent.HeadMotion -> "датчики головы"
+        is AapEvent.ProximityKeys -> "ключи рекламы получены" + if (encryptionKey == null) " (без ключа шифрования)" else ""
         is AapEvent.ControlChanged -> "${ControlId.name(id)} = " + value.joinToString(" ") { "%02X".format(it) }
         is AapEvent.Unknown -> "неизвестный 0x%04X".format(opcode)
     }
@@ -219,5 +259,7 @@ class AapRepository @Inject constructor(
         const val STREAM_DATA_MIN = 32
         const val STREAM_LOG_FIRST = 20
         const val MOTION_LOG_FULL = 5
+        const val STREAM_LOG_AFTER_START = 5
+        const val STREAM_PROTO_START = 12
     }
 }

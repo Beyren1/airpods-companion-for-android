@@ -22,4 +22,10 @@ class AapStreamsTest {
         // Ответ на запрос (поле 9) — не объявление.
         assertThat(AapStreams.announced(Hex.decode("04 00 04 00 17 00 00 00 10 00 08 00 08 0B 10 03 4A 02 08 0E"))).isEmpty()
     }
+
+    @Test
+    fun `поток 16 совпадает с альтернативным пакетом LibrePods`() {
+        assertThat(Hex.encode(AapStreams.request(0x73, AapStreams.ALTERNATE_HEAD_STREAM, on = true)))
+            .isEqualTo("04 00 04 00 17 00 00 00 10 00 0F 00 08 73 42 0B 08 10 10 02 1A 05 01 40 9C 00 00")
+    }
 }
