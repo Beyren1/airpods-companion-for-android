@@ -130,13 +130,13 @@ private fun ModeTile(mode: ListeningMode, selected: Boolean, modifier: Modifier,
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val press by animateFloatAsState(
-        if (pressed) 0.93f else 1f,
-        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),
+        if (pressed) 0.97f else 1f,
+        spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessMedium),
         label = "press",
     )
     val bubble by animateFloatAsState(
-        if (selected) 1f else 0.86f,
-        spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow),
+        if (selected) 1f else 0.92f,
+        spring(dampingRatio = 0.75f, stiffness = Spring.StiffnessLow),
         label = "bubble",
     )
 

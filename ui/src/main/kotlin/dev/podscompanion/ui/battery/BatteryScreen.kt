@@ -233,7 +233,7 @@ private fun HeroCard(status: PodsStatus, mode: ListeningMode?) {
     val breath = if (anyBreathing) rememberBreath() else null
 
     val container by animateColorAsState(
-        if (mode == null) colors.surfaceContainer else lerp(colors.surfaceContainer, colors.forMode(mode).container, 0.45f),
+        if (mode == null) colors.surfaceContainer else lerp(colors.surfaceContainer, colors.forMode(mode).container, 0.25f),
         tween(700),
         label = "heroTint",
     )
@@ -312,28 +312,28 @@ internal fun Part(
     // Кольцо доезжает до нового заряда плавно, а не прыгает.
     val progress by animateFloatAsState((percent ?: 0) / 100f, tween(900, easing = FastOutSlowInEasing), label = "ring")
 
-    // Вынутый наушник отъезжает в свою сторону с лёгким пружинным «отскоком».
-    val bouncy = spring<Float>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+    // Вынутый наушник отъезжает в свою сторону с едва заметной пружиной.
+    val bouncy = spring<Float>(dampingRatio = 0.75f, stiffness = Spring.StiffnessLow)
     val shiftX = animateFloatAsState(
         when (motion) {
-            PartMotion.OutLeft -> -9f
-            PartMotion.OutRight -> 9f
+            PartMotion.OutLeft -> -6f
+            PartMotion.OutRight -> 6f
             else -> 0f
         },
         bouncy, label = "shiftX",
     )
     val out = motion == PartMotion.OutLeft || motion == PartMotion.OutRight || motion == PartMotion.Off
-    val shiftY = animateFloatAsState(if (out) 5f else 0f, bouncy, label = "shiftY")
+    val shiftY = animateFloatAsState(if (out) 3f else 0f, bouncy, label = "shiftY")
     val tilt = animateFloatAsState(
         when (motion) {
-            PartMotion.OutLeft -> -14f
-            PartMotion.OutRight -> 14f
-            PartMotion.Off -> -6f
+            PartMotion.OutLeft -> -8f
+            PartMotion.OutRight -> 8f
+            PartMotion.Off -> -4f
             else -> 0f
         },
         bouncy, label = "tilt",
     )
-    val settle = animateFloatAsState(if (out) 0.9f else 1f, bouncy, label = "settle")
+    val settle = animateFloatAsState(if (out) 0.95f else 1f, bouncy, label = "settle")
     // Вдох затухает, а не обрывается, когда наушник вынули.
     val breathing = animateFloatAsState(if (motion == PartMotion.Breathe) 1f else 0f, tween(500), label = "breathing")
     val glowColor = colors.primary
@@ -347,8 +347,8 @@ internal fun Part(
                         .fillMaxSize(0.78f)
                         .graphicsLayer {
                             val b = breath.value * breathing.value
-                            alpha = (0.10f + 0.12f * b) * breathing.value
-                            scaleX = 0.92f + 0.10f * b
+                            alpha = (0.06f + 0.06f * b) * breathing.value
+                            scaleX = 0.95f + 0.05f * b
                             scaleY = scaleX
                         }
                         .clip(CircleShape)
@@ -373,11 +373,11 @@ internal fun Part(
                     .graphicsLayer {
                         // Всё движение — в слое отрисовки: на каждом кадре не пересчитывается разметка экрана.
                         val b = (breath?.value ?: 0f) * breathing.value
-                        val scale = settle.value * (1f + 0.045f * b)
+                        val scale = settle.value * (1f + 0.025f * b)
                         scaleX = scale
                         scaleY = scale
                         translationX = shiftX.value * density
-                        translationY = (shiftY.value - 3f * b) * density
+                        translationY = (shiftY.value - 1.5f * b) * density
                         rotationZ = tilt.value
                     },
             )
