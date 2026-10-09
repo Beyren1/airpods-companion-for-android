@@ -158,6 +158,27 @@ class NearbyPodsTrackerTest {
     }
 
     @Test
+    fun `свои Max запоминаются и не путаются с чужими Max рядом`() {
+        val known = HashMap<String, NearbyPodsTracker.KnownPair>()
+        val own = status(PodsModel.AIRPODS_MAX_USB_C, rssi = -70, left = 90, right = null)
+        val other = status(PodsModel.AIRPODS_MAX, rssi = -40, left = 40, right = null)
+        fun feed(t: NearbyPodsTracker, now: Long) {
+            t.onPacket("OWN", PairFingerprint(own.modelId, own.colorCode, 90, null), own, now)
+            t.onPacket("OTHER", PairFingerprint(other.modelId, other.colorCode, 40, null), other, now)
+        }
+        val first = NearbyPodsTracker(knownPairs = known)
+        feed(first, 0)
+        // Заряд от прямого подключения однозначно указывает на свои.
+        assertThat(first.snapshot(0, listOf("AirPods Max"), connectedBatteries = listOf(99)).primary?.model)
+            .isEqualTo(PodsModel.AIRPODS_MAX_USB_C)
+
+        // Скан перезапустили, заряда ещё нет, чужие ближе — всё равно свои.
+        val second = NearbyPodsTracker(knownPairs = known)
+        feed(second, 1_000)
+        assertThat(second.snapshot(1_000, listOf("AirPods Max")).primary?.model).isEqualTo(PodsModel.AIRPODS_MAX_USB_C)
+    }
+
+    @Test
     fun `70 и 100 от одной пары — показываем заряд, совпадающий с сообщённым телефону`() {
         packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -66, left = 70, right = 70), 0)
         packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -68, left = 100, right = 100), 0)

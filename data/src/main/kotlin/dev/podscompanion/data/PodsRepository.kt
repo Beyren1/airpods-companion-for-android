@@ -26,6 +26,9 @@ class PodsRepository @Inject constructor(
     private val caseCache: CaseBatteryCache,
     private val aap: AapRepository,
 ) {
+    /** Какие наушники подключены под каким именем: переживает перезапуск скана. */
+    private val knownPairs = HashMap<String, NearbyPodsTracker.KnownPair>()
+
     /**
      * Все наушники рядом; главные — подключённые к телефону (см. [NearbyPodsTracker.snapshot]).
      * Устройство пропадает из списка, если от него 15 с не было пакетов.
@@ -34,7 +37,7 @@ class PodsRepository @Inject constructor(
      * устройств и таймер, который выкидывает пропавшие наушники.
      */
     fun observeNearby(intensity: ScanIntensity): Flow<NearbyPods> = channelFlow {
-        val tracker = NearbyPodsTracker()
+        val tracker = NearbyPodsTracker(knownPairs = knownPairs)
         var connectedNames: List<String>? = null
         var connectedBatteries = emptyList<Int>()
         // Точный заряд от прямого подключения: по нему среди нескольких пар «AirPods» рядом

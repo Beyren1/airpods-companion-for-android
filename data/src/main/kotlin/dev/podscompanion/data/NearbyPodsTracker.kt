@@ -38,7 +38,14 @@ class NearbyPodsTracker(
     private val minRssi: Int = DEFAULT_MIN_RSSI,
     private val stickinessDb: Int = DEFAULT_STICKINESS_DB,
     private val staleAfterMs: Long = DEFAULT_STALE_AFTER_MS,
+    /**
+     * Какие именно наушники (модель и цвет) подключены под этим именем. Запоминаем, когда выбор
+     * был однозначным, и потом не путаем свои Max с чужими Max рядом. Живёт дольше трекера.
+     */
+    private val knownPairs: MutableMap<String, KnownPair> = HashMap(),
 ) {
+    data class KnownPair(val modelId: Int, val colorCode: Int)
+
     private class Device(
         val addresses: MutableSet<String>,
         var fingerprint: PairFingerprint,
@@ -103,7 +110,7 @@ class NearbyPodsTracker(
         devices.removeAll { nowMs - it.seenAtMs > staleAfterMs }
         if (primary !in devices) primary = null
 
-        val connected = connectedNames?.let { pickConnected(ConnectedNameMatcher.knownModels(it), connectedBatteries) }
+        val connected = connectedNames?.let { pickConnected(it, connectedBatteries) }
 
         primary = when {
             connected != null -> connected
@@ -158,16 +165,35 @@ class NearbyPodsTracker(
      * Без этого при общем имени главная карточка появлялась на полсекунды, пока были видны
      * только одни наушники, и пропадала, когда приходили пакеты от вторых.
      */
-    private fun pickConnected(models: Set<PodsModel>, batteries: List<Int>): Device? {
+    private fun pickConnected(names: List<String>, batteries: List<Int>): Device? {
+        val models = ConnectedNameMatcher.knownModels(names)
         val candidates = devices.filter { it.status.model in models }
-        if (candidates.size <= 1) return candidates.firstOrNull()
+        // Одно подключённое имя: его пару можно запомнить и потом узнавать среди похожих.
+        val name = names.singleOrNull()
+        val known = name?.let { knownPairs[it] }
+        if (known != null) {
+            val same = candidates.filter { it.fingerprint.modelId == known.modelId && it.fingerprint.colorCode == known.colorCode }
+            same.singleOrNull()?.let { return it }
+        }
+        if (candidates.size <= 1) {
+            candidates.firstOrNull()?.let { if (name != null) remember(name, it) }
+            return candidates.firstOrNull()
+        }
         var best = candidates.filter { it.status.isWorn() }.ifEmpty { candidates }
         if (batteries.isNotEmpty()) {
             val distances = best.associateWith { batteryDistance(it.status, batteries) }
             val min = distances.values.filterNotNull().minOrNull()
-            if (min != null) best = best.filter { distances[it] == min }
+            if (min != null) {
+                best = best.filter { distances[it] == min }
+                // Заряд совпал только у одних наушников: это точно они.
+                if (name != null && min <= BATTERY_MATCH_PERCENT) best.singleOrNull()?.let { remember(name, it) }
+            }
         }
         return primary?.takeIf { it in best } ?: best.maxByOrNull { it.rssi }
+    }
+
+    private fun remember(name: String, device: Device) {
+        knownPairs[name] = KnownPair(device.fingerprint.modelId, device.fingerprint.colorCode)
     }
 
     /** Насколько заряд в рекламе далёк от заряда, сообщённого телефону; null — сравнить не с чем. */
@@ -204,5 +230,7 @@ class NearbyPodsTracker(
         private const val MAX_ADDRESSES = 6
         private const val INTERVAL_WINDOW = 10
         private const val RECENT_WINDOW = 12
+        /** Заряд в рекламе идёт шагом 10 %: расхождение до 10 — те же наушники. */
+        private const val BATTERY_MATCH_PERCENT = 10
     }
 }
