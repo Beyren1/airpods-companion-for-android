@@ -11,6 +11,7 @@ import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.data.aap.AapSessions
 import dev.podscompanion.data.aap.OwnPodsKeys
 import dev.podscompanion.data.aap.ProximityKeyStore
+import dev.podscompanion.protocol.aap.EarState
 import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.Capability
 import dev.podscompanion.protocol.advertising.PodState
@@ -70,6 +71,8 @@ class PodsRepository @Inject constructor(
         fun now() = SystemClock.elapsedRealtime()
         var aapSessions = AapSessions()
         var aapSide: AapOverlay.Side? = null
+        val lastEar = HashMap<String, Pair<EarState, EarState>>()
+        val earChangedAt = HashMap<String, Long>()
         suspend fun emit() {
             if (!namesKnown) return
             val nearby = tracker.snapshot(now(), connectedNames, connectedBatteries + aapBatteries, connectedAddresses)
@@ -78,7 +81,9 @@ class PodsRepository @Inject constructor(
             // Прямое подключение есть только к подключённым наушникам: накладываем его только на них.
             send(
                 if (session is AapSessionState.Connected && primary != null && primary.connected) {
-                    val side = AapOverlay.resolveSide(primary, session.device, aapSide)
+                    val earAt = earChangedAt[session.address]
+                    val adFresh = earAt == null || primary.lastSeenMs > earAt + AD_AFTER_EAR_MS
+                    val side = AapOverlay.resolveSide(primary, session.device, aapSide, adFresh)
                     aapSide = side
                     nearby.copy(primary = AapOverlay.apply(primary, session.device, side.primaryIsLeftNow(session.device)))
                 } else {
@@ -91,6 +96,14 @@ class PodsRepository @Inject constructor(
         launch {
             // Каждое событие AAP (вынули наушник) сразу даёт новое состояние, без ожидания рекламы.
             aap.state.collect {
+                // Когда по AAP последний раз менялось ухо: реклама старше этого момента устарела.
+                it.sessions.filterIsInstance<AapSessionState.Connected>().forEach { session ->
+                    val ear = session.device.primaryEar to session.device.secondaryEar
+                    if (lastEar[session.address] != ear) {
+                        lastEar[session.address] = ear
+                        earChangedAt[session.address] = now()
+                    }
+                }
                 aapSessions = it
                 aapBatteries = it.sessions.filterIsInstance<AapSessionState.Connected>().flatMap { session ->
                     listOfNotNull(session.device.left, session.device.right, session.device.single).map { battery -> battery.percent }
@@ -189,6 +202,9 @@ class PodsRepository @Inject constructor(
 
     private companion object {
         const val TICK_MS = 3_000L
+
+        /** Наушникам нужно немного времени, чтобы новое положение попало в рекламу. */
+        const val AD_AFTER_EAR_MS = 1_000L
         const val MAX_OWNER_CACHE = 256
     }
 }
