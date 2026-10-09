@@ -22,6 +22,9 @@
     <string name="bg_description">Заряд в шторке уведомлений, даже когда приложение закрыто. Android попросит разрешить уведомления и подключение к устройствам поблизости: второе нужно, чтобы сразу замечать подключение наушников.</string>
     <string name="autopause_title">Автопауза</string>
     <string name="autopause_description">Пауза, когда вынимаете наушник или снимаете Max, и продолжение, когда возвращаете. Работает в фоновом режиме.</string>
+    <string name="case_popup_title">Окно при открытии кейса</string>
+    <string name="case_popup_description">Когда впервые открываете кейс наушников рядом с телефоном, снизу появляется карточка с зарядом. Выключите и включите, чтобы показать снова. Нужно разрешение «Поверх других приложений».</string>
+    <string name="case_popup_done">Готово</string>
     <string name="bt_open_settings">Открыть настройки Bluetooth</string>
     <string name="unknown_model">Неизвестная модель (0x%1$04X)</string>
     <string name="left">Левый</string>

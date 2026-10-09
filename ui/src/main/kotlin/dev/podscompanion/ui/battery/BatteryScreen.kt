@@ -235,7 +235,7 @@ private fun HeroCard(status: PodsStatus) {
 
 /** Одна часть: кольцо заряда вокруг рисунка, процент, название и где она сейчас. */
 @Composable
-private fun Part(
+internal fun Part(
     art: PodsArt.Art,
     label: String,
     battery: BatteryLevel?,

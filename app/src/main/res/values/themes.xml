@@ -2,4 +2,12 @@
 <resources>
     <!-- Цвета задаёт Compose (PodsCompanionTheme); это тема окна до отрисовки Compose. -->
     <style name="Theme.PodsCompanion" parent="android:Theme.Material.Light.NoActionBar" />
+    <!-- Прозрачное окно поверх текущего приложения: видна только карточка снизу. -->
+    <style name="Theme.PodsCompanion.Popup" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
 </resources>

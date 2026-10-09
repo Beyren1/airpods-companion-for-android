@@ -80,6 +80,7 @@ fun PodsNavHost() {
                         settings,
                         onBackgroundChange = viewModel::setBackgroundEnabled,
                         onAutoPauseChange = viewModel::setAutoPause,
+                        onCasePopupChange = viewModel::setCasePopup,
                         onDebugChange = viewModel::setDebugEnabled,
                         debug = DebugInfo(main, nearby?.others.orEmpty(), autoPauseLog, aapLog),
                         onBack = { nav.popBackStack() },

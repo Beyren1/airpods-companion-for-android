@@ -28,6 +28,9 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
 
+    <!-- Окно с зарядом при открытии кейса: открыть его из фона можно только с этим разрешением. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
     <!-- Связь с наушниками через Companion Device Manager: без неё Android не даёт сменить имя. -->
@@ -53,6 +56,16 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
             </intent-filter>
         </activity>
+
+        <!-- Карточка с зарядом при открытии кейса. -->
+        <activity
+            android:name=".popup.CasePopupActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:noHistory="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.PodsCompanion.Popup" />
 
         <service
             android:name=".service.PodsService"

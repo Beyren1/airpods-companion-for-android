@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.podscompanion.protocol.aap.HeadCalibration
@@ -24,6 +25,10 @@ data class AppSettings(
     val headGestures: Boolean = false,
     /** Калибровка жестов; null — ещё не калибровали. */
     val headCalibration: HeadCalibration? = null,
+    /** Всплывающее окно с зарядом, когда открывают кейс рядом с телефоном. */
+    val casePopup: Boolean = false,
+    /** Модели, для которых окно уже показали: оно всплывает только при первом знакомстве. */
+    val casePopupShown: Set<Int> = emptySet(),
 )
 
 // DataStore — асинхронная замена SharedPreferences: файл с ключами, изменения приходят как Flow.
@@ -41,6 +46,8 @@ class SettingsRepository @Inject constructor(
                 debugEnabled = prefs[DEBUG] ?: false,
                 headGestures = prefs[HEAD_GESTURES] ?: false,
                 headCalibration = prefs[HEAD_CALIBRATION]?.let(::parseCalibration),
+                casePopup = prefs[CASE_POPUP] ?: false,
+                casePopupShown = prefs[CASE_POPUP_SHOWN].orEmpty().mapNotNull { it.toIntOrNull() }.toSet(),
             )
         }
         .distinctUntilChanged()
@@ -55,6 +62,18 @@ class SettingsRepository @Inject constructor(
 
     suspend fun setDebugEnabled(value: Boolean) {
         context.settingsStore.edit { it[DEBUG] = value }
+    }
+
+    /** Включение заново сбрасывает список: окно снова покажется для всех наушников. */
+    suspend fun setCasePopup(value: Boolean) {
+        context.settingsStore.edit {
+            it[CASE_POPUP] = value
+            if (value) it.remove(CASE_POPUP_SHOWN)
+        }
+    }
+
+    suspend fun markCasePopupShown(modelId: Int) {
+        context.settingsStore.edit { it[CASE_POPUP_SHOWN] = it[CASE_POPUP_SHOWN].orEmpty() + modelId.toString() }
     }
 
     suspend fun setHeadGestures(value: Boolean) {
@@ -80,5 +99,7 @@ class SettingsRepository @Inject constructor(
         val DEBUG = booleanPreferencesKey("debug_enabled")
         val HEAD_GESTURES = booleanPreferencesKey("head_gestures")
         val HEAD_CALIBRATION = stringPreferencesKey("head_calibration")
+        val CASE_POPUP = booleanPreferencesKey("case_popup")
+        val CASE_POPUP_SHOWN = stringSetPreferencesKey("case_popup_shown")
     }
 }

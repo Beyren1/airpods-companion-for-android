@@ -153,6 +153,10 @@ class BatteryViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setAutoPause(value) }
     }
 
+    fun setCasePopup(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setCasePopup(value) }
+    }
+
     fun setDebugEnabled(value: Boolean) {
         viewModelScope.launch { settingsRepository.setDebugEnabled(value) }
     }
