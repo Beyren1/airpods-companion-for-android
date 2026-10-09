@@ -105,13 +105,16 @@ class AapRepository @Inject constructor(
     private val announcedStreams = ConcurrentHashMap<String, Set<Int>>()
     private var streamSeq = 1
 
+    /** Сколько пакетов датчиков после включения записать в журнал целиком (для разбора формата). */
+    private val motionLogBudget = ConcurrentHashMap<String, Int>()
+
     /**
      * Датчики головы: кроме потока из описания LibrePods просим и все объявленные наушниками —
      * на наших прошивках поток 14 подтверждается, но данных не шлёт.
      */
     private fun packets(address: String, command: AapCommand): List<ByteArray> {
         val on = when (command) {
-            AapCommand.StartHeadTracking -> true
+            AapCommand.StartHeadTracking -> true.also { motionLogBudget[address] = MOTION_LOG_FULL }
             AapCommand.StopHeadTracking -> false
             else -> return listOf(command.bytes)
         }
@@ -158,8 +161,12 @@ class AapRepository @Inject constructor(
                         is AapIo.Received -> {
                             val event = AapParser.parse(io.data)
                             if (event is AapEvent.HeadMotion) {
-                                // Первый пакет целиком: по нему проверяем, где в нём лежат углы.
-                                if (motionPackets == 0) log.add("← ${Hex.encode(io.data)} · датчики головы")
+                                // Первые пакеты после включения — целиком: по ним проверяем, где в них лежат углы.
+                                val budget = motionLogBudget[address] ?: 0
+                                if (budget > 0) {
+                                    motionLogBudget[address] = budget - 1
+                                    log.add("← ${Hex.encode(io.data)} · датчики головы")
+                                }
                                 if (motionPackets++ % MOTION_LOG_EVERY == 0) log.add("${target.name}: датчики головы ${event.orientation}")
                                 _headMotion.tryEmit(HeadSample(address, SystemClock.elapsedRealtime(), event))
                                 return@collect
@@ -211,5 +218,6 @@ class AapRepository @Inject constructor(
         const val MOTION_LOG_EVERY = 100
         const val STREAM_DATA_MIN = 32
         const val STREAM_LOG_FIRST = 20
+        const val MOTION_LOG_FULL = 5
     }
 }
