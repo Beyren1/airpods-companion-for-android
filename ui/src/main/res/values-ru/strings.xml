@@ -224,4 +224,22 @@
     <string name="tab_music">Музыка</string>
     <string name="tab_settings">Настройки</string>
     <string name="music_nothing_playing">Сейчас ничего не играет. Включите музыку в любом плеере, и она появится здесь.</string>
+
+    <!-- Статистика -->
+    <string name="tab_stats">Статистика</string>
+    <string name="stats_title">Статистика</string>
+    <string name="stats_today">Сегодня</string>
+    <string name="stats_worn">В ушах</string>
+    <string name="stats_music">Музыка</string>
+    <string name="stats_calls">Звонки</string>
+    <string name="stats_week_worn">В ушах за 7 дней</string>
+    <string name="stats_week_totals">За 7 дней: в ушах %1$s · музыка %2$s · звонки %3$s</string>
+    <string name="stats_hours_minutes">%1$d ч %2$d мин</string>
+    <string name="stats_minutes">%1$d мин</string>
+    <string name="stats_empty">Статистика появится, когда вы подключите наушники. У каждой пары будет своя карточка.</string>
+    <string name="stats_needs_background">Статистика считается, только пока включён фоновый режим. Включите его во вкладке «Настройки».</string>
+    <string name="stats_clear">Сбросить статистику</string>
+    <string name="stats_clear_title">Сбросить статистику?</string>
+    <string name="stats_clear_text">Время для всех наушников будет удалено.</string>
+    <string name="stats_clear_confirm">Сбросить</string>
 </resources>

@@ -222,4 +222,22 @@
     <string name="tab_music">Musique</string>
     <string name="tab_settings">Réglages</string>
     <string name="music_nothing_playing">Rien en lecture. Lancez la musique dans n’importe quel lecteur et elle apparaîtra ici.</string>
+
+    <!-- Статистика -->
+    <string name="tab_stats">Stats</string>
+    <string name="stats_title">Statistiques</string>
+    <string name="stats_today">Aujourd\'hui</string>
+    <string name="stats_worn">Portés</string>
+    <string name="stats_music">Musique</string>
+    <string name="stats_calls">Appels</string>
+    <string name="stats_week_worn">Portés, 7 derniers jours</string>
+    <string name="stats_week_totals">7 jours : portés %1$s · musique %2$s · appels %3$s</string>
+    <string name="stats_hours_minutes">%1$d h %2$d min</string>
+    <string name="stats_minutes">%1$d min</string>
+    <string name="stats_empty">Les statistiques apparaîtront dès que vous connecterez vos écouteurs. Chaque paire a sa propre carte.</string>
+    <string name="stats_needs_background">Les statistiques ne sont comptées que si le mode arrière-plan est activé. Activez-le dans l\'onglet Réglages.</string>
+    <string name="stats_clear">Réinitialiser les statistiques</string>
+    <string name="stats_clear_title">Réinitialiser les statistiques ?</string>
+    <string name="stats_clear_text">Le temps de tous les écouteurs sera supprimé.</string>
+    <string name="stats_clear_confirm">Réinitialiser</string>
 </resources>
