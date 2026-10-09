@@ -24,8 +24,14 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Жесты головой: узнать, что звонят, и ответить или отклонить звонок кивком. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
+
     <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
+    <!-- Связь с наушниками через Companion Device Manager: без неё Android не даёт сменить имя. -->
+    <uses-feature android:name="android.software.companion_device_setup" android:required="false" />
 
     <application
         android:name=".PodsApp"

@@ -103,4 +103,26 @@
     <string name="mode_tile_transparency">Прозрачность</string>
     <string name="mode_tile_adaptive">Адаптивный</string>
     <string name="mode_tile_nc">Шумоподавление</string>
+    <string name="setting_name">Имя</string>
+    <string name="rename_limit">Не длиннее %1$d байт (кириллица считается за два)</string>
+    <string name="rename_hint">В первый раз Android спросит разрешение управлять наушниками: без него он не даёт сменить имя в настройках Bluetooth.</string>
+    <string name="rename_done">Имя сохранено</string>
+    <string name="rename_declined">Имя отправлено в наушники, но в Android осталось старое: нужно разрешение управлять наушниками</string>
+    <string name="rename_failed">Имя отправлено в наушники, но Android не дал его сменить</string>
+    <string name="rename_old_android">Имя отправлено в наушники. Android 11 и старше обновит его только после нового сопряжения</string>
+    <string name="save">Сохранить</string>
+    <string name="cancel">Отмена</string>
+    <string name="retry">Повторить</string>
+    <string name="ok">Готово</string>
+    <string name="section_gestures">Жесты головой</string>
+    <string name="gestures_title">Отвечать на звонки жестами</string>
+    <string name="gestures_hint">Кивок — ответить, покачивание — отклонить. Для обычных звонков, не мессенджеров.</string>
+    <string name="gestures_need_background">Работает, когда включён фоновый режим.</string>
+    <string name="gestures_recalibrate">Настроить жесты заново</string>
+    <string name="calibration_title">Настройка жестов</string>
+    <string name="calibration_nod">Кивните несколько раз, как будто говорите «да».</string>
+    <string name="calibration_shake">Теперь покачайте головой, как будто говорите «нет».</string>
+    <string name="calibration_done">Готово, жесты включены. Во время звонка кивните, чтобы ответить, или покачайте головой, чтобы отклонить.</string>
+    <string name="calibration_no_data">Наушники не прислали данные датчиков. Проверьте, что оба наушника в ушах, и попробуйте ещё раз.</string>
+    <string name="calibration_failed">Не получилось распознать движение. Кивайте и качайте головой чуть заметнее и попробуйте ещё раз.</string>
 </resources>

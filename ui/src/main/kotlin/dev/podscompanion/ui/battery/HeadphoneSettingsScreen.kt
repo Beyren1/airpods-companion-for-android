@@ -1,5 +1,23 @@
 package dev.podscompanion.ui.battery
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import dev.podscompanion.protocol.aap.Aap
+import dev.podscompanion.protocol.advertising.Capability
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -58,7 +76,18 @@ fun HeadphoneSettingsScreen(
     model: PodsModel?,
     onCommand: (address: String, AapCommand) -> Unit,
     onBack: () -> Unit,
+    gestures: GesturesUi = GesturesUi(),
 ) {
+    val context = LocalContext.current
+    val setAlias = rememberAliasSetter { result ->
+        val text = when (result) {
+            AliasResult.DONE -> R.string.rename_done
+            AliasResult.DECLINED -> R.string.rename_declined
+            AliasResult.FAILED -> R.string.rename_failed
+            AliasResult.UNSUPPORTED -> R.string.rename_old_android
+        }
+        Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -78,6 +107,13 @@ fun HeadphoneSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             if (session is AapSessionState.Connected) {
+                NameRow(session.deviceName) { name ->
+                    onCommand(session.address, AapCommand.Rename(name))
+                    setAlias(session.address, name)
+                }
+                if (model == null || Capability.HEAD_GESTURES in model.capabilities) {
+                    HeadGesturesSection(gestures, onCalibrate = { gestures.onCalibrate(session.address) })
+                }
                 SettingsContent(session, model) { onCommand(session.address, it) }
             } else {
                 Text(
@@ -89,6 +125,146 @@ fun HeadphoneSettingsScreen(
             }
         }
     }
+}
+
+/** Всё, что нужно разделу жестов головой: настройки, калибровка и действия. */
+data class GesturesUi(
+    val enabled: Boolean = false,
+    val calibrated: Boolean = false,
+    val backgroundEnabled: Boolean = false,
+    val calibration: CalibrationState = CalibrationState.Idle,
+    val onEnabledChange: (Boolean) -> Unit = {},
+    val onCalibrate: (address: String) -> Unit = {},
+    val onCalibrationDismiss: () -> Unit = {},
+)
+
+/** Имя наушников: по нажатию окно для нового имени. */
+@Composable
+private fun NameRow(current: String, onRename: (String) -> Unit) {
+    var editing by rememberSaveable { mutableStateOf(false) }
+    // Android отдаёт новое имя только после переподключения, поэтому сразу показываем сохранённое.
+    var saved by rememberSaveable(current) { mutableStateOf<String?>(null) }
+    val shown = saved ?: current
+    SettingsGroup {
+        row {
+            NavRow(stringResource(R.string.setting_name), { editing = true }, icon = Icons.Filled.Edit, description = shown)
+        }
+    }
+    if (editing) {
+        var text by rememberSaveable { mutableStateOf(shown) }
+        val valid = text.isNotBlank() && text.trim().toByteArray().size <= Aap.MAX_NAME_BYTES
+        AlertDialog(
+            onDismissRequest = { editing = false },
+            title = { Text(stringResource(R.string.setting_name)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = text,
+                        onValueChange = { text = it },
+                        singleLine = true,
+                        isError = !valid,
+                        supportingText = { Text(stringResource(R.string.rename_limit, Aap.MAX_NAME_BYTES)) },
+                    )
+                    Text(
+                        stringResource(R.string.rename_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { saved = text.trim(); onRename(text.trim()); editing = false }, enabled = valid) {
+                    Text(stringResource(R.string.save))
+                }
+            },
+            dismissButton = { TextButton(onClick = { editing = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+}
+
+/**
+ * Жесты головой при звонке. Включение просит разрешения «Телефон» и «Ответ на звонки»,
+ * а если калибровки ещё не было — сначала проводит её.
+ */
+@Composable
+private fun HeadGesturesSection(ui: GesturesUi, onCalibrate: () -> Unit) {
+    val context = LocalContext.current
+    val permissions = arrayOf(Manifest.permission.READ_PHONE_STATE, Manifest.permission.ANSWER_PHONE_CALLS)
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (result.values.all { it }) {
+            if (ui.calibrated) ui.onEnabledChange(true) else onCalibrate()
+        }
+    }
+    fun enable() {
+        val granted = permissions.all { ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED }
+        when {
+            !granted -> launcher.launch(permissions)
+            ui.calibrated -> ui.onEnabledChange(true)
+            else -> onCalibrate()
+        }
+    }
+
+    SectionTitle(stringResource(R.string.section_gestures))
+    SettingsGroup {
+        row {
+            SwitchRow(
+                stringResource(R.string.gestures_title), ui.enabled,
+                { on -> if (on) enable() else ui.onEnabledChange(false) },
+                icon = Icons.Filled.Call,
+                description = stringResource(R.string.gestures_hint) +
+                    if (!ui.backgroundEnabled) "\n" + stringResource(R.string.gestures_need_background) else "",
+            )
+        }
+        if (ui.calibrated) row {
+            NavRow(stringResource(R.string.gestures_recalibrate), onCalibrate, icon = Icons.Filled.Tune)
+        }
+    }
+    CalibrationDialog(ui.calibration, onRetry = onCalibrate, onDismiss = ui.onCalibrationDismiss)
+}
+
+@Composable
+private fun CalibrationDialog(state: CalibrationState, onRetry: () -> Unit, onDismiss: () -> Unit) {
+    if (state == CalibrationState.Idle) return
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.calibration_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                when (state) {
+                    is CalibrationState.Recording -> {
+                        Text(
+                            stringResource(
+                                if (state.step == CalibrationState.Step.NOD) R.string.calibration_nod else R.string.calibration_shake,
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                        )
+                        LinearProgressIndicator(progress = { state.progress }, modifier = Modifier.fillMaxWidth())
+                    }
+                    CalibrationState.Done -> Text(stringResource(R.string.calibration_done))
+                    is CalibrationState.Failed -> Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(if (state.noData) R.string.calibration_no_data else R.string.calibration_failed))
+                        // Цифры для отладки: пришлите их, если ошибка повторяется.
+                        Text(
+                            state.details,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    CalibrationState.Idle -> Unit
+                }
+            }
+        },
+        confirmButton = {
+            when (state) {
+                is CalibrationState.Failed -> TextButton(onClick = onRetry) { Text(stringResource(R.string.retry)) }
+                CalibrationState.Done -> TextButton(onClick = onDismiss) { Text(stringResource(R.string.ok)) }
+                else -> Unit
+            }
+        },
+        dismissButton = {
+            if (state !is CalibrationState.Done) TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        },
+    )
 }
 
 @Composable
