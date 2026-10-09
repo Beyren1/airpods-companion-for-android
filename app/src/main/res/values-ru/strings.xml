@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_channel_name">Заряд наушников</string>
+    <string name="notif_channel_description">Постоянное уведомление с зарядом, пока работает фоновый режим</string>
+    <string name="notif_text_idle">Наушников рядом нет. Откройте кейс, чтобы увидеть заряд</string>
+    <string name="notif_left">Л %1$s</string>
+    <string name="notif_right">П %1$s</string>
+    <string name="notif_case">Кейс %1$s</string>
+
+    <!-- Виджет -->
+    <string name="widget_name">Заряд наушников</string>
+    <string name="widget_description">Заряд левого и правого наушника и кейса. Обновляется, когда включён фоновый режим.</string>
+    <string name="widget_no_data">Откройте кейс рядом с телефоном. Нужен фоновый режим.</string>
+    <string name="widget_last_seen">Последний раз рядом в %1$s</string>
+    <string name="widget_left">Левый</string>
+    <string name="widget_right">Правый</string>
+    <string name="widget_case">Кейс</string>
+    <string name="widget_battery">Заряд</string>
+
+    <!-- Плитка в шторке -->
+    <string name="tile_label">Наушники</string>
+    <string name="tile_no_data">Нет данных</string>
+    <string name="tile_connecting">Подключаюсь…</string>
+    <string name="tile_no_connection">Нет прямого подключения</string>
+    <string name="tile_mode_off">Режим: выкл.</string>
+    <string name="tile_mode_nc">Шумоподавление</string>
+    <string name="tile_mode_transparency">Прозрачность</string>
+    <string name="tile_mode_adaptive">Адаптивный</string>
+</resources>

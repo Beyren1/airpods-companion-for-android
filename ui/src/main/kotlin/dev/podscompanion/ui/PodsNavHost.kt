@@ -15,6 +15,7 @@ import dev.podscompanion.ui.battery.AppSettingsScreen
 import dev.podscompanion.ui.battery.BatteryUiState
 import dev.podscompanion.ui.battery.BatteryViewModel
 import dev.podscompanion.ui.battery.DebugInfo
+import dev.podscompanion.ui.battery.DeviceInfoScreen
 import dev.podscompanion.ui.battery.GesturesUi
 import dev.podscompanion.ui.battery.HeadphoneSettingsScreen
 import dev.podscompanion.ui.battery.HomeScreen
@@ -24,10 +25,11 @@ private object Routes {
     const val HOME = "home"
     const val HEADPHONES = "headphones"
     const val APP_SETTINGS = "app_settings"
+    const val DEVICE_INFO = "device_info"
 }
 
 /**
- * Три экрана приложения: главная, настройки наушников и настройки приложения.
+ * Экраны приложения: главная, настройки наушников, настройки приложения и «Об устройствах».
  * ViewModel одна на все экраны (создаётся до NavHost, поэтому живёт, пока открыта Activity):
  * скан и прямое подключение не перезапускаются при переходе между экранами.
  */
@@ -82,9 +84,14 @@ fun PodsNavHost() {
                         onAutoPauseChange = viewModel::setAutoPause,
                         onCasePopupChange = viewModel::setCasePopup,
                         onDebugChange = viewModel::setDebugEnabled,
+                        onThemeChange = viewModel::setTheme,
+                        onOpenDeviceInfo = { nav.navigate(Routes.DEVICE_INFO) },
                         debug = DebugInfo(main, nearby?.others.orEmpty(), autoPauseLog, aapLog),
                         onBack = { nav.popBackStack() },
                     )
+                }
+                composable(Routes.DEVICE_INFO) {
+                    DeviceInfoScreen(aapSessions, nearby, onBack = { nav.popBackStack() })
                 }
             }
         }

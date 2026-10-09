@@ -428,6 +428,7 @@ private fun Nearby(others: List<PodsStatus>) {
 private fun modelName(status: PodsStatus): String =
     status.model?.displayName ?: stringResource(R.string.unknown_model, status.modelId)
 
+@Composable
 private fun shortBattery(status: PodsStatus): String {
     val model = status.model
     if (model != null && Capability.STEREO_BUDS !in model.capabilities) {
@@ -436,7 +437,8 @@ private fun shortBattery(status: PodsStatus): String {
     val left = status.left.battery?.displayText() ?: "—"
     val right = status.right.battery?.displayText() ?: "—"
     val case = status.caseBattery?.displayText()
-    return "L $left · R $right" + (case?.let { " · кейс $it" } ?: "")
+    return stringResource(R.string.battery_pair, left, right) +
+        (case?.let { stringResource(R.string.battery_case_suffix, it) } ?: "")
 }
 
 // ---------- Пустые состояния ----------

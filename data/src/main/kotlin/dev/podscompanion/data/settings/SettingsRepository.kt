@@ -29,7 +29,12 @@ data class AppSettings(
     val casePopup: Boolean = false,
     /** Модели, для которых окно уже показали: оно всплывает только при первом знакомстве. */
     val casePopupShown: Set<Int> = emptySet(),
+    /** Светлая, тёмная или как в системе. */
+    val theme: ThemeMode = ThemeMode.SYSTEM,
 )
+
+/** Оформление приложения. SYSTEM — следовать теме телефона. */
+enum class ThemeMode { SYSTEM, LIGHT, DARK }
 
 // DataStore — асинхронная замена SharedPreferences: файл с ключами, изменения приходят как Flow.
 private val Context.settingsStore by preferencesDataStore(name = "settings")
@@ -48,6 +53,7 @@ class SettingsRepository @Inject constructor(
                 headCalibration = prefs[HEAD_CALIBRATION]?.let(::parseCalibration),
                 casePopup = prefs[CASE_POPUP] ?: false,
                 casePopupShown = prefs[CASE_POPUP_SHOWN].orEmpty().mapNotNull { it.toIntOrNull() }.toSet(),
+                theme = ThemeMode.entries.firstOrNull { it.name == prefs[THEME] } ?: ThemeMode.SYSTEM,
             )
         }
         .distinctUntilChanged()
@@ -76,6 +82,10 @@ class SettingsRepository @Inject constructor(
         context.settingsStore.edit { it[CASE_POPUP_SHOWN] = it[CASE_POPUP_SHOWN].orEmpty() + modelId.toString() }
     }
 
+    suspend fun setTheme(value: ThemeMode) {
+        context.settingsStore.edit { it[THEME] = value.name }
+    }
+
     suspend fun setHeadGestures(value: Boolean) {
         context.settingsStore.edit { it[HEAD_GESTURES] = value }
     }
@@ -101,5 +111,6 @@ class SettingsRepository @Inject constructor(
         val HEAD_CALIBRATION = stringPreferencesKey("head_calibration_v2") // v2: другие числа в пакете, старая калибровка не подходит
         val CASE_POPUP = booleanPreferencesKey("case_popup")
         val CASE_POPUP_SHOWN = stringSetPreferencesKey("case_popup_shown")
+        val THEME = stringPreferencesKey("theme")
     }
 }
