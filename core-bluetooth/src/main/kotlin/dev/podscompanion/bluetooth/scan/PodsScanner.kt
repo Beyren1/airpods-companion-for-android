@@ -126,12 +126,25 @@ class PodsScanner @Inject constructor(
         NONE,
         ;
 
+        private companion object {
+            const val PACKET_SIZE = 2 + AppleAdvertising.PROXIMITY_PAIRING_LENGTH
+        }
+
         fun filter(): ScanFilter = when (this) {
+            // Данные и маска — во всю длину пакета (2 + 25 байт), сравниваются только первые два.
+            // С маской в 2 байта Samsung A56 не пропускал ничего: похоже, его контроллер сравнивает
+            // и длину. Pixel работает с обоими вариантами.
             PROXIMITY_PAIRING -> ScanFilter.Builder()
                 .setManufacturerData(
                     AppleAdvertising.COMPANY_ID,
-                    byteArrayOf(AppleAdvertising.TYPE_PROXIMITY_PAIRING.toByte(), AppleAdvertising.PROXIMITY_PAIRING_LENGTH.toByte()),
-                    byteArrayOf(0xFF.toByte(), 0xFF.toByte()),
+                    ByteArray(PACKET_SIZE).also {
+                        it[0] = AppleAdvertising.TYPE_PROXIMITY_PAIRING.toByte()
+                        it[1] = AppleAdvertising.PROXIMITY_PAIRING_LENGTH.toByte()
+                    },
+                    ByteArray(PACKET_SIZE).also {
+                        it[0] = 0xFF.toByte()
+                        it[1] = 0xFF.toByte()
+                    },
                 )
                 .build()
             APPLE -> ScanFilter.Builder().setManufacturerData(AppleAdvertising.COMPANY_ID, byteArrayOf()).build()
