@@ -3,6 +3,12 @@ package dev.podscompanion.ui.battery
 import android.content.Intent
 import android.os.SystemClock
 import android.provider.Settings
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -45,6 +51,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
@@ -52,6 +59,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -71,6 +80,7 @@ import dev.podscompanion.data.displayText
 import dev.podscompanion.data.media.NowPlaying
 import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.protocol.aap.AapToggle
+import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.protocol.aap.toggle
 import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.Capability
@@ -134,7 +144,14 @@ fun HomeScreen(
                     BatteryUiState.BluetoothOff -> BluetoothOff()
                     is BatteryUiState.Error -> Message(Icons.Filled.ErrorOutline, stringResource(R.string.scan_error, state.message))
                     is BatteryUiState.Found -> {
-                        if (main != null) HeroCard(main) else NotConnectedCard()
+                        if (main != null) {
+                            // Цвет режима — только если наушники его сообщили и режимы у модели вообще есть.
+                            val mode = (session as? AapSessionState.Connected)?.device?.listeningMode
+                                ?.takeIf { it in availableModes(main.model) }
+                            HeroCard(main, mode)
+                        } else {
+                            NotConnectedCard()
+                        }
                         if (main?.connected == true) AapStatusCard(session, aapSessions.noPermission, onAapCheck)
                         if (session is AapSessionState.Connected) {
                             Controls(session, main?.model, onCommand, onOpenHeadphoneSettings)
@@ -196,17 +213,35 @@ private val StatusGreen = Color(0xFF4CAF7A)
 
 // ---------- Заряд ----------
 
+/**
+ * Карточка с зарядом. Живая: наушники в ушах дышат, вынутый отъезжает в сторону,
+ * а фон карточки плавно окрашивается в цвет текущего режима шумоподавления.
+ */
 @Composable
-private fun HeroCard(status: PodsStatus) {
+private fun HeroCard(status: PodsStatus, mode: ListeningMode?) {
     val model = status.model
     val stereo = model == null || Capability.STEREO_BUDS in model.capabilities
     val hasCase = model == null || Capability.CHARGING_CASE in model.capabilities
     val exact = status.exactBattery
+    val colors = MaterialTheme.colorScheme
+
+    val leftMotion = budMotion(status.left, left = true)
+    val rightMotion = budMotion(status.right, left = false)
+    val maxMotion = if (status.primary.inEar) PartMotion.Breathe else PartMotion.Off
+    val anyBreathing = if (stereo) PartMotion.Breathe in listOf(leftMotion, rightMotion) else maxMotion == PartMotion.Breathe
+    // Анимация «дыхания» крутится, только пока есть кому дышать: без неё экран не тратит заряд.
+    val breath = if (anyBreathing) rememberBreath() else null
+
+    val container by animateColorAsState(
+        if (mode == null) colors.surfaceContainer else lerp(colors.surfaceContainer, colors.forMode(mode).container, 0.45f),
+        tween(700),
+        label = "heroTint",
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        colors = CardDefaults.cardColors(containerColor = container),
     ) {
         Column(Modifier.padding(vertical = 18.dp, horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (stereo) {
@@ -214,6 +249,7 @@ private fun HeroCard(status: PodsStatus) {
                     Part(
                         PodsArt.budFor(model, left = true), stringResource(R.string.left), status.left.battery, status.left.charging,
                         podNote(status.left), highlighted = status.left.inEar, exact = exact, modifier = Modifier.weight(1f),
+                        motion = leftMotion, breath = breath,
                     )
                     if (hasCase) {
                         Part(
@@ -225,6 +261,7 @@ private fun HeroCard(status: PodsStatus) {
                     Part(
                         PodsArt.budFor(model, left = false), stringResource(R.string.right), status.right.battery, status.right.charging,
                         podNote(status.right), highlighted = status.right.inEar, exact = exact, modifier = Modifier.weight(1f),
+                        motion = rightMotion, breath = breath,
                     )
                 }
             } else {
@@ -233,6 +270,7 @@ private fun HeroCard(status: PodsStatus) {
                     PodsArt.OverEarArt, stringResource(R.string.headphones), pod.battery, pod.charging,
                     if (pod.inEar) stringResource(R.string.on_head) else stringResource(R.string.off_head),
                     highlighted = pod.inEar, exact = exact, ringSize = 132.dp, modifier = Modifier.fillMaxWidth(),
+                    motion = maxMotion, breath = breath,
                 )
             }
             Freshness(status)
@@ -240,7 +278,10 @@ private fun HeroCard(status: PodsStatus) {
     }
 }
 
-/** Одна часть: кольцо заряда вокруг рисунка, процент, название и где она сейчас. */
+/**
+ * Одна часть: кольцо заряда вокруг рисунка, процент, название и где она сейчас.
+ * [motion] и [breath] оживляют рисунок на главном экране (см. [PartMotion]); в окне кейса он неподвижен.
+ */
 @Composable
 internal fun Part(
     art: PodsArt.Art,
@@ -253,19 +294,69 @@ internal fun Part(
     modifier: Modifier = Modifier,
     dimmed: Boolean = false,
     ringSize: Dp = 92.dp,
+    motion: PartMotion = PartMotion.Still,
+    breath: State<Float>? = null,
 ) {
     val percent = battery?.percent
     val colors = MaterialTheme.colorScheme
-    val ringColor = when {
-        percent == null || dimmed -> colors.outline
-        percent <= 20 -> colors.error
-        charging -> colors.tertiary
-        else -> colors.primary
-    }
+    val ringColor by animateColorAsState(
+        when {
+            percent == null || dimmed -> colors.outline
+            percent <= 20 -> colors.error
+            charging -> colors.tertiary
+            else -> colors.primary
+        },
+        tween(600),
+        label = "ringColor",
+    )
+    // Кольцо доезжает до нового заряда плавно, а не прыгает.
+    val progress by animateFloatAsState((percent ?: 0) / 100f, tween(900, easing = FastOutSlowInEasing), label = "ring")
+
+    // Вынутый наушник отъезжает в свою сторону с лёгким пружинным «отскоком».
+    val bouncy = spring<Float>(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessLow)
+    val shiftX = animateFloatAsState(
+        when (motion) {
+            PartMotion.OutLeft -> -9f
+            PartMotion.OutRight -> 9f
+            else -> 0f
+        },
+        bouncy, label = "shiftX",
+    )
+    val out = motion == PartMotion.OutLeft || motion == PartMotion.OutRight || motion == PartMotion.Off
+    val shiftY = animateFloatAsState(if (out) 5f else 0f, bouncy, label = "shiftY")
+    val tilt = animateFloatAsState(
+        when (motion) {
+            PartMotion.OutLeft -> -14f
+            PartMotion.OutRight -> 14f
+            PartMotion.Off -> -6f
+            else -> 0f
+        },
+        bouncy, label = "tilt",
+    )
+    val settle = animateFloatAsState(if (out) 0.9f else 1f, bouncy, label = "settle")
+    // Вдох затухает, а не обрывается, когда наушник вынули.
+    val breathing = animateFloatAsState(if (motion == PartMotion.Breathe) 1f else 0f, tween(500), label = "breathing")
+    val glowColor = colors.primary
+
     Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Box(Modifier.size(ringSize), contentAlignment = Alignment.Center) {
+            // Мягкое свечение за наушником в ухе, пульсирует вместе с дыханием.
+            if (breath != null) {
+                Box(
+                    Modifier
+                        .fillMaxSize(0.78f)
+                        .graphicsLayer {
+                            val b = breath.value * breathing.value
+                            alpha = (0.10f + 0.12f * b) * breathing.value
+                            scaleX = 0.92f + 0.10f * b
+                            scaleY = scaleX
+                        }
+                        .clip(CircleShape)
+                        .background(glowColor),
+                )
+            }
             CircularProgressIndicator(
-                progress = { (percent ?: 0) / 100f },
+                progress = { progress },
                 modifier = Modifier.fillMaxSize(),
                 color = ringColor,
                 strokeWidth = ringSize / 15,
@@ -277,7 +368,18 @@ internal fun Part(
             Image(
                 painterResource(art.image), null,
                 alpha = if (highlighted || !dimmed) 1f else 0.5f,
-                modifier = Modifier.size((art.widthMm * dpPerMm).dp, (art.heightMm * dpPerMm).dp),
+                modifier = Modifier
+                    .size((art.widthMm * dpPerMm).dp, (art.heightMm * dpPerMm).dp)
+                    .graphicsLayer {
+                        // Всё движение — в слое отрисовки: на каждом кадре не пересчитывается разметка экрана.
+                        val b = (breath?.value ?: 0f) * breathing.value
+                        val scale = settle.value * (1f + 0.045f * b)
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = shiftX.value * density
+                        translationY = (shiftY.value - 3f * b) * density
+                        rotationZ = tilt.value
+                    },
             )
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -299,24 +401,29 @@ internal fun Part(
 private fun StatusChip(text: String?, highlighted: Boolean) {
     // Пустая «таблетка» той же высоты, чтобы части не прыгали при смене статуса.
     val colors = MaterialTheme.colorScheme
+    val background by animateColorAsState(
+        when {
+            text == null -> Color.Transparent
+            highlighted -> colors.primaryContainer
+            else -> colors.surfaceContainerHighest
+        },
+        tween(400),
+        label = "chip",
+    )
+    val content by animateColorAsState(if (highlighted) colors.onPrimaryContainer else colors.onSurfaceVariant, tween(400), label = "chipText")
     Box(
         Modifier
             .height(24.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(
-                when {
-                    text == null -> Color.Transparent
-                    highlighted -> colors.primaryContainer
-                    else -> colors.surfaceContainerHighest
-                },
-            )
+            .background(background)
+            .animateContentSize()
             .padding(horizontal = 10.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             text ?: "",
             style = MaterialTheme.typography.labelMedium,
-            color = if (highlighted) colors.onPrimaryContainer else colors.onSurfaceVariant,
+            color = content,
         )
     }
 }
