@@ -87,14 +87,23 @@ class HeadGestureDetector(
     private val window = ArrayDeque<Pair<Long, IntArray>>()
     private var blockedUntil = 0L
 
+    /** Последние оценки кивка и покачивания в порогах (1 — жест): для журнала. */
+    var lastNod = 0f
+        private set
+    var lastShake = 0f
+        private set
+
     fun onSample(timeMs: Long, orientation: List<Int>): HeadGesture? {
         val values = recorder.add(orientation)
         window.addLast(timeMs to values)
         while (window.isNotEmpty() && timeMs - window.first().first > windowMs) window.removeFirst()
         if (timeMs < blockedUntil) return null
 
-        val nod = score(calibration.nodAxis, calibration.nodThreshold)
-        val shake = score(calibration.shakeAxis, calibration.shakeThreshold)
+        // На калибровке кивают с запасом, в жизни мягче: порог берём ниже.
+        val nod = score(calibration.nodAxis, (calibration.nodThreshold * SENSITIVITY).toInt())
+        val shake = score(calibration.shakeAxis, (calibration.shakeThreshold * SENSITIVITY).toInt())
+        lastNod = nod
+        lastShake = shake
         val gesture = when {
             nod >= 1f && nod > shake * DOMINANCE -> HeadGesture.NOD
             shake >= 1f && shake > nod * DOMINANCE -> HeadGesture.SHAKE
@@ -153,5 +162,8 @@ class HeadGestureDetector(
     private companion object {
         /** Ось жеста должна двигаться хотя бы в полтора раза сильнее другой (в порогах). */
         const val DOMINANCE = 1.5f
+
+        /** Доля порога калибровки: жест засчитываем, если размах хотя бы 60 % от калибровочного полуразмаха. */
+        const val SENSITIVITY = 0.6f
     }
 }
