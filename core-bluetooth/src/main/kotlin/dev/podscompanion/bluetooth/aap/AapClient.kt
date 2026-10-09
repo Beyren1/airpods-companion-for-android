@@ -9,6 +9,7 @@ import javax.inject.Singleton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.launch
@@ -19,6 +20,12 @@ sealed interface AapIo {
     class Received(val data: ByteArray) : AapIo
     class Sent(val data: ByteArray) : AapIo
 }
+
+/**
+ * connect() не ответил. Так ведёт себя стек Bluetooth на Android 16 и старше у большинства
+ * производителей (Samsung A56): без root прямое подключение там невозможно, исправлено в Android 17.
+ */
+class AapConnectTimeoutException(seconds: Long) : IOException("наушники не ответили за $seconds с")
 
 /**
  * Одно соединение AAP с наушниками. Flow живёт, пока соединение открыто: при отмене подписки
@@ -33,9 +40,17 @@ class AapClient @Inject constructor() {
         val socket = L2capSockets.create(device, Aap.PSM)
         // read() блокирует поток, поэтому читаем на IO. Отмена Flow закроет сокет в awaitClose,
         // и read() сразу выбросит исключение (аналог shutdown() у сокета в C++).
+        // На некоторых прошивках (Samsung A56) connect() не завершается ни успехом, ни ошибкой,
+        // и попытка висит вечно. Закрытый сокет прерывает connect() исключением — будет повтор.
+        val connectTimeout = launch {
+            delay(CONNECT_TIMEOUT_MS)
+            close(AapConnectTimeoutException(CONNECT_TIMEOUT_MS / 1_000))
+            runCatching { socket.close() }
+        }
         launch(Dispatchers.IO) {
             try {
                 socket.connect()
+                connectTimeout.cancel()
                 send(AapIo.Connected(L2capSockets.lastMethod ?: "?"))
                 val output = socket.outputStream
                 for (packet in listOf(Aap.HANDSHAKE, Aap.SET_FEATURES, Aap.REQUEST_NOTIFICATIONS, Aap.REQUEST_PROXIMITY_KEYS)) {
@@ -67,5 +82,6 @@ class AapClient @Inject constructor() {
 
     private companion object {
         const val MAX_PACKET = 1024
+        const val CONNECT_TIMEOUT_MS = 15_000L
     }
 }

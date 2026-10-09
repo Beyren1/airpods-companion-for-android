@@ -2,6 +2,7 @@ package dev.podscompanion.data.aap
 
 import android.os.SystemClock
 import dev.podscompanion.bluetooth.aap.AapClient
+import dev.podscompanion.bluetooth.aap.AapConnectTimeoutException
 import dev.podscompanion.bluetooth.aap.AapIo
 import dev.podscompanion.bluetooth.aap.L2capUnavailableException
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevice
@@ -325,7 +326,10 @@ class AapRepository @Inject constructor(
                 e
             }
 
-            val reason = if (failure is L2capUnavailableException) FailureReason.SOCKET_BLOCKED else FailureReason.CONNECTION_FAILED
+            // Несколько попыток подряд без ответа — это не случайный сбой, а прошивка, не пускающая без root.
+            val blocked = failure is L2capUnavailableException ||
+                (failure is AapConnectTimeoutException && !connected && attempt >= BLOCKED_AFTER_TIMEOUTS)
+            val reason = if (blocked) FailureReason.SOCKET_BLOCKED else FailureReason.CONNECTION_FAILED
             val details = (failure?.cause ?: failure)?.let { "${it::class.simpleName}: ${it.message}" } ?: "соединение закрыто"
             log.add("${target.name}: ошибка: $details")
             // Оборвалось рабочее соединение — сразу пробуем снова: обычно наушники просто на миг пропали.
@@ -355,6 +359,7 @@ class AapRepository @Inject constructor(
         const val MODE_TICK_MS = 200L
         const val RECONNECT_AFTER_DROP_MS = 300L
         val BACKOFF_SEC = intArrayOf(3, 10, 30, 60)
+        const val BLOCKED_AFTER_TIMEOUTS = 3
         const val MOTION_LOG_EVERY = 100
         const val STREAM_DATA_MIN = 32
         const val STREAM_LOG_FIRST = 20

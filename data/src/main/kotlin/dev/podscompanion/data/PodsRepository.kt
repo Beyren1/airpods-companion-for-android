@@ -2,6 +2,7 @@ package dev.podscompanion.data
 
 import android.os.SystemClock
 import dev.podscompanion.bluetooth.scan.AdvertisementEvent
+import dev.podscompanion.bluetooth.scan.ConnectedAudioDevice
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.bluetooth.scan.PodsScanner
 import dev.podscompanion.bluetooth.scan.ScanIntensity
@@ -61,6 +62,9 @@ class PodsRepository @Inject constructor(
         // находим ту, что подключена (заряд из системы приходит не всегда и с опозданием).
         var aapBatteries = emptyList<Int>()
         var connectedAddresses = emptySet<String>()
+        // Подключённые наушники Apple: из них карточка, если рекламы не слышно (см. [ConnectedFallback]).
+        var connectedApple = emptyList<ConnectedAudioDevice>()
+        val startedAt = SystemClock.elapsedRealtime()
         var ownKeys = emptyList<OwnPodsKeys>()
         // Адрес рекламы → чьи это наушники. AES считаем один раз на адрес, а он меняется раз в несколько минут.
         val owners = HashMap<String, String?>()
@@ -73,15 +77,17 @@ class PodsRepository @Inject constructor(
         suspend fun emit() {
             if (!namesKnown) return
             val nearby = tracker.snapshot(now(), connectedNames, connectedBatteries + aapBatteries, connectedAddresses)
+                .withConnectedFallback(connectedApple, aapSessions, now() - startedAt)
             val primary = nearby.primary
             val session = aapSessions.forModel(primary?.model)
             // Прямое подключение есть только к подключённым наушникам: накладываем его только на них.
             send(
-                if (session is AapSessionState.Connected && primary != null && primary.connected) {
+                if (session is AapSessionState.Connected && primary != null && primary.connected && primary.advertised) {
                     val side = AapOverlay.resolveSide(primary, session.device, aapSide)
                     aapSide = side
                     nearby.copy(primary = AapOverlay.apply(primary, session.device, side.primaryIsLeftNow(session.device)))
                 } else {
+                    // Карточка без рекламы уже собрана с данными AAP (см. withConnectedFallback).
                     aapSide = null
                     nearby
                 },
@@ -104,6 +110,7 @@ class PodsRepository @Inject constructor(
                 connectedNames = devices?.map { it.name }
                 connectedBatteries = devices?.mapNotNull { it.batteryPercent }.orEmpty()
                 connectedAddresses = devices?.map { it.device.address }.orEmpty().toSet()
+                connectedApple = devices?.filter { it.supportsAap || ConnectedNameMatcher.knownModels(listOf(it.name)).isNotEmpty() }.orEmpty()
                 namesKnown = true
                 emit()
             }
@@ -120,7 +127,8 @@ class PodsRepository @Inject constructor(
                 owners.clear()
             }
         }
-        scanner.scan(intensity).collect { event ->
+        // Наушники подключены, а пакетов нет: пусть сканер попробует другой фильтр.
+        scanner.scan(intensity, relaxFilter = { connectedApple.isNotEmpty() }).collect { event ->
             if (owners.size > MAX_OWNER_CACHE) owners.clear()
             val owner = if (owners.containsKey(event.address)) {
                 owners[event.address]
@@ -134,6 +142,22 @@ class PodsRepository @Inject constructor(
             emit()
         }
     }.distinctUntilChanged().flowOn(worker)
+
+    /**
+     * Наушники подключены и играют, а их рекламы нет (так бывает на Samsung): без этого экран
+     * бесконечно «ищет наушники». Ждём [FALLBACK_AFTER_MS] от начала скана, чтобы на телефонах,
+     * где реклама есть, карточка не мигала, пока не пришёл первый пакет.
+     */
+    private fun NearbyPods.withConnectedFallback(
+        connected: List<ConnectedAudioDevice>,
+        sessions: AapSessions,
+        scanningForMs: Long,
+    ): NearbyPods {
+        if (primary != null || scanningForMs < FALLBACK_AFTER_MS) return this
+        val device = connected.firstOrNull() ?: return this
+        val session = sessions.sessions.firstOrNull { it.address == device.device.address } as? AapSessionState.Connected
+        return copy(primary = ConnectedFallback.status(device.name, device.batteryPercent, session?.device, SystemClock.elapsedRealtime()))
+    }
 
     private fun AdvertisementEvent.fingerprint(owner: String?): PairFingerprint {
         // У Max «сторона» отправителя меняется вместе с зарядом L/R, поэтому сравниваем только модель и цвет.
@@ -189,6 +213,7 @@ class PodsRepository @Inject constructor(
 
     private companion object {
         const val TICK_MS = 3_000L
+        const val FALLBACK_AFTER_MS = 6_000L
         const val MAX_OWNER_CACHE = 256
     }
 }
