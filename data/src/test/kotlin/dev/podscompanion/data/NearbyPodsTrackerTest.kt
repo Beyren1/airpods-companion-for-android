@@ -179,6 +179,30 @@ class NearbyPodsTrackerTest {
     }
 
     @Test
+    fun `две одинаковые пары Max — свои узнаём по ключу`() {
+        val own = status(PodsModel.AIRPODS_MAX_USB_C, rssi = -75, left = 90, right = null).copy(owner = "AA:AA")
+        val other = status(PodsModel.AIRPODS_MAX_USB_C, rssi = -40, left = 90, right = null)
+        tracker.onPacket("OWN", PairFingerprint(own.modelId, own.colorCode, 90, null, owner = "AA:AA"), own, 0)
+        tracker.onPacket("OTHER", PairFingerprint(other.modelId, other.colorCode, 90, null), other, 0)
+
+        val nearby = tracker.snapshot(0, listOf("AirPods Max"), connectedAddresses = setOf("AA:AA"))
+
+        assertThat(nearby.primary?.owner).isEqualTo("AA:AA")
+        assertThat(nearby.primary?.connected).isTrue()
+        assertThat(nearby.others).hasSize(1)
+    }
+
+    @Test
+    fun `свои Pro 2 не подключены — подключёнными их не считаем`() {
+        val pro = status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -40).copy(owner = "PRO")
+        tracker.onPacket("P", PairFingerprint(pro.modelId, pro.colorCode, 90, 100, owner = "PRO"), pro, 0)
+
+        val nearby = tracker.snapshot(0, listOf("AirPods Pro"), connectedAddresses = setOf("OTHER"))
+
+        assertThat(nearby.primary).isNull()
+    }
+
+    @Test
     fun `70 и 100 от одной пары — показываем заряд, совпадающий с сообщённым телефону`() {
         packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -66, left = 70, right = 70), 0)
         packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -68, left = 100, right = 100), 0)

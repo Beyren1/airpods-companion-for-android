@@ -37,6 +37,7 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
 /**
@@ -53,6 +54,7 @@ class AapRepository @Inject constructor(
     connectedAudio: ConnectedAudioDevices,
     private val client: AapClient,
     private val log: AapLog,
+    private val keyStore: ProximityKeyStore,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val retryRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
@@ -171,6 +173,12 @@ class AapRepository @Inject constructor(
                                 _headMotion.tryEmit(HeadSample(address, SystemClock.elapsedRealtime(), event))
                                 return@collect
                             }
+                            if (event is AapEvent.ProximityKeys) {
+                                // Сами ключи в журнал не пишем: его показывают на скриншотах.
+                                log.add("${target.name}: ${event.label()}")
+                                scope.launch { keyStore.save(OwnPodsKeys(address, event.irk, event.encryptionKey)) }
+                                return@collect
+                            }
                             AapStreams.announced(io.data).takeIf { it.isNotEmpty() }?.let { streams ->
                                 announcedStreams.merge(address, streams.toSet()) { a, b -> a + b }
                                 log.add("${target.name}: потоки ${announcedStreams[address]?.sorted()}")
@@ -209,6 +217,7 @@ class AapRepository @Inject constructor(
         is AapEvent.ListeningModeChanged -> "режим $mode"
         is AapEvent.ConversationalAwarenessChanged -> "адаптация к разговору ${if (enabled) "вкл" else "выкл"}"
         is AapEvent.HeadMotion -> "датчики головы"
+        is AapEvent.ProximityKeys -> "ключи рекламы получены" + if (encryptionKey == null) " (без ключа шифрования)" else ""
         is AapEvent.ControlChanged -> "${ControlId.name(id)} = " + value.joinToString(" ") { "%02X".format(it) }
         is AapEvent.Unknown -> "неизвестный 0x%04X".format(opcode)
     }

@@ -54,7 +54,7 @@ data class AapDeviceState(
             controls = controls + (ControlId.CONVERSATIONAL_AWARENESS to listOf(if (event.enabled) 0x01 else 0x02)),
         )
         is AapEvent.ControlChanged -> copy(controls = controls + (event.id to event.value))
-        is AapEvent.HeadMotion, is AapEvent.Unknown -> this
+        is AapEvent.HeadMotion, is AapEvent.ProximityKeys, is AapEvent.Unknown -> this
     }
 
     private fun ListeningMode.code() = when (this) {

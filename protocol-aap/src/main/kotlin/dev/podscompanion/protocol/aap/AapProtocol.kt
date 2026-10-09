@@ -30,6 +30,13 @@ object Aap {
     /** Подписка на все уведомления: заряд, ухо, режим шумоподавления. */
     val REQUEST_NOTIFICATIONS: ByteArray = packet(Opcode.REQUEST_NOTIFICATIONS, 0xFF, 0xFF, 0xFF, 0xFF)
 
+    /**
+     * Попросить у наушников их ключи для рекламы: IRK (0x01) и ключ шифрования (0x04), 0x01 + 0x04 = 0x05.
+     * Те же ключи получает iPhone при сопряжении. С IRK узнаём свои наушники по случайному адресу
+     * в рекламе, ключом шифрования открываем точный заряд в её зашифрованной части.
+     */
+    val REQUEST_PROXIMITY_KEYS: ByteArray = packet(Opcode.PROXIMITY_KEYS_REQUEST, 0x05, 0x00)
+
     /** Сменить режим: 04 00 04 00 09 00 0D <режим> 00 00 00. Наушники ответят тем же пакетом-уведомлением. */
     fun setListeningMode(mode: ListeningMode): ByteArray {
         val code = when (mode) {
@@ -85,6 +92,8 @@ object Opcode {
     const val REQUEST_NOTIFICATIONS = 0x000F
     const val HEAD_TRACKING = 0x0017
     const val RENAME = 0x001A
+    const val PROXIMITY_KEYS_REQUEST = 0x0030
+    const val PROXIMITY_KEYS = 0x0031
     const val SET_FEATURES = 0x004D
 }
 
@@ -150,6 +159,15 @@ sealed interface AapEvent {
      */
     data class HeadMotion(val orientation: List<Int>, val horizontal: Int, val vertical: Int) : AapEvent
 
+    /** Ключи рекламы этих наушников (см. [Aap.REQUEST_PROXIMITY_KEYS]); null — наушники такой не прислали. */
+    class ProximityKeys(val irk: ByteArray?, val encryptionKey: ByteArray?) : AapEvent {
+        override fun equals(other: Any?) = other is ProximityKeys &&
+            irk.contentEquals(other.irk) && encryptionKey.contentEquals(other.encryptionKey)
+        override fun hashCode() = 31 * irk.contentHashCode() + encryptionKey.contentHashCode()
+        // Ключи не печатаем: журнал показывают на скриншотах.
+        override fun toString() = "ProximityKeys(irk=${irk != null}, encryptionKey=${encryptionKey != null})"
+    }
+
     /** Всё, что пока не разбираем: попадёт в журнал AAP для реверса. */
     data class Unknown(val opcode: Int, val raw: ByteArray) : AapEvent {
         override fun equals(other: Any?) = other is Unknown && opcode == other.opcode && raw.contentEquals(other.raw)
@@ -168,6 +186,7 @@ object AapParser {
                 Opcode.EAR_DETECTION -> AapEvent.EarDetection(EarState.of(data.u8(6)), EarState.of(data.u8(7)))
                 Opcode.CONTROL -> parseControl(data)
                 Opcode.HEAD_TRACKING -> parseHeadMotion(data)
+                Opcode.PROXIMITY_KEYS -> parseProximityKeys(data)
                 else -> null
             }
         }.getOrNull() ?: AapEvent.Unknown(opcode, data)
@@ -206,6 +225,27 @@ object AapParser {
 
     private const val HEAD_MOTION_MIN_SIZE = 55
     private const val HEAD_STREAM = 0x10
+
+    // 04 00 04 00 31 00 <count> { <type> <length BE16> 00 <key> } * count; type 0x01 — IRK, 0x04 — ключ шифрования.
+    private fun parseProximityKeys(data: ByteArray): AapEvent.ProximityKeys? {
+        val keys = HashMap<Int, ByteArray>()
+        var offset = 7
+        repeat(data.u8(6)) {
+            if (offset + 4 > data.size) return null
+            val type = data.u8(offset)
+            val length = (data.u8(offset + 1) shl 8) or data.u8(offset + 2)
+            offset += 4
+            if (offset + length > data.size) return null
+            keys[type] = data.copyOfRange(offset, offset + length)
+            offset += length
+        }
+        val irk = keys[KEY_IRK]?.takeIf { it.size == 16 }
+        val enc = keys[KEY_ENCRYPTION]?.takeIf { it.size == 16 }
+        return if (irk == null && enc == null) null else AapEvent.ProximityKeys(irk, enc)
+    }
+
+    private const val KEY_IRK = 0x01
+    private const val KEY_ENCRYPTION = 0x04
 
     // 04 00 04 00 09 00 <id> <value> 00 00 00
     private fun parseControl(data: ByteArray): AapEvent = when (val id = data.u8(6)) {

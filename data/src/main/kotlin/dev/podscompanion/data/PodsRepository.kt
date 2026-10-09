@@ -9,7 +9,12 @@ import dev.podscompanion.data.aap.AapOverlay
 import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.data.aap.AapSessions
+import dev.podscompanion.data.aap.OwnPodsKeys
+import dev.podscompanion.data.aap.ProximityKeyStore
+import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.Capability
+import dev.podscompanion.protocol.advertising.PodState
+import dev.podscompanion.protocol.advertising.ProximityCrypto
 import dev.podscompanion.protocol.util.Hex
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -25,6 +30,7 @@ class PodsRepository @Inject constructor(
     private val connectedAudio: ConnectedAudioDevices,
     private val caseCache: CaseBatteryCache,
     private val aap: AapRepository,
+    private val keyStore: ProximityKeyStore,
 ) {
     /** Какие наушники подключены под каким именем: переживает перезапуск скана. */
     private val knownPairs = HashMap<String, NearbyPodsTracker.KnownPair>()
@@ -43,6 +49,10 @@ class PodsRepository @Inject constructor(
         // Точный заряд от прямого подключения: по нему среди нескольких пар «AirPods» рядом
         // находим ту, что подключена (заряд из системы приходит не всегда и с опозданием).
         var aapBatteries = emptyList<Int>()
+        var connectedAddresses = emptySet<String>()
+        var ownKeys = emptyList<OwnPodsKeys>()
+        // Адрес рекламы → чьи это наушники. AES считаем один раз на адрес, а он меняется раз в несколько минут.
+        val owners = HashMap<String, String?>()
         // Пока система не ответила, что подключено, ничего не показываем: иначе на долю секунды
         // главными становятся ближайшие наушники, а потом прыгают в список «рядом».
         var namesKnown = false
@@ -51,7 +61,7 @@ class PodsRepository @Inject constructor(
         var aapSide: AapOverlay.Side? = null
         suspend fun emit() {
             if (!namesKnown) return
-            val nearby = tracker.snapshot(now(), connectedNames, connectedBatteries + aapBatteries)
+            val nearby = tracker.snapshot(now(), connectedNames, connectedBatteries + aapBatteries, connectedAddresses)
             val primary = nearby.primary
             val session = aapSessions.forModel(primary?.model)
             // Прямое подключение есть только к подключённым наушникам: накладываем его только на них.
@@ -82,6 +92,7 @@ class PodsRepository @Inject constructor(
             connectedAudio.devices().collect { devices ->
                 connectedNames = devices?.map { it.name }
                 connectedBatteries = devices?.mapNotNull { it.batteryPercent }.orEmpty()
+                connectedAddresses = devices?.map { it.device.address }.orEmpty().toSet()
                 namesKnown = true
                 emit()
             }
@@ -92,13 +103,28 @@ class PodsRepository @Inject constructor(
                 emit()
             }
         }
+        launch {
+            keyStore.keys.collect {
+                ownKeys = it
+                owners.clear()
+            }
+        }
         scanner.scan(intensity).collect { event ->
-            tracker.onPacket(event.address, event.fingerprint(), caseCache.apply(event.toStatus()), event.elapsedRealtimeMs)
+            if (owners.size > MAX_OWNER_CACHE) owners.clear()
+            val owner = if (owners.containsKey(event.address)) {
+                owners[event.address]
+            } else {
+                ownKeys.firstOrNull { k -> k.irk != null && ProximityCrypto.resolves(event.address, k.irk) }?.address
+                    .also { owners[event.address] = it }
+            }
+            val keys = ownKeys.firstOrNull { it.address == owner }
+            val status = caseCache.apply(event.toStatus(owner, keys))
+            tracker.onPacket(event.address, event.fingerprint(owner), status, event.elapsedRealtimeMs)
             emit()
         }
     }.distinctUntilChanged()
 
-    private fun AdvertisementEvent.fingerprint(): PairFingerprint {
+    private fun AdvertisementEvent.fingerprint(owner: String?): PairFingerprint {
         // У Max «сторона» отправителя меняется вместе с зарядом L/R, поэтому сравниваем только модель и цвет.
         val stereo = message.model?.capabilities?.contains(Capability.STEREO_BUDS) ?: true
         return PairFingerprint(
@@ -106,6 +132,31 @@ class PodsRepository @Inject constructor(
             colorCode = message.colorCode,
             leftPercent = if (stereo) message.left.battery?.percent else null,
             rightPercent = if (stereo) message.right.battery?.percent else null,
+            owner = owner,
+        )
+    }
+
+    /**
+     * Пакет своих наушников с ключом шифрования: заряд берём точный из зашифрованной части.
+     * Только для наушников-вкладышей: у Max раскладку расшифрованных байт ещё не проверяли.
+     */
+    private fun AdvertisementEvent.toStatus(owner: String?, keys: OwnPodsKeys?): PodsStatus {
+        val status = toStatus().copy(owner = owner)
+        val stereo = message.model?.capabilities?.contains(Capability.STEREO_BUDS) ?: false
+        val exact = keys?.encryptionKey?.takeIf { stereo }?.let { ProximityCrypto.exactBattery(message.raw, it) } ?: return status
+        fun PodState.with(percent: Int?, charging: Boolean) =
+            if (percent == null) this else copy(battery = BatteryLevel(percent), charging = charging)
+        val primary = status.primary.with(exact.primary, exact.primaryCharging)
+        val secondary = (if (message.primaryIsLeft) status.right else status.left).with(exact.secondary, exact.secondaryCharging)
+        return status.copy(
+            primary = primary,
+            left = if (message.primaryIsLeft) primary else secondary,
+            right = if (message.primaryIsLeft) secondary else primary,
+            // Кейс уточняем, только если он есть в открытой части: при закрытой крышке его там нет,
+            // и по этому окно «кейс открыт» и запомненный заряд понимают, что крышка закрыта.
+            caseBattery = if (status.caseBattery != null) exact.case?.let(::BatteryLevel) ?: status.caseBattery else null,
+            caseCharging = if (status.caseBattery != null && exact.case != null) exact.caseCharging else status.caseCharging,
+            exactFromAdvert = exact.primary != null || exact.secondary != null,
         )
     }
 
@@ -127,5 +178,6 @@ class PodsRepository @Inject constructor(
 
     private companion object {
         const val TICK_MS = 3_000L
+        const val MAX_OWNER_CACHE = 256
     }
 }

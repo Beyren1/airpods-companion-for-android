@@ -211,7 +211,7 @@ private fun HeroCard(status: PodsStatus) {
                     if (hasCase) {
                         Part(
                             PodsArt.caseFor(model), stringResource(R.string.case_label), status.caseBattery, status.caseCharging,
-                            caseNote(status), highlighted = false, exact = status.aap?.case != null,
+                            caseNote(status), highlighted = false, exact = status.aap?.case != null || status.exactFromAdvert,
                             dimmed = status.caseBatteryRemembered, modifier = Modifier.weight(1f),
                         )
                     }

@@ -50,7 +50,7 @@ fun CasePopupCard(status: PodsStatus, onClose: () -> Unit, modifier: Modifier = 
                 )
                 Part(
                     PodsArt.caseFor(model), stringResource(R.string.case_label), status.caseBattery, status.caseCharging,
-                    note = null, highlighted = false, exact = status.aap?.case != null, modifier = Modifier.weight(1f),
+                    note = null, highlighted = false, exact = status.aap?.case != null || status.exactFromAdvert, modifier = Modifier.weight(1f),
                 )
                 Part(
                     PodsArt.budFor(model, left = false), stringResource(R.string.right), status.right.battery, status.right.charging,

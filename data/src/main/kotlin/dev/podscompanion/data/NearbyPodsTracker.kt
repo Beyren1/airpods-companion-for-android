@@ -13,6 +13,8 @@ data class PairFingerprint(
     val colorCode: Int,
     val leftPercent: Int?,
     val rightPercent: Int?,
+    /** Свои наушники (см. [PodsStatus.owner]): пакеты чужих такой же модели и цвета с ними не смешиваем. */
+    val owner: String? = null,
 )
 
 /** Все наушники рядом: [primary] показывается крупно, для него работают уведомление и автопауза. */
@@ -106,11 +108,18 @@ class NearbyPodsTracker(
      *   null — неизвестно (нет разрешения BLUETOOTH_CONNECT), тогда главные — ближайшие.
      *   Если имя подключённого устройства не похоже ни на одну модель (переименовали), тоже ближайшие.
      */
-    fun snapshot(nowMs: Long, connectedNames: List<String>?, connectedBatteries: List<Int> = emptyList()): NearbyPods {
+    fun snapshot(
+        nowMs: Long,
+        connectedNames: List<String>?,
+        connectedBatteries: List<Int> = emptyList(),
+        /** Адреса Bluetooth Classic подключённых наушников: по ним узнаём свои пары с ключами. */
+        connectedAddresses: Set<String> = emptySet(),
+    ): NearbyPods {
         devices.removeAll { nowMs - it.seenAtMs > staleAfterMs }
         if (primary !in devices) primary = null
 
-        val connected = connectedNames?.let { pickConnected(it, connectedBatteries) }
+        val connected = devices.firstOrNull { it.fingerprint.owner != null && it.fingerprint.owner in connectedAddresses }
+            ?: connectedNames?.let { pickConnected(it, connectedBatteries, connectedAddresses) }
 
         primary = when {
             connected != null -> connected
@@ -165,9 +174,10 @@ class NearbyPodsTracker(
      * Без этого при общем имени главная карточка появлялась на полсекунды, пока были видны
      * только одни наушники, и пропадала, когда приходили пакеты от вторых.
      */
-    private fun pickConnected(names: List<String>, batteries: List<Int>): Device? {
+    private fun pickConnected(names: List<String>, batteries: List<Int>, connectedAddresses: Set<String>): Device? {
         val models = ConnectedNameMatcher.knownModels(names)
-        val candidates = devices.filter { it.status.model in models }
+        // Свои наушники с ключом, но не подключённые сейчас (например, Pro 2 в кармане), — точно не те.
+        val candidates = devices.filter { it.status.model in models && (it.fingerprint.owner == null || it.fingerprint.owner in connectedAddresses) }
         // Одно подключённое имя: его пару можно запомнить и потом узнавать среди похожих.
         val name = names.singleOrNull()
         val known = name?.let { knownPairs[it] }
@@ -219,9 +229,9 @@ class NearbyPodsTracker(
     }
 
     // Заряд не сравниваем: наушники одной пары Pro 2 рекламировали 100/100, 70/70 и «70 и неизвестно»,
-    // и пара распадалась на несколько. Две пары одной модели и цвета рядом редки, их покажем как одну.
+    // и пара распадалась на несколько. Две пары одной модели и цвета различаем только по ключу (owner).
     private fun PairFingerprint.matches(other: PairFingerprint): Boolean =
-        modelId == other.modelId && colorCode == other.colorCode
+        modelId == other.modelId && colorCode == other.colorCode && owner == other.owner
 
     companion object {
         const val DEFAULT_MIN_RSSI = -80
