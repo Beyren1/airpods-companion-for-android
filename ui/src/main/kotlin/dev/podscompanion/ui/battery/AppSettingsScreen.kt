@@ -22,6 +22,7 @@ import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.BatteryAlert
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Language
@@ -55,6 +56,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.settings.AppSettings
+import dev.podscompanion.data.settings.LOW_BATTERY_THRESHOLDS
 import dev.podscompanion.data.settings.ThemeMode
 import dev.podscompanion.ui.R
 import dev.podscompanion.ui.theme.AppLanguage
@@ -74,6 +76,8 @@ fun AppSettingsScreen(
     onBackgroundChange: (Boolean) -> Unit,
     onAutoPauseChange: (Boolean) -> Unit,
     onCasePopupChange: (Boolean) -> Unit,
+    onLowBatteryChange: (Boolean) -> Unit,
+    onLowBatteryThresholdChange: (Int) -> Unit,
     onDebugChange: (Boolean) -> Unit,
     onThemeChange: (ThemeMode) -> Unit,
     onOpenDeviceInfo: () -> Unit,
@@ -87,6 +91,12 @@ fun AppSettingsScreen(
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) add(Manifest.permission.POST_NOTIFICATIONS)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) add(Manifest.permission.BLUETOOTH_CONNECT)
     }.toTypedArray()
+
+    // Предупреждение о заряде — обычное уведомление: на Android 13+ без разрешения его не видно.
+    // Отказ не мешает включить переключатель, но тогда уведомлений не будет.
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { onLowBatteryChange(true) }
 
     // Окно при открытии кейса рисуется поверх других приложений: без разрешения «Поверх других
     // приложений» Android не даст фоновому сервису его открыть. Ведём в системные настройки,
@@ -150,6 +160,29 @@ fun AppSettingsScreen(
                         description = stringResource(R.string.case_popup_description),
                         enabled = settings.backgroundEnabled,
                     )
+                }
+                row {
+                    SwitchRow(
+                        stringResource(R.string.low_battery_title), settings.lowBatteryAlerts,
+                        { enable ->
+                            if (enable && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                onLowBatteryChange(enable)
+                            }
+                        },
+                        icon = Icons.Filled.BatteryAlert,
+                        description = stringResource(R.string.low_battery_description),
+                        enabled = settings.backgroundEnabled,
+                    )
+                }
+                if (settings.backgroundEnabled && settings.lowBatteryAlerts) {
+                    row {
+                        BlockRow {
+                            Text(stringResource(R.string.low_battery_threshold), style = MaterialTheme.typography.bodyLarge)
+                            Choice(LOW_BATTERY_THRESHOLDS, settings.lowBatteryThreshold, { "$it%" }, onLowBatteryThresholdChange)
+                        }
+                    }
                 }
             }
 

@@ -83,6 +83,8 @@ fun PodsNavHost() {
                         onBackgroundChange = viewModel::setBackgroundEnabled,
                         onAutoPauseChange = viewModel::setAutoPause,
                         onCasePopupChange = viewModel::setCasePopup,
+                        onLowBatteryChange = viewModel::setLowBatteryAlerts,
+                        onLowBatteryThresholdChange = viewModel::setLowBatteryThreshold,
                         onDebugChange = viewModel::setDebugEnabled,
                         onThemeChange = viewModel::setTheme,
                         onOpenDeviceInfo = { nav.navigate(Routes.DEVICE_INFO) },

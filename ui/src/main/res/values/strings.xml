@@ -192,4 +192,7 @@
     <string name="hold_shortest">Shortest</string>
     <string name="setting_tone_volume">Tone volume: %1$d%%</string>
     <string name="settings_cycle_default_hint">These headphones did not report which modes press and hold switches between, so the factory choice is shown until you change it here.</string>
+    <string name="low_battery_title">Low battery alerts</string>
+    <string name="low_battery_description">A notification when an earbud, the case or AirPods Max drop to the chosen level, and again at 10%. Only for your own headphones.</string>
+    <string name="low_battery_threshold">First alert at</string>
 </resources>

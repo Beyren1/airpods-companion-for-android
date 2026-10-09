@@ -28,6 +28,7 @@ import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.autopause.AutoPauseLog
+import dev.podscompanion.data.battery.LowBatteryWatcher
 import dev.podscompanion.data.gestures.HeadGestureController
 import dev.podscompanion.data.popup.CaseOpenDetector
 import dev.podscompanion.data.popup.LiveStatus
@@ -74,11 +75,13 @@ class PodsService : LifecycleService() {
     @Inject lateinit var liveStatus: LiveStatus
 
     private val caseOpenDetector = CaseOpenDetector()
+    private val lowBattery = LowBatteryWatcher()
 
     /** Последнее состояние для виджета и плитки: пишем в файл, только когда изменились цифры. */
     private val latestStatus = MutableStateFlow<PodsStatus?>(null)
 
     private lateinit var notifications: PodsNotifications
+    private lateinit var lowBatteryNotifications: LowBatteryNotifications
     private lateinit var audioManager: AudioManager
     private val policy = EarDetectionPolicy()
 
@@ -107,6 +110,7 @@ class PodsService : LifecycleService() {
         notifications = PodsNotifications(this)
         audioManager = getSystemService(AudioManager::class.java)
         notifications.ensureChannel()
+        lowBatteryNotifications = LowBatteryNotifications(this).apply { ensureChannel() }
 
         try {
             ServiceCompat.startForeground(
@@ -228,6 +232,7 @@ class PodsService : LifecycleService() {
         latestStatus.value = status
         liveStatus.update(status)
         maybeShowCasePopup(status)
+        checkLowBattery(status)
         if (!settings.autoPause) return
 
         val worn = status?.let(::isWorn)
@@ -272,6 +277,12 @@ class PodsService : LifecycleService() {
         Timber.d("auto-pause: key %d", code)
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, code))
         audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, code))
+    }
+
+    private fun checkLowBattery(status: PodsStatus?) {
+        if (!settings.lowBatteryAlerts) return
+        val thresholds = LowBatteryWatcher.thresholdsFor(settings.lowBatteryThreshold)
+        lowBattery.onStatus(status, thresholds, SystemClock.elapsedRealtime())?.let(lowBatteryNotifications::handle)
     }
 
     /** Первый раз открыли кейс этих наушников рядом с телефоном: показываем карточку с зарядом. */

@@ -26,4 +26,11 @@
     <string name="tile_mode_nc">Noise cancellation</string>
     <string name="tile_mode_transparency">Transparency</string>
     <string name="tile_mode_adaptive">Adaptive</string>
+    <string name="low_channel_name">Low battery</string>
+    <string name="low_channel_description">Alerts when the headphones or the case are running low</string>
+    <string name="low_title">%1$s: low battery</string>
+    <string name="low_left">Left %1$s</string>
+    <string name="low_right">Right %1$s</string>
+    <string name="low_case">Case %1$s</string>
+    <string name="low_charge_hint">Put them on charge soon</string>
 </resources>
