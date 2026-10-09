@@ -53,7 +53,6 @@
     <string name="setting_ca">Détection de conversation</string>
     <string name="setting_personalized_volume">Volume personnalisé</string>
     <string name="setting_ear_detection">Détection automatique de l’oreille</string>
-    <string name="setting_one_bud_nc">Réduction du bruit avec un seul écouteur</string>
     <string name="setting_mic">Micro</string>
     <string name="mic_auto">Auto</string>
     <string name="mic_left">Gauche</string>
@@ -175,4 +174,22 @@
     <string name="info_direct_works">Fonctionne sur ce téléphone</string>
     <string name="info_direct_blocked">Android sur ce téléphone ne l’autorise pas</string>
     <string name="info_direct_unknown">Pas encore vérifié : connectez vos écouteurs</string>
+    <string name="setting_noise_button">Bouton de contrôle du bruit</string>
+    <string name="setting_noise_button_cycle">Modes à l’appui du bouton</string>
+    <string name="setting_crown">Digital Crown</string>
+    <string name="setting_crown_hint">Sens de rotation pour monter le volume</string>
+    <string name="crown_back_to_front">D’arrière en avant</string>
+    <string name="crown_front_to_back">D’avant en arrière</string>
+    <string name="setting_head_detection">Détection automatique sur la tête</string>
+    <string name="settings_max_hint">Les AirPods Max ne signalent pas les réglages du bouton de contrôle du bruit, de la Digital Crown et de la détection sur la tête : leurs valeurs d’usine sont affichées jusqu’à ce que vous les modifiiez ici. Une modification s’applique immédiatement.</string>
+    <string name="section_press">Appuis</string>
+    <string name="setting_press_speed">Vitesse d’appui</string>
+    <string name="setting_hold_duration">Durée d’appui prolongé</string>
+    <string name="speed_default">Par défaut</string>
+    <string name="speed_slower">Plus lente</string>
+    <string name="speed_slowest">La plus lente</string>
+    <string name="hold_shorter">Plus courte</string>
+    <string name="hold_shortest">La plus courte</string>
+    <string name="setting_tone_volume">Volume des sons : %1$d %%</string>
+    <string name="settings_cycle_default_hint">Ces écouteurs n’ont pas indiqué les modes parcourus par l’appui prolongé : le choix d’usine est affiché jusqu’à ce que vous le modifiiez ici.</string>
 </resources>

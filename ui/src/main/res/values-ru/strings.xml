@@ -53,7 +53,6 @@
     <string name="setting_ca">Адаптация к разговору</string>
     <string name="setting_personalized_volume">Персонализированная громкость</string>
     <string name="setting_ear_detection">Автоопределение уха</string>
-    <string name="setting_one_bud_nc">Шумоподавление с одним наушником</string>
     <string name="setting_mic">Микрофон</string>
     <string name="mic_auto">Авто</string>
     <string name="mic_left">Левый</string>
@@ -177,4 +176,22 @@
     <string name="info_direct_works">Работает на этом телефоне</string>
     <string name="info_direct_blocked">Android на этом телефоне его не даёт</string>
     <string name="info_direct_unknown">Пока не проверено: подключите наушники</string>
+    <string name="setting_noise_button">Кнопка шумоподавления</string>
+    <string name="setting_noise_button_cycle">Режимы по нажатию кнопки</string>
+    <string name="setting_crown">Digital Crown</string>
+    <string name="setting_crown_hint">Куда крутить, чтобы стало громче</string>
+    <string name="crown_back_to_front">Сзади вперёд</string>
+    <string name="crown_front_to_back">Спереди назад</string>
+    <string name="setting_head_detection">Автоопределение надевания</string>
+    <string name="settings_max_hint">Кнопку шумоподавления, Digital Crown и определение надевания AirPods Max не сообщают, поэтому до первого изменения у них показаны заводские значения. Изменение применяется сразу.</string>
+    <string name="section_press">Нажатия</string>
+    <string name="setting_press_speed">Скорость нажатия</string>
+    <string name="setting_hold_duration">Длительность зажатия</string>
+    <string name="speed_default">Обычная</string>
+    <string name="speed_slower">Медленнее</string>
+    <string name="speed_slowest">Самая медленная</string>
+    <string name="hold_shorter">Короче</string>
+    <string name="hold_shortest">Самая короткая</string>
+    <string name="setting_tone_volume">Громкость сигналов: %1$d%%</string>
+    <string name="settings_cycle_default_hint">Эти наушники не сообщили, какие режимы перебирает зажатие, поэтому до первого изменения показан заводской набор.</string>
 </resources>

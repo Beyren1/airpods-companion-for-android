@@ -9,6 +9,7 @@ enum class Capability {
     ADAPTIVE_AUDIO,
     CONVERSATIONAL_AWARENESS,
     HEAD_GESTURES,
+    DIGITAL_CROWN,          // колёсико и кнопка шумоподавления на чашке (Max)
 }
 
 /**
@@ -74,7 +75,7 @@ private val PRO_2: Set<Capability>
     get() = BASIC + Capability.NOISE_CONTROL + Capability.ADAPTIVE_AUDIO +
         Capability.CONVERSATIONAL_AWARENESS + Capability.HEAD_GESTURES
 private val MAX: Set<Capability>
-    get() = setOf(Capability.EAR_DETECTION, Capability.NOISE_CONTROL)
+    get() = setOf(Capability.EAR_DETECTION, Capability.NOISE_CONTROL, Capability.DIGITAL_CROWN)
 /** Наушники с кейсом, но без датчика уха. */
 private val BUDS_NO_EAR: Set<Capability>
     get() = setOf(Capability.STEREO_BUDS, Capability.CHARGING_CASE)

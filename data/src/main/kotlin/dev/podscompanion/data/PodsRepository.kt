@@ -18,10 +18,13 @@ import dev.podscompanion.protocol.advertising.ProximityCrypto
 import dev.podscompanion.protocol.util.Hex
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
 
 @Singleton
@@ -32,6 +35,14 @@ class PodsRepository @Inject constructor(
     private val aap: AapRepository,
     private val keyStore: ProximityKeyStore,
 ) {
+    /**
+     * Разбор пакетов (AES, выбор главных наушников) идёт здесь, а не в главном потоке: при скане
+     * с экраном пакеты приходят много раз в секунду, и в главном потоке это подтормаживало интерфейс.
+     * Один поток на всех: [knownPairs] и кеш кейса общие для экрана и сервиса и не потокобезопасны.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    private val worker = Dispatchers.Default.limitedParallelism(1)
+
     /** Какие наушники подключены под каким именем: переживает перезапуск скана. */
     private val knownPairs = HashMap<String, NearbyPodsTracker.KnownPair>()
 
@@ -122,7 +133,7 @@ class PodsRepository @Inject constructor(
             tracker.onPacket(event.address, event.fingerprint(owner), status, event.elapsedRealtimeMs)
             emit()
         }
-    }.distinctUntilChanged()
+    }.distinctUntilChanged().flowOn(worker)
 
     private fun AdvertisementEvent.fingerprint(owner: String?): PairFingerprint {
         // У Max «сторона» отправителя меняется вместе с зарядом L/R, поэтому сравниваем только модель и цвет.

@@ -53,7 +53,6 @@
     <string name="setting_ca">Conversation awareness</string>
     <string name="setting_personalized_volume">Personalized volume</string>
     <string name="setting_ear_detection">Automatic ear detection</string>
-    <string name="setting_one_bud_nc">Noise cancellation with one earbud</string>
     <string name="setting_mic">Microphone</string>
     <string name="mic_auto">Auto</string>
     <string name="mic_left">Left</string>
@@ -175,4 +174,22 @@
     <string name="info_direct_works">Works on this phone</string>
     <string name="info_direct_blocked">Android on this phone does not allow it</string>
     <string name="info_direct_unknown">Not checked yet: connect your headphones</string>
+    <string name="setting_noise_button">Noise control button</string>
+    <string name="setting_noise_button_cycle">Modes on button press</string>
+    <string name="setting_crown">Digital Crown</string>
+    <string name="setting_crown_hint">Which way to turn it for louder</string>
+    <string name="crown_back_to_front">Back to front</string>
+    <string name="crown_front_to_back">Front to back</string>
+    <string name="setting_head_detection">Automatic head detection</string>
+    <string name="settings_max_hint">AirPods Max do not report their noise control button, Digital Crown and head detection settings, so factory values are shown for them until you change them here. A change applies right away.</string>
+    <string name="section_press">Pressing</string>
+    <string name="setting_press_speed">Press speed</string>
+    <string name="setting_hold_duration">Press and hold duration</string>
+    <string name="speed_default">Default</string>
+    <string name="speed_slower">Slower</string>
+    <string name="speed_slowest">Slowest</string>
+    <string name="hold_shorter">Shorter</string>
+    <string name="hold_shortest">Shortest</string>
+    <string name="setting_tone_volume">Tone volume: %1$d%%</string>
+    <string name="settings_cycle_default_hint">These headphones did not report which modes press and hold switches between, so the factory choice is shown until you change it here.</string>
 </resources>

@@ -30,6 +30,15 @@ android {
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("boolean", "PACKET_LOGGING", "false")
         }
+        // Быстрая сборка для проверки на телефоне: как release (R8, без отладчика — Compose и весь код
+        // работают в разы быстрее), но подписана debug-ключом и с тем же id, что debug. Ставится поверх
+        // debug-сборки с сохранением настроек, журнал AAP в приложении работает как обычно.
+        create("fast") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".debug"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+        }
     }
 
     buildFeatures {
