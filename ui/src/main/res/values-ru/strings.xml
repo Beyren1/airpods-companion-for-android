@@ -15,9 +15,6 @@
     <string name="signal_excellent">отличный</string>
     <string name="signal_good">хороший</string>
     <string name="signal_weak">слабый</string>
-    <string name="debug_title">Отладка</string>
-    <string name="debug_autopause_log">Журнал автопаузы</string>
-    <string name="debug_unverified_model">Эта модель ещё не проверена на реальных пакетах. Скопируйте байты ниже и пришлите разработчику.</string>
     <string name="bg_title">Фоновый режим</string>
     <string name="bg_description">Заряд в шторке уведомлений, даже когда приложение закрыто. Android попросит разрешить уведомления и подключение к устройствам поблизости: второе нужно, чтобы сразу замечать подключение наушников.</string>
     <string name="autopause_title">Автопауза</string>
@@ -38,8 +35,6 @@
     <string name="connected_badge">подключены</string>
     <string name="nearby_title">Рядом</string>
     <string name="not_connected">К телефону не подключены наушники</string>
-    <string name="debug_packet_interval">Пакет от наушников раз в %1$.1f с</string>
-    <string name="debug_aap_log">Журнал AAP</string>
     <string name="aap_title">Расширенный режим</string>
     <string name="aap_no_permission">Нужно разрешение «Устройства поблизости», чтобы подключиться к наушникам напрямую.</string>
     <string name="aap_connecting">Подключаюсь к %1$s напрямую…</string>
@@ -92,13 +87,9 @@
     <string name="settings_row_hint">Нажатие, микрофон, звук</string>
     <string name="section_sound">Звук</string>
     <string name="section_other">Прочее</string>
-    <string name="section_dev">Для разработки</string>
     <string name="setting_personalized_volume_hint">Подстраивает громкость под обстановку</string>
     <string name="settings_need_direct">Настройки доступны, когда наушники подключены напрямую.</string>
     <string name="settings_none">Эти наушники не сообщили ни одной настройки.</string>
-    <string name="debug_description">Сырые пакеты и журналы</string>
-    <string name="debug_packets">Пакеты подключённых наушников</string>
-    <string name="debug_nearby_packets">Пакеты наушников рядом</string>
     <string name="about_title">О приложении</string>
     <string name="about_version">Версия %1$s</string>
     <string name="mode_tile_off">Выкл</string>

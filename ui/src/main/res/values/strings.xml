@@ -15,9 +15,6 @@
     <string name="signal_excellent">excellent</string>
     <string name="signal_good">good</string>
     <string name="signal_weak">weak</string>
-    <string name="debug_title">Debugging</string>
-    <string name="debug_autopause_log">Auto-pause log</string>
-    <string name="debug_unverified_model">This model has not been checked against real packets yet. Copy the bytes below and send them to the developer.</string>
     <string name="bg_title">Background mode</string>
     <string name="bg_description">Battery in the notification shade even when the app is closed. Android will ask to allow notifications and connecting to nearby devices: the latter lets the app notice right away when headphones connect.</string>
     <string name="autopause_title">Auto-pause</string>
@@ -38,8 +35,6 @@
     <string name="connected_badge">connected</string>
     <string name="nearby_title">Nearby</string>
     <string name="not_connected">No headphones are connected to the phone</string>
-    <string name="debug_packet_interval">A packet from the headphones every %1$.1f s</string>
-    <string name="debug_aap_log">AAP log</string>
     <string name="aap_title">Extended mode</string>
     <string name="aap_no_permission">The “Nearby devices” permission is needed to connect to the headphones directly.</string>
     <string name="aap_connecting">Connecting to %1$s directly…</string>
@@ -92,13 +87,9 @@
     <string name="settings_row_hint">Press, microphone, sound</string>
     <string name="section_sound">Sound</string>
     <string name="section_other">Other</string>
-    <string name="section_dev">For developers</string>
     <string name="setting_personalized_volume_hint">Adjusts the volume to your surroundings</string>
     <string name="settings_need_direct">Settings are available when the headphones are connected directly.</string>
     <string name="settings_none">These headphones did not report any settings.</string>
-    <string name="debug_description">Raw packets and logs</string>
-    <string name="debug_packets">Packets of the connected headphones</string>
-    <string name="debug_nearby_packets">Packets of nearby headphones</string>
     <string name="about_title">About the app</string>
     <string name="about_version">Version %1$s</string>
     <string name="mode_tile_off">Off</string>
