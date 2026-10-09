@@ -31,4 +31,7 @@
     <string name="low_right">Droit %1$s</string>
     <string name="low_case">Boîtier %1$s</string>
     <string name="low_charge_hint">À recharger bientôt</string>
+    <string name="player_channel_name">Lancement du lecteur</string>
+    <string name="player_open_title">Écouteurs connectés : ouvrir %1$s</string>
+    <string name="player_open_text">Touchez pour ouvrir le lecteur et lancer la musique</string>
 </resources>

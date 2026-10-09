@@ -19,6 +19,8 @@ import dev.podscompanion.ui.battery.DeviceInfoScreen
 import dev.podscompanion.ui.battery.GesturesUi
 import dev.podscompanion.ui.battery.HeadphoneSettingsScreen
 import dev.podscompanion.ui.battery.HomeScreen
+import dev.podscompanion.ui.battery.MusicSettingsScreen
+import dev.podscompanion.ui.battery.MusicViewModel
 import dev.podscompanion.ui.permissions.ScanPermissionGate
 
 private object Routes {
@@ -26,6 +28,7 @@ private object Routes {
     const val HEADPHONES = "headphones"
     const val APP_SETTINGS = "app_settings"
     const val DEVICE_INFO = "device_info"
+    const val MUSIC = "music"
 }
 
 /**
@@ -38,6 +41,8 @@ fun PodsNavHost() {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         ScanPermissionGate {
             val viewModel: BatteryViewModel = hiltViewModel()
+            val musicViewModel: MusicViewModel = hiltViewModel()
+            val nowPlaying by musicViewModel.nowPlaying.collectAsStateWithLifecycle()
             val state by viewModel.state.collectAsStateWithLifecycle()
             val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
             val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -57,6 +62,8 @@ fun PodsNavHost() {
                         onCommand = viewModel::send,
                         onOpenHeadphoneSettings = { nav.navigate(Routes.HEADPHONES) },
                         onOpenAppSettings = { nav.navigate(Routes.APP_SETTINGS) },
+                        nowPlaying = nowPlaying,
+                        onMediaButton = musicViewModel::onButton,
                     )
                 }
                 composable(Routes.HEADPHONES) {
@@ -88,9 +95,13 @@ fun PodsNavHost() {
                         onDebugChange = viewModel::setDebugEnabled,
                         onThemeChange = viewModel::setTheme,
                         onOpenDeviceInfo = { nav.navigate(Routes.DEVICE_INFO) },
+                        onOpenMusic = { nav.navigate(Routes.MUSIC) },
                         debug = DebugInfo(main, nearby?.others.orEmpty(), autoPauseLog, aapLog),
                         onBack = { nav.popBackStack() },
                     )
+                }
+                composable(Routes.MUSIC) {
+                    MusicSettingsScreen(musicViewModel, onBack = { nav.popBackStack() })
                 }
                 composable(Routes.DEVICE_INFO) {
                     DeviceInfoScreen(aapSessions, nearby, onBack = { nav.popBackStack() })

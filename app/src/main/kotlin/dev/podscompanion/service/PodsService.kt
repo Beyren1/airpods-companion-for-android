@@ -27,7 +27,10 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
+import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.autopause.AutoPauseLog
+import dev.podscompanion.data.media.MediaRepository
 import dev.podscompanion.data.battery.LowBatteryWatcher
 import dev.podscompanion.data.gestures.HeadGestureController
 import dev.podscompanion.data.popup.CaseOpenDetector
@@ -73,6 +76,9 @@ class PodsService : LifecycleService() {
     @Inject lateinit var headGestures: HeadGestureController
     @Inject lateinit var snapshotStore: StatusSnapshotStore
     @Inject lateinit var liveStatus: LiveStatus
+    @Inject lateinit var mediaRepository: MediaRepository
+    @Inject lateinit var aapRepository: AapRepository
+    @Inject lateinit var connectedAudio: ConnectedAudioDevices
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -83,6 +89,7 @@ class PodsService : LifecycleService() {
     private lateinit var notifications: PodsNotifications
     private lateinit var lowBatteryNotifications: LowBatteryNotifications
     private lateinit var audioManager: AudioManager
+    private lateinit var music: MusicAutomation
     private val policy = EarDetectionPolicy()
 
     private var scanJob: Job? = null
@@ -139,6 +146,8 @@ class PodsService : LifecycleService() {
         lifecycleScope.launch { idleWatchdog() }
         headGestures.run(lifecycleScope)
         lifecycleScope.launch { publishSnapshots() }
+        music = MusicAutomation(this, mediaRepository, aapRepository, connectedAudio, autoPauseLog) { settings }
+        music.run(lifecycleScope, settingsRepository.settings)
         startScan()
     }
 
@@ -254,10 +263,12 @@ class PodsService : LifecycleService() {
         when (policy.onUpdate(worn, playing, SystemClock.elapsedRealtime())) {
             MediaAction.PAUSE -> {
                 autoPauseLog.add("→ пауза")
+                music.onAutoPause(SystemClock.elapsedRealtime())
                 sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
             }
             MediaAction.RESUME -> {
                 autoPauseLog.add("→ продолжение")
+                music.beforeAutoResume(SystemClock.elapsedRealtime())
                 sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
             }
             null -> Unit

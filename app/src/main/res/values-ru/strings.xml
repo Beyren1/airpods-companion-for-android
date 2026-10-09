@@ -33,4 +33,7 @@
     <string name="low_right">Правый %1$s</string>
     <string name="low_case">Кейс %1$s</string>
     <string name="low_charge_hint">Скоро нужно зарядить</string>
+    <string name="player_channel_name">Запуск плеера</string>
+    <string name="player_open_title">Наушники подключены: открыть %1$s</string>
+    <string name="player_open_text">Нажмите, чтобы открыть плеер и включить музыку</string>
 </resources>

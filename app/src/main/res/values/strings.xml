@@ -33,4 +33,7 @@
     <string name="low_right">Right %1$s</string>
     <string name="low_case">Case %1$s</string>
     <string name="low_charge_hint">Put them on charge soon</string>
+    <string name="player_channel_name">Player start</string>
+    <string name="player_open_title">Headphones connected: open %1$s</string>
+    <string name="player_open_text">Tap to open the player and start the music</string>
 </resources>
