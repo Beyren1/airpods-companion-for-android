@@ -42,16 +42,10 @@ object Aap {
         return packet(Opcode.CONTROL, 0x0D, code, 0x00, 0x00, 0x00)
     }
 
-    /** Включить поток датчиков головы (opcode 0x17). Нужен для жестов головой; расходует заряд. */
-    val START_HEAD_TRACKING: ByteArray = packet(
-        Opcode.HEAD_TRACKING,
-        0x00, 0x00, 0x10, 0x00, 0x10, 0x00, 0x08, 0xA1, 0x02, 0x42, 0x0B, 0x08, 0x0E, 0x10, 0x02, 0x1A, 0x05, 0x01, 0x40, 0x9C, 0x00, 0x00,
-    )
+    /** Включить поток датчиков головы: пакет из описания LibrePods (поток 14). См. [AapStreams]. */
+    val START_HEAD_TRACKING: ByteArray = AapStreams.request(289, AapStreams.DOCUMENTED_HEAD_STREAM, on = true)
 
-    val STOP_HEAD_TRACKING: ByteArray = packet(
-        Opcode.HEAD_TRACKING,
-        0x00, 0x00, 0x10, 0x00, 0x11, 0x00, 0x08, 0x7E, 0x10, 0x02, 0x42, 0x0B, 0x08, 0x4E, 0x10, 0x02, 0x1A, 0x05, 0x01, 0x00, 0x00, 0x00, 0x00,
-    )
+    val STOP_HEAD_TRACKING: ByteArray = AapStreams.request(126, AapStreams.DOCUMENTED_HEAD_STREAM, on = false)
 
     /**
      * Переименовать: `04 00 04 00 1A 00 01 <длина> 00 <имя UTF-8>`. Длину ограничиваем 32 байтами

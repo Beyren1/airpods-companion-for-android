@@ -11,6 +11,8 @@ import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.protocol.aap.AapDeviceState
 import dev.podscompanion.protocol.aap.AapEvent
 import dev.podscompanion.protocol.aap.AapParser
+import dev.podscompanion.protocol.aap.AapStreams
+import dev.podscompanion.protocol.aap.Opcode
 import dev.podscompanion.protocol.aap.ControlId
 import dev.podscompanion.protocol.util.Hex
 import java.util.concurrent.ConcurrentHashMap
@@ -95,8 +97,26 @@ class AapRepository @Inject constructor(
         val session = state.value.sessions.firstOrNull { it.address == address }
         if (session is AapSessionState.Connected) {
             log.add("${session.deviceName}: ${command.label}")
-            outgoing[address]?.trySend(command.bytes)
+            packets(address, command).forEach { outgoing[address]?.trySend(it) }
         }
+    }
+
+    /** Потоки 0x17, которые наушники объявили после подключения (см. [AapStreams]). */
+    private val announcedStreams = ConcurrentHashMap<String, Set<Int>>()
+    private var streamSeq = 1
+
+    /**
+     * Датчики головы: кроме потока из описания LibrePods просим и все объявленные наушниками —
+     * на наших прошивках поток 14 подтверждается, но данных не шлёт.
+     */
+    private fun packets(address: String, command: AapCommand): List<ByteArray> {
+        val on = when (command) {
+            AapCommand.StartHeadTracking -> true
+            AapCommand.StopHeadTracking -> false
+            else -> return listOf(command.bytes)
+        }
+        val streams = listOf(AapStreams.DOCUMENTED_HEAD_STREAM) + announcedStreams[address].orEmpty().sorted()
+        return streams.distinct().map { AapStreams.request(streamSeq++ % 120 + 1, it, on) }
     }
 
     private fun isApple(device: ConnectedAudioDevice): Boolean =
@@ -114,6 +134,7 @@ class AapRepository @Inject constructor(
             var connected = false
             var method = "?"
             var motionPackets = 0
+            var streamPackets = 0
             val failure = runCatching {
                 client.connect(target.device, commands).collect { io ->
                     when (io) {
@@ -143,6 +164,13 @@ class AapRepository @Inject constructor(
                                 _headMotion.tryEmit(HeadSample(address, SystemClock.elapsedRealtime(), event))
                                 return@collect
                             }
+                            AapStreams.announced(io.data).takeIf { it.isNotEmpty() }?.let { streams ->
+                                announcedStreams.merge(address, streams.toSet()) { a, b -> a + b }
+                                log.add("${target.name}: потоки ${announcedStreams[address]?.sorted()}")
+                            }
+                            // Данные потоков идут десятки раз в секунду: в журнал — только первые.
+                            val isStreamData = event is AapEvent.Unknown && event.opcode == Opcode.HEAD_TRACKING && io.data.size > STREAM_DATA_MIN
+                            if (isStreamData && streamPackets++ >= STREAM_LOG_FIRST) return@collect
                             log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
                             if (event != null) {
                                 val updated = device.apply(event)
@@ -181,5 +209,7 @@ class AapRepository @Inject constructor(
     private companion object {
         val BACKOFF_SEC = intArrayOf(3, 10, 30, 60)
         const val MOTION_LOG_EVERY = 100
+        const val STREAM_DATA_MIN = 32
+        const val STREAM_LOG_FIRST = 20
     }
 }
