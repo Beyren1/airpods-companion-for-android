@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -48,6 +49,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -203,7 +205,7 @@ private fun HeroCard(status: PodsStatus) {
             if (stereo) {
                 Row(Modifier.fillMaxWidth()) {
                     Part(
-                        PodsArt.LeftBud, stringResource(R.string.left), status.left.battery, status.left.charging,
+                        PodsArt.budFor(model, left = true), stringResource(R.string.left), status.left.battery, status.left.charging,
                         podNote(status.left), highlighted = status.left.inEar, exact = exact, modifier = Modifier.weight(1f),
                     )
                     if (hasCase) {
@@ -214,7 +216,7 @@ private fun HeroCard(status: PodsStatus) {
                         )
                     }
                     Part(
-                        PodsArt.RightBud, stringResource(R.string.right), status.right.battery, status.right.charging,
+                        PodsArt.budFor(model, left = false), stringResource(R.string.right), status.right.battery, status.right.charging,
                         podNote(status.right), highlighted = status.right.inEar, exact = exact, modifier = Modifier.weight(1f),
                     )
                 }
@@ -265,9 +267,9 @@ private fun Part(
             )
             // Все части в одном масштабе по реальным размерам: кейс Pro заметно шире наушника.
             val dpPerMm = ringSize.value / 92f * 0.95f
-            Icon(
-                art.image, null,
-                tint = if (highlighted) colors.onSurface else colors.onSurfaceVariant,
+            Image(
+                rememberVectorPainter(art.image), null,
+                alpha = if (highlighted || !dimmed) 1f else 0.5f,
                 modifier = Modifier.size((art.widthMm * dpPerMm).dp, (art.heightMm * dpPerMm).dp),
             )
         }
@@ -402,10 +404,9 @@ private fun Nearby(others: List<PodsStatus>) {
                 ) {
                     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.size(40.dp)) {
                         Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                if (stereo) PodsArt.caseFor(pods.model).image else PodsArt.OverEar, null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(22.dp),
+                            Image(
+                                rememberVectorPainter(if (stereo) PodsArt.caseFor(pods.model).image else PodsArt.OverEarArt.image), null,
+                                modifier = Modifier.size(26.dp),
                             )
                         }
                     }
