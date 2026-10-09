@@ -31,10 +31,16 @@ internal class PodsNotifications(private val context: Context) {
         manager.createNotificationChannel(channel)
     }
 
-    fun build(status: PodsStatus?) = NotificationCompat.Builder(context, CHANNEL_ID)
+    fun build(status: PodsStatus?) = build(title(status), text(status))
+
+    private fun title(status: PodsStatus?) = status?.model?.displayName ?: context.getString(R.string.notif_title_idle)
+
+    private fun text(status: PodsStatus?) = status?.let(::batteryLine) ?: context.getString(R.string.notif_text_idle)
+
+    private fun build(title: String, text: String) = NotificationCompat.Builder(context, CHANNEL_ID)
         .setSmallIcon(R.drawable.ic_stat_pods)
-        .setContentTitle(status?.model?.displayName ?: context.getString(R.string.notif_title_idle))
-        .setContentText(status?.let(::batteryLine) ?: context.getString(R.string.notif_text_idle))
+        .setContentTitle(title)
+        .setContentText(text)
         .setContentIntent(openApp())
         .setOngoing(true)
         .setOnlyAlertOnce(true)
@@ -43,8 +49,19 @@ internal class PodsNotifications(private val context: Context) {
         .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         .build()
 
+    /** Что сейчас в шторке: новое уведомление шлём, только если текст изменился. */
+    private var shown: Pair<String, String>? = null
+
+    /**
+     * Статус приходит с каждым рекламным пакетом (несколько раз в секунду), а меняется в нём обычно
+     * только сила сигнала. Android ограничивает частоту обновлений уведомления и пропускает лишние,
+     * поэтому без проверки шторка обновлялась впустую и могла не показать настоящее изменение.
+     */
     fun update(status: PodsStatus?) {
-        manager.notify(NOTIFICATION_ID, build(status))
+        val content = title(status) to text(status)
+        if (content == shown) return
+        shown = content
+        manager.notify(NOTIFICATION_ID, build(content.first, content.second))
     }
 
     private fun batteryLine(status: PodsStatus): String {

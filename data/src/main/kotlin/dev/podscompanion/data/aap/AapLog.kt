@@ -1,8 +1,7 @@
 package dev.podscompanion.data.aap
 
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.time.LocalTime
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -16,10 +15,12 @@ class AapLog @Inject constructor() {
     private val _lines = MutableStateFlow<List<String>>(emptyList())
     val lines: StateFlow<List<String>> = _lines.asStateFlow()
 
-    private val format = SimpleDateFormat("HH:mm:ss.SSS", Locale.ROOT)
+    // DateTimeFormatter, в отличие от SimpleDateFormat, можно звать из нескольких потоков сразу:
+    // журнал пишут соединения со всеми наушниками параллельно.
+    private val format = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
 
     fun add(message: String) {
-        val line = "${format.format(Date())}  $message"
+        val line = "${format.format(LocalTime.now())}  $message"
         _lines.update { (it + line).takeLast(MAX_LINES) }
     }
 

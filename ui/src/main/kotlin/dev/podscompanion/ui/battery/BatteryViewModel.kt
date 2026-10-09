@@ -19,7 +19,10 @@ import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +41,18 @@ import dev.podscompanion.protocol.aap.AxisRecorder
 import dev.podscompanion.protocol.aap.HeadCalibrator
 
 private const val PREPARE_MS = 1_500L
+
+/**
+ * Не чаще одного обновления экрана за столько мс. Пакеты рекламы приходят много раз в секунду
+ * и почти всегда меняют только силу сигнала, а каждое обновление перерисовывает весь экран.
+ */
+private const val UI_FRAME_MS = 100L
+
+/** Первое значение сразу, дальше не чаще раза в [periodMs], всегда самое свежее (промежуточные пропускаются). */
+private fun <T> Flow<T>.throttleLatest(periodMs: Long): Flow<T> = conflate().transform {
+    emit(it)
+    delay(periodMs)
+}
 private const val RECORD_MS = 4_000L
 
 /** Калибровка жестов головой: кивнуть, затем покачать головой. */
@@ -194,6 +209,7 @@ class BatteryViewModel @Inject constructor(
                     )
                 }
         }
+        .throttleLatest(UI_FRAME_MS)
         .onEach { if (it !is BatteryUiState.Searching) stopRefreshing() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BatteryUiState.Searching)
 
