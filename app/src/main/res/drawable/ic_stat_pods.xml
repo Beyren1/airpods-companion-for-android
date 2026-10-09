@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Значок в строке состояния и плитке: силуэт AirPods Max, как на значке приложения. Одноцветный, цвет задаёт система. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="64"
+    android:viewportHeight="64">
+    <group>
+        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.5" android:strokeLineCap="round" android:strokeLineJoin="round"
+            android:pathData="M14,31V24a18,18 0,0 1,36 0v7" />
+        <path android:strokeColor="#FFFFFFFF" android:strokeAlpha="0.55" android:strokeWidth="4.5" android:strokeLineCap="round"
+            android:pathData="M18,31a14,13 0,0 1,28 0" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M12.5,28h3v5h-3z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M48.5,28h3v5h-3z" />
+        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+            android:pathData="M10,32h8a5,5 0,0 1,5 5v16a5,5 0,0 1,-5 5h-8a5,5 0,0 1,-5 -5V37a5,5 0,0 1,5 -5zM18.5,36h1.6v18h-1.6z" />
+        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+            android:pathData="M46,32h8a5,5 0,0 1,5 5v16a5,5 0,0 1,-5 5h-8a5,5 0,0 1,-5 -5V37a5,5 0,0 1,5 -5zM43.9,36h1.6v18h-1.6z" />
+        <path android:fillColor="#FFFFFFFF" android:pathData="M54,28.5h3.5v3.5h-3.5z" />
+    </group>
+</vector>

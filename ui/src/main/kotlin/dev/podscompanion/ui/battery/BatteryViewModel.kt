@@ -6,12 +6,23 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.podscompanion.bluetooth.scan.BluetoothUnavailableException
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
-import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.NearbyPods
+import dev.podscompanion.data.aap.AapLog
+import dev.podscompanion.data.aap.AapRepository
+import dev.podscompanion.data.aap.AapSessions
+import dev.podscompanion.protocol.aap.AapCommand
+import dev.podscompanion.data.autopause.AutoPauseLog
+import dev.podscompanion.data.settings.AppSettings
+import dev.podscompanion.data.settings.SettingsRepository
+import dev.podscompanion.data.settings.ThemeMode
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.transform
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -22,10 +33,42 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.withTimeoutOrNull
+import android.os.SystemClock
+import dev.podscompanion.protocol.aap.AxisRecorder
+import dev.podscompanion.protocol.aap.HeadCalibrator
+
+private const val PREPARE_MS = 1_500L
+
+/**
+ * Не чаще одного обновления экрана за столько мс. Пакеты рекламы приходят много раз в секунду
+ * и почти всегда меняют только силу сигнала, а каждое обновление перерисовывает весь экран.
+ */
+private const val UI_FRAME_MS = 100L
+
+/** Первое значение сразу, дальше не чаще раза в [periodMs], всегда самое свежее (промежуточные пропускаются). */
+private fun <T> Flow<T>.throttleLatest(periodMs: Long): Flow<T> = conflate().transform {
+    emit(it)
+    delay(periodMs)
+}
+private const val RECORD_MS = 4_000L
+
+/** Калибровка жестов головой: кивнуть, затем покачать головой. */
+sealed interface CalibrationState {
+    enum class Step { NOD, SHAKE }
+
+    data object Idle : CalibrationState
+    data class Recording(val step: Step, val progress: Float) : CalibrationState
+    data object Done : CalibrationState
+    /** [details] — сколько пакетов пришло и размах углов: по ним видно, что пошло не так. */
+    data class Failed(val noData: Boolean, val details: String = "") : CalibrationState
+}
 
 sealed interface BatteryUiState {
     data object Searching : BatteryUiState
-    data class Found(val status: PodsStatus) : BatteryUiState
+    data class Found(val nearby: NearbyPods) : BatteryUiState
     data object BluetoothOff : BatteryUiState
     data class Error(val message: String) : BatteryUiState
 }
@@ -33,9 +76,118 @@ sealed interface BatteryUiState {
 @HiltViewModel
 class BatteryViewModel @Inject constructor(
     private val repository: PodsRepository,
+    private val settingsRepository: SettingsRepository,
+    autoPauseLog: AutoPauseLog,
+    private val aapRepository: AapRepository,
+    private val aapLogger: AapLog,
 ) : ViewModel() {
 
-    /** Каждое новое значение перезапускает скан с нуля (и заново выбирает ближайшие наушники). */
+    /** Прямое подключение к наушникам (расширенный режим). */
+    val aapSessions: StateFlow<AapSessions> = aapRepository.state
+
+    /** Журнал соединения и автопаузы одним текстом: пользователь отправляет его, если настройка не сработала. */
+    fun diagnosticLog(): String = aapLogger.text() + "\n\n--- автопауза ---\n" + autoPauseLines.value.joinToString("\n")
+
+    /** Кнопка «Проверить расширенный режим». */
+    fun checkAap() = aapRepository.retryNow()
+
+    /** Команда наушникам: режим, настройка или свои байты из отладки. */
+    fun send(address: String, command: AapCommand) = aapRepository.send(address, command)
+
+    /** Переименовать наушники [address]. */
+    fun rename(address: String, name: String) = aapRepository.send(address, AapCommand.Rename(name))
+
+    fun setHeadGestures(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setHeadGestures(value) }
+    }
+
+    private val _calibration = MutableStateFlow<CalibrationState>(CalibrationState.Idle)
+    val calibration: StateFlow<CalibrationState> = _calibration.asStateFlow()
+    private var calibrationJob: Job? = null
+
+    /**
+     * Калибровка: включаем датчики головы, записываем кивки, затем покачивания, и по ним
+     * определяем, какой угол за что отвечает. Удалась — сохраняем и включаем жесты.
+     */
+    fun startCalibration(address: String) {
+        calibrationJob?.cancel()
+        calibrationJob = viewModelScope.launch {
+            aapRepository.send(address, AapCommand.StartHeadTracking)
+            try {
+                val nod = record(address, CalibrationState.Step.NOD)
+                val shake = record(address, CalibrationState.Step.SHAKE)
+                val result = HeadCalibrator.calibrate(nod, shake)
+                val details = "кивок: ${nod.size} пак., размах ${nod.ranges().joinToString("/")}; " +
+                    "покачивание: ${shake.size} пак., размах ${shake.ranges().joinToString("/")}"
+                aapLogger.add("калибровка жестов: $details")
+                if (result == null) {
+                    _calibration.value = CalibrationState.Failed(noData = nod.size == 0 && shake.size == 0, details = details)
+                } else {
+                    settingsRepository.setHeadCalibration(result)
+                    settingsRepository.setHeadGestures(true)
+                    _calibration.value = CalibrationState.Done
+                }
+            } finally {
+                aapRepository.send(address, AapCommand.StopHeadTracking)
+            }
+        }
+    }
+
+    fun dismissCalibration() {
+        calibrationJob?.cancel()
+        _calibration.value = CalibrationState.Idle
+    }
+
+    private suspend fun record(address: String, step: CalibrationState.Step): AxisRecorder = coroutineScope {
+        val recorder = AxisRecorder()
+        _calibration.value = CalibrationState.Recording(step, 0f)
+        delay(PREPARE_MS) // успеть прочитать подсказку
+        val start = SystemClock.elapsedRealtime()
+        val ticker = launch {
+            while (true) {
+                val progress = ((SystemClock.elapsedRealtime() - start).toFloat() / RECORD_MS).coerceAtMost(1f)
+                _calibration.value = CalibrationState.Recording(step, progress)
+                delay(100)
+            }
+        }
+        withTimeoutOrNull(RECORD_MS) {
+            aapRepository.headMotion.filter { it.address == address }.collect { recorder.add(it.motion.axes) }
+        }
+        ticker.cancel()
+        recorder
+    }
+
+    /** Журнал автопаузы из сервиса, показывается в карточке отладки. */
+    val autoPauseLines: StateFlow<List<String>> = autoPauseLog.lines
+
+    val settings: StateFlow<AppSettings> = settingsRepository.settings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), AppSettings())
+
+    fun setBackgroundEnabled(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setBackgroundEnabled(value) }
+    }
+
+    fun setAutoPause(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setAutoPause(value) }
+    }
+
+    fun setCasePopup(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setCasePopup(value) }
+    }
+
+    fun setLowBatteryAlerts(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setLowBatteryAlerts(value) }
+    }
+
+    fun setLowBatteryThreshold(value: Int) {
+        viewModelScope.launch { settingsRepository.setLowBatteryThreshold(value) }
+    }
+
+    fun setTheme(value: ThemeMode) {
+        viewModelScope.launch { settingsRepository.setTheme(value) }
+    }
+
+    /** Каждое новое значение перезапускает скан с нуля (и заново выбирает главные наушники). */
     private val restarts = MutableStateFlow(0)
 
     private val _refreshing = MutableStateFlow(false)
@@ -51,9 +203,9 @@ class BatteryViewModel @Inject constructor(
     val state: StateFlow<BatteryUiState> = restarts
         // flatMapLatest: при новом restarts старый скан отменяется (stopScan), стартует новый.
         .flatMapLatest {
-            repository.observeNearest(ScanIntensity.LOW_LATENCY)
-                .map<PodsStatus?, BatteryUiState> { status ->
-                    if (status == null) BatteryUiState.Searching else BatteryUiState.Found(status)
+            repository.observeNearby(ScanIntensity.LOW_LATENCY)
+                .map<NearbyPods, BatteryUiState> { nearby ->
+                    if (nearby.primary == null && nearby.others.isEmpty()) BatteryUiState.Searching else BatteryUiState.Found(nearby)
                 }
                 .onStart { emit(BatteryUiState.Searching) }
                 .catch { e ->
@@ -63,6 +215,7 @@ class BatteryViewModel @Inject constructor(
                     )
                 }
         }
+        .throttleLatest(UI_FRAME_MS)
         .onEach { if (it !is BatteryUiState.Searching) stopRefreshing() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BatteryUiState.Searching)
 

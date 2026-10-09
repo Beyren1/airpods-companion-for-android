@@ -3,11 +3,18 @@ package dev.podscompanion.ui.battery
 import android.content.Intent
 import android.os.SystemClock
 import android.provider.Settings
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -22,151 +29,407 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BluetoothDisabled
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.Headphones
+import androidx.compose.material.icons.filled.RecordVoiceOver
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.aap.AapSessionState
+import dev.podscompanion.data.aap.AapSessions
+import dev.podscompanion.data.displayText
+import dev.podscompanion.data.media.NowPlaying
+import dev.podscompanion.protocol.aap.AapCommand
+import dev.podscompanion.protocol.aap.AapToggle
+import dev.podscompanion.protocol.aap.ListeningMode
+import dev.podscompanion.protocol.aap.toggle
 import dev.podscompanion.protocol.advertising.BatteryLevel
 import dev.podscompanion.protocol.advertising.Capability
 import dev.podscompanion.protocol.advertising.PodState
 import dev.podscompanion.protocol.advertising.PodsModel
 import dev.podscompanion.ui.R
-import dev.podscompanion.ui.permissions.ScanPermissionGate
 import dev.podscompanion.ui.theme.PodsCompanionTheme
 import kotlinx.coroutines.delay
 
-/** Точка входа экрана: разрешения → ViewModel → отрисовка. */
+/**
+ * Главный экран: заряд подключённых наушников, режим шумоподавления, адаптация к разговору,
+ * вход в настройки наушников и список «Рядом». Настройки приложения — по шестерёнке.
+ */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BatteryRoute(showDebug: Boolean) {
-    Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.screen_title)) }) },
-    ) { padding ->
-        Box(Modifier.padding(padding)) {
-            ScanPermissionGate {
-                val viewModel: BatteryViewModel = hiltViewModel()
-                val state by viewModel.state.collectAsStateWithLifecycle()
-                val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
-                BatteryScreen(state, refreshing, viewModel::refresh, showDebug)
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun BatteryScreen(
+fun HomeScreen(
     state: BatteryUiState,
     refreshing: Boolean,
     onRefresh: () -> Unit,
-    showDebug: Boolean,
+    aapSessions: AapSessions = AapSessions(),
+    onAapCheck: () -> Unit = {},
+    onCommand: (address: String, AapCommand) -> Unit = { _, _ -> },
+    onOpenHeadphoneSettings: () -> Unit = {},
+    onOpenAppSettings: (() -> Unit)? = null,
+    nowPlaying: NowPlaying? = null,
+    onMediaButton: (MediaButton) -> Unit = {},
 ) {
-    // PullToRefreshBox ловит свайп вниз; содержимое должно прокручиваться, иначе жест не дойдёт.
-    PullToRefreshBox(
-        isRefreshing = refreshing,
-        onRefresh = onRefresh,
-        modifier = Modifier.fillMaxSize(),
-    ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
-        ) {
-            when (state) {
-                BatteryUiState.Searching -> Searching()
-                BatteryUiState.BluetoothOff -> BluetoothOff()
-                is BatteryUiState.Error -> Message(Icons.Filled.ErrorOutline, stringResource(R.string.scan_error, state.message))
-                is BatteryUiState.Found -> {
-                    PodsCard(state.status)
-                    if (showDebug) DebugCard(state.status)
-                }
-            }
-            Text(
-                stringResource(R.string.pull_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.fillMaxWidth(),
+    val main = (state as? BatteryUiState.Found)?.nearby?.primary
+    val session = if (main?.connected == true) aapSessions.forModel(main.model) else null
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { TitleBlock(main, session) },
+                actions = {
+                    // Во вкладках настройки открываются вкладкой внизу, шестерёнка не нужна.
+                    if (onOpenAppSettings != null) {
+                        IconButton(onClick = onOpenAppSettings) {
+                            Icon(Icons.Filled.Settings, stringResource(R.string.app_settings_title))
+                        }
+                    }
+                },
             )
+        },
+    ) { padding ->
+        // PullToRefreshBox ловит свайп вниз; содержимое должно прокручиваться, иначе жест не дойдёт.
+        PullToRefreshBox(
+            isRefreshing = refreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.padding(padding).fillMaxSize(),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                when (state) {
+                    BatteryUiState.Searching -> Searching()
+                    BatteryUiState.BluetoothOff -> BluetoothOff()
+                    is BatteryUiState.Error -> Message(Icons.Filled.ErrorOutline, stringResource(R.string.scan_error, state.message))
+                    is BatteryUiState.Found -> {
+                        if (main != null) {
+                            // Цвет режима — только если наушники его сообщили и режимы у модели вообще есть.
+                            val mode = (session as? AapSessionState.Connected)?.device?.listeningMode
+                                ?.takeIf { it in availableModes(main.model) }
+                            HeroCard(main, mode)
+                        } else {
+                            NotConnectedCard()
+                        }
+                        if (main?.connected == true) AapStatusCard(session, aapSessions.noPermission, onAapCheck)
+                        if (session is AapSessionState.Connected) {
+                            Controls(session, main?.model, onCommand, onOpenHeadphoneSettings)
+                        }
+                        nowPlaying?.let { NowPlayingCard(it, onMediaButton) }
+                        if (state.nearby.others.isNotEmpty()) Nearby(state.nearby.others)
+                    }
+                }
+                Text(
+                    stringResource(R.string.pull_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
 
-// ---------- Найденные наушники ----------
-
+/** Заголовок: имя наушников и как они подключены (зелёная точка — напрямую). */
 @Composable
-private fun PodsCard(status: PodsStatus) {
+private fun TitleBlock(main: PodsStatus?, session: AapSessionState?) {
+    Column {
+        Text(
+            main?.let { modelName(it) } ?: stringResource(R.string.screen_title),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (main != null) {
+            val direct = session is AapSessionState.Connected
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (main.connected) {
+                    Box(
+                        Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(if (direct) StatusGreen else MaterialTheme.colorScheme.outline),
+                    )
+                }
+                Text(
+                    stringResource(
+                        when {
+                            direct -> R.string.status_direct
+                            main.connected -> R.string.status_connected
+                            else -> R.string.status_nearest
+                        },
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    }
+}
+
+/** Зелёный «подключено» один для светлой и тёмной темы: семантический цвет, не из обоев. */
+private val StatusGreen = Color(0xFF4CAF7A)
+
+// ---------- Заряд ----------
+
+/**
+ * Карточка с зарядом. Живая: наушники в ушах дышат, вынутый отъезжает в сторону,
+ * а фон карточки плавно окрашивается в цвет текущего режима шумоподавления.
+ */
+@Composable
+private fun HeroCard(status: PodsStatus, mode: ListeningMode?) {
     val model = status.model
     val stereo = model == null || Capability.STEREO_BUDS in model.capabilities
     val hasCase = model == null || Capability.CHARGING_CASE in model.capabilities
+    val exact = status.exactBattery
+    val colors = MaterialTheme.colorScheme
+
+    val leftMotion = budMotion(status.left, left = true)
+    val rightMotion = budMotion(status.right, left = false)
+    val maxMotion = if (status.primary.inEar) PartMotion.Breathe else PartMotion.Off
+    val anyBreathing = if (stereo) PartMotion.Breathe in listOf(leftMotion, rightMotion) else maxMotion == PartMotion.Breathe
+    // Анимация «дыхания» крутится, только пока есть кому дышать: без неё экран не тратит заряд.
+    val breath = if (anyBreathing) rememberBreath() else null
+
+    val container by animateColorAsState(
+        if (mode == null) colors.surfaceContainer else lerp(colors.surfaceContainer, colors.forMode(mode).container, 0.25f),
+        tween(700),
+        label = "heroTint",
+    )
 
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
+        colors = CardDefaults.cardColors(containerColor = container),
     ) {
-        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
-            Header(status)
+        Column(Modifier.padding(vertical = 18.dp, horizontal = 8.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (stereo) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                    BatteryRing(stringResource(R.string.left), status.left.battery, status.left.charging, podNote(status.left))
-                    BatteryRing(stringResource(R.string.right), status.right.battery, status.right.charging, podNote(status.right))
+                Row(Modifier.fillMaxWidth()) {
+                    Part(
+                        PodsArt.budFor(model, left = true), stringResource(R.string.left), status.left.battery, status.left.charging,
+                        podNote(status.left), highlighted = status.left.inEar, exact = exact, modifier = Modifier.weight(1f),
+                        motion = leftMotion, breath = breath,
+                    )
                     if (hasCase) {
-                        BatteryRing(stringResource(R.string.case_label), status.caseBattery, status.caseCharging, null)
+                        Part(
+                            PodsArt.caseFor(model), stringResource(R.string.case_label), status.caseBattery, status.caseCharging,
+                            caseNote(status), highlighted = false, exact = status.aap?.case != null || status.exactFromAdvert,
+                            dimmed = status.caseBatteryRemembered, modifier = Modifier.weight(1f),
+                        )
                     }
-                }
-            } else {
-                // У Max в пакете одно значение; где именно оно лежит, уточним по дампу.
-                val pod = status.left.takeIf { it.battery != null } ?: status.right
-                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    BatteryRing(
-                        stringResource(R.string.headphones), pod.battery, pod.charging,
-                        podNote(pod, onHead = true), size = 140.dp,
+                    Part(
+                        PodsArt.budFor(model, left = false), stringResource(R.string.right), status.right.battery, status.right.charging,
+                        podNote(status.right), highlighted = status.right.inEar, exact = exact, modifier = Modifier.weight(1f),
+                        motion = rightMotion, breath = breath,
                     )
                 }
+            } else {
+                val pod = status.primary
+                Part(
+                    PodsArt.OverEarArt, stringResource(R.string.headphones), pod.battery, pod.charging,
+                    if (pod.inEar) stringResource(R.string.on_head) else stringResource(R.string.off_head),
+                    highlighted = pod.inEar, exact = exact, ringSize = 132.dp, modifier = Modifier.fillMaxWidth(),
+                    motion = maxMotion, breath = breath,
+                )
             }
+            Freshness(status)
         }
     }
 }
 
+/**
+ * Одна часть: кольцо заряда вокруг рисунка, процент, название и где она сейчас.
+ * [motion] и [breath] оживляют рисунок на главном экране (см. [PartMotion]); в окне кейса он неподвижен.
+ */
 @Composable
-private fun Header(status: PodsStatus) {
+internal fun Part(
+    art: PodsArt.Art,
+    label: String,
+    battery: BatteryLevel?,
+    charging: Boolean,
+    note: String?,
+    highlighted: Boolean,
+    exact: Boolean,
+    modifier: Modifier = Modifier,
+    dimmed: Boolean = false,
+    ringSize: Dp = 92.dp,
+    motion: PartMotion = PartMotion.Still,
+    breath: State<Float>? = null,
+) {
+    val percent = battery?.percent
+    val colors = MaterialTheme.colorScheme
+    val ringColor by animateColorAsState(
+        when {
+            percent == null || dimmed -> colors.outline
+            percent <= 20 -> colors.error
+            charging -> colors.tertiary
+            else -> colors.primary
+        },
+        tween(600),
+        label = "ringColor",
+    )
+    // Кольцо доезжает до нового заряда плавно, а не прыгает.
+    val progress by animateFloatAsState((percent ?: 0) / 100f, tween(900, easing = FastOutSlowInEasing), label = "ring")
+
+    // Вынутый наушник отъезжает в свою сторону с едва заметной пружиной.
+    val bouncy = spring<Float>(dampingRatio = 0.75f, stiffness = Spring.StiffnessLow)
+    val shiftX = animateFloatAsState(
+        when (motion) {
+            PartMotion.OutLeft -> -6f
+            PartMotion.OutRight -> 6f
+            else -> 0f
+        },
+        bouncy, label = "shiftX",
+    )
+    val out = motion == PartMotion.OutLeft || motion == PartMotion.OutRight || motion == PartMotion.Off
+    val shiftY = animateFloatAsState(if (out) 3f else 0f, bouncy, label = "shiftY")
+    val tilt = animateFloatAsState(
+        when (motion) {
+            PartMotion.OutLeft -> -8f
+            PartMotion.OutRight -> 8f
+            PartMotion.Off -> -4f
+            else -> 0f
+        },
+        bouncy, label = "tilt",
+    )
+    val settle = animateFloatAsState(if (out) 0.95f else 1f, bouncy, label = "settle")
+    // Вдох затухает, а не обрывается, когда наушник вынули.
+    val breathing = animateFloatAsState(if (motion == PartMotion.Breathe) 1f else 0f, tween(500), label = "breathing")
+    val glowColor = colors.primary
+
+    Column(modifier, horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Box(Modifier.size(ringSize), contentAlignment = Alignment.Center) {
+            // Мягкое свечение за наушником в ухе, пульсирует вместе с дыханием.
+            if (breath != null) {
+                Box(
+                    Modifier
+                        .fillMaxSize(0.78f)
+                        .graphicsLayer {
+                            val b = breath.value * breathing.value
+                            alpha = (0.06f + 0.06f * b) * breathing.value
+                            scaleX = 0.95f + 0.05f * b
+                            scaleY = scaleX
+                        }
+                        .clip(CircleShape)
+                        .background(glowColor),
+                )
+            }
+            CircularProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.fillMaxSize(),
+                color = ringColor,
+                strokeWidth = ringSize / 15,
+                trackColor = colors.surfaceContainerHighest,
+                strokeCap = StrokeCap.Round,
+            )
+            // Все части в одном масштабе по реальным размерам: кейс Pro заметно шире наушника.
+            val dpPerMm = ringSize.value / 92f * 0.95f
+            Image(
+                painterResource(art.image), null,
+                alpha = if (highlighted || !dimmed) 1f else 0.5f,
+                modifier = Modifier
+                    .size((art.widthMm * dpPerMm).dp, (art.heightMm * dpPerMm).dp)
+                    .graphicsLayer {
+                        // Всё движение — в слое отрисовки: на каждом кадре не пересчитывается разметка экрана.
+                        val b = (breath?.value ?: 0f) * breathing.value
+                        val scale = settle.value * (1f + 0.025f * b)
+                        scaleX = scale
+                        scaleY = scale
+                        translationX = shiftX.value * density
+                        translationY = (shiftY.value - 1.5f * b) * density
+                        rotationZ = tilt.value
+                    },
+            )
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                battery?.displayText(exact) ?: "—",
+                style = if (ringSize > 100.dp) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold,
+            )
+            if (charging) {
+                Icon(Icons.Filled.Bolt, stringResource(R.string.charging), tint = colors.tertiary, modifier = Modifier.size(18.dp))
+            }
+        }
+        Text(label, style = MaterialTheme.typography.labelLarge, color = colors.onSurfaceVariant)
+        StatusChip(note, highlighted)
+    }
+}
+
+@Composable
+private fun StatusChip(text: String?, highlighted: Boolean) {
+    // Пустая «таблетка» той же высоты, чтобы части не прыгали при смене статуса.
+    val colors = MaterialTheme.colorScheme
+    val background by animateColorAsState(
+        when {
+            text == null -> Color.Transparent
+            highlighted -> colors.primaryContainer
+            else -> colors.surfaceContainerHighest
+        },
+        tween(400),
+        label = "chip",
+    )
+    val content by animateColorAsState(if (highlighted) colors.onPrimaryContainer else colors.onSurfaceVariant, tween(400), label = "chipText")
+    Box(
+        Modifier
+            .height(24.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(background)
+            .animateContentSize()
+            .padding(horizontal = 10.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text ?: "",
+            style = MaterialTheme.typography.labelMedium,
+            color = content,
+        )
+    }
+}
+
+/** Под кольцами: точный ли заряд и насколько он свежий. */
+@Composable
+private fun Freshness(status: PodsStatus) {
     val now by produceState(SystemClock.elapsedRealtime()) {
         while (true) {
             delay(1_000)
@@ -174,134 +437,147 @@ private fun Header(status: PodsStatus) {
         }
     }
     val seconds = ((now - status.lastSeenMs) / 1000).coerceAtLeast(0)
-    val signal = when {
-        status.rssi >= -55 -> R.string.signal_excellent
-        status.rssi >= -70 -> R.string.signal_good
-        else -> R.string.signal_weak
+    val text = if (status.exactBattery) {
+        stringResource(R.string.battery_exact)
+    } else {
+        stringResource(R.string.battery_approx, seconds)
     }
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            Modifier
-                .size(48.dp)
-                .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(Icons.Filled.Headphones, null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
-        }
-        Column(Modifier.padding(start = 16.dp)) {
-            Text(
-                status.model?.displayName ?: stringResource(R.string.unknown_model, status.modelId),
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.SemiBold,
-            )
-            Text(
-                stringResource(R.string.updated_ago, seconds, stringResource(signal)),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-    }
+    Text(
+        text,
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = TextAlign.Center,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @Composable
-private fun podNote(pod: PodState, onHead: Boolean = false): String? = when {
+private fun podNote(pod: PodState): String? = when {
+    pod.inEar -> stringResource(R.string.in_ear)
     pod.inCase -> stringResource(R.string.in_case)
-    !pod.inEar -> null
-    onHead -> stringResource(R.string.on_head)
-    else -> stringResource(R.string.in_ear)
+    pod.battery != null -> stringResource(R.string.out_of_ear)
+    else -> null
 }
 
-/** Кольцо заряда: дуга по проценту, в центре число, под ним подпись и статус. */
 @Composable
-private fun BatteryRing(
-    label: String,
-    battery: BatteryLevel?,
-    charging: Boolean,
-    note: String?,
-    size: Dp = 88.dp,
+private fun caseNote(status: PodsStatus): String? = when {
+    status.caseBatteryRemembered -> stringResource(R.string.case_remembered)
+    status.caseCharging -> stringResource(R.string.charging_short)
+    else -> null
+}
+
+// ---------- Управление ----------
+
+@Composable
+private fun Controls(
+    session: AapSessionState.Connected,
+    model: PodsModel?,
+    onCommand: (address: String, AapCommand) -> Unit,
+    onOpenHeadphoneSettings: () -> Unit,
 ) {
-    val percent = battery?.percent
-    val color = when {
-        percent == null -> MaterialTheme.colorScheme.outline
-        percent <= 20 -> MaterialTheme.colorScheme.error
-        charging -> MaterialTheme.colorScheme.tertiary
-        else -> MaterialTheme.colorScheme.primary
+    val modes = availableModes(model)
+    if (modes.isNotEmpty()) {
+        SectionTitle(stringResource(R.string.section_noise))
+        ModeTiles(modes, session.device.listeningMode) { onCommand(session.address, AapCommand.SetListeningMode(it)) }
     }
-    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(size)) {
-            CircularProgressIndicator(
-                progress = { (percent ?: 0) / 100f },
-                modifier = Modifier.fillMaxSize(),
-                color = color,
-                strokeWidth = size / 11,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                strokeCap = StrokeCap.Round,
+    val ca = session.device.toggle(AapToggle.CONVERSATIONAL_AWARENESS)
+    SettingsGroup {
+        if (ca != null) row {
+            SwitchRow(
+                stringResource(R.string.setting_ca), ca,
+                { onCommand(session.address, AapCommand.SetToggle(AapToggle.CONVERSATIONAL_AWARENESS, it)) },
+                icon = Icons.Filled.RecordVoiceOver,
+                description = stringResource(R.string.setting_ca_hint),
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                if (charging) {
-                    Icon(
-                        Icons.Filled.Bolt,
-                        contentDescription = stringResource(R.string.charging),
-                        tint = color,
-                        modifier = Modifier.size(size / 5),
-                    )
+        }
+        row {
+            NavRow(
+                stringResource(R.string.settings_title), onOpenHeadphoneSettings,
+                icon = Icons.Filled.Tune,
+                description = stringResource(R.string.settings_row_hint),
+            )
+        }
+    }
+}
+
+// ---------- Рядом ----------
+
+/** Другие наушники рядом (не подключённые): одна строка на пару. */
+@Composable
+private fun Nearby(others: List<PodsStatus>) {
+    SectionTitle(stringResource(R.string.nearby_title))
+    SettingsGroup {
+        others.forEach { pods ->
+            row {
+                val stereo = pods.model?.let { Capability.STEREO_BUDS in it.capabilities } ?: true
+                Row(
+                    Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                ) {
+                    Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.size(40.dp)) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Image(
+                                painterResource(if (stereo) PodsArt.caseFor(pods.model).image else PodsArt.OverEarArt.image), null,
+                                modifier = Modifier.size(26.dp),
+                            )
+                        }
+                    }
+                    Column(Modifier.weight(1f)) {
+                        Text(modelName(pods), style = MaterialTheme.typography.bodyLarge)
+                        Text(
+                            shortBattery(pods),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
-                Text(
-                    percent?.let { "$it%" } ?: "—",
-                    style = if (size > 100.dp) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
             }
         }
-        Text(label, style = MaterialTheme.typography.labelLarge)
-        StatusPill(note)
     }
 }
 
 @Composable
-private fun StatusPill(text: String?) {
-    // Пустая «таблетка» той же высоты, чтобы кольца не прыгали при смене статуса.
-    Box(
-        Modifier
-            .height(24.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (text != null) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh)
-            .padding(horizontal = 10.dp),
-        contentAlignment = Alignment.Center,
-    ) {
-        Text(
-            text ?: "",
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-        )
-    }
-}
+private fun modelName(status: PodsStatus): String =
+    status.model?.displayName ?: stringResource(R.string.unknown_model, status.modelId)
 
 @Composable
-private fun DebugCard(status: PodsStatus) {
-    OutlinedCard(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp)) {
-        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(stringResource(R.string.debug_title), style = MaterialTheme.typography.titleSmall)
-            Text(
-                "RSSI ${status.rssi} dBm · model=0x%04X · lid=0x%02X · color=0x%02X"
-                    .format(status.modelId, status.lidCounter, status.colorCode),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            // Долгое нажатие выделяет текст: байты можно скопировать и прислать вместо скриншота.
-            SelectionContainer {
-                Text(status.rawHex, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
-            }
-        }
+private fun shortBattery(status: PodsStatus): String {
+    val model = status.model
+    if (model != null && Capability.STEREO_BUDS !in model.capabilities) {
+        return status.primary.battery?.displayText() ?: "—"
     }
+    val left = status.left.battery?.displayText() ?: "—"
+    val right = status.right.battery?.displayText() ?: "—"
+    val case = status.caseBattery?.displayText()
+    return stringResource(R.string.battery_pair, left, right) +
+        (case?.let { stringResource(R.string.battery_case_suffix, it) } ?: "")
 }
 
 // ---------- Пустые состояния ----------
 
+/** К телефону ничего не подключено: заряд виден только в списке «рядом». */
+@Composable
+private fun NotConnectedCard() {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+    ) {
+        Row(Modifier.padding(20.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(PodsArt.Case, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(28.dp))
+            Text(
+                stringResource(R.string.not_connected),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.padding(start = 16.dp),
+            )
+        }
+    }
+}
+
 @Composable
 private fun Searching() {
-    val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
+    val pulse = rememberInfiniteTransition(label = "pulse").animateFloat(
         initialValue = 0.85f,
         targetValue = 1.1f,
         animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
@@ -315,15 +591,19 @@ private fun Searching() {
         Box(
             Modifier
                 .size(112.dp)
-                .scale(pulse)
+                // Читаем в graphicsLayer: пульсация не пересобирает экран на каждом кадре.
+                .graphicsLayer {
+                    scaleX = pulse.value
+                    scaleY = pulse.value
+                }
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                Icons.Filled.Headphones, null,
+                PodsArt.Case, null,
                 tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                modifier = Modifier.size(48.dp),
+                modifier = Modifier.size(52.dp),
             )
         }
         Text(stringResource(R.string.searching_title), style = MaterialTheme.typography.titleLarge)
@@ -347,11 +627,7 @@ private fun BluetoothOff() {
 }
 
 @Composable
-private fun Message(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
-    text: String,
-    action: @Composable () -> Unit = {},
-) {
+private fun Message(icon: ImageVector, text: String, action: @Composable () -> Unit = {}) {
     Column(
         modifier = Modifier.fillMaxWidth().padding(top = 96.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -367,33 +643,48 @@ private fun Message(
 // ---------- Превью в Android Studio ----------
 
 private val previewStatus = PodsStatus(
-    model = PodsModel.AIRPODS_4_ANC, modelId = 0x1B20,
-    left = PodState(BatteryLevel(90), charging = true, inEar = false, inCase = true),
+    model = PodsModel.AIRPODS_PRO_2_USB_C, modelId = 0x2420,
+    left = PodState(BatteryLevel(90), charging = false, inEar = false),
     right = PodState(BatteryLevel(100), charging = false, inEar = true),
-    caseBattery = BatteryLevel(50), caseCharging = false,
+    primary = PodState(BatteryLevel(100), charging = false, inEar = true),
+    caseBattery = BatteryLevel(50), caseCharging = true,
     lidCounter = 0x11, colorCode = 0, rssi = -52, lastSeenMs = 0,
-    rawHex = "07 19 01 1B 20 13 9A AF 11 00 04 …",
+    rawHex = "07 19 01 24 20 13 9A AF 11 00 04 …",
+    connected = true,
 )
 
 @Preview(showBackground = true)
 @Composable
-private fun FoundPreview() {
-    PodsCompanionTheme { BatteryScreen(BatteryUiState.Found(previewStatus), false, {}, showDebug = true) }
+private fun HomePreview() {
+    PodsCompanionTheme {
+        HomeScreen(
+            BatteryUiState.Found(
+                NearbyPods(previewStatus, listOf(previewStatus.copy(model = PodsModel.AIRPODS_MAX_USB_C, modelId = 0x1F20, connected = false))),
+            ),
+            refreshing = false,
+            onRefresh = {},
+        )
+    }
 }
 
 @Preview(showBackground = true)
 @Composable
 private fun MaxPreview() {
     PodsCompanionTheme {
-        BatteryScreen(
+        HomeScreen(
             BatteryUiState.Found(
-                previewStatus.copy(
-                    model = PodsModel.AIRPODS_MAX_USB_C, modelId = 0x1F20,
-                    left = PodState(BatteryLevel(70), charging = false, inEar = true),
-                    right = PodState(null, charging = false, inEar = false),
+                NearbyPods(
+                    previewStatus.copy(
+                        model = PodsModel.AIRPODS_MAX_USB_C, modelId = 0x1F20,
+                        left = PodState(BatteryLevel(70), charging = false, inEar = true),
+                        right = PodState(null, charging = false, inEar = false),
+                        primary = PodState(BatteryLevel(70), charging = false, inEar = true),
+                    ),
+                    emptyList(),
                 ),
             ),
-            false, {}, showDebug = false,
+            refreshing = false,
+            onRefresh = {},
         )
     }
 }
@@ -401,5 +692,5 @@ private fun MaxPreview() {
 @Preview(showBackground = true)
 @Composable
 private fun SearchingPreview() {
-    PodsCompanionTheme { BatteryScreen(BatteryUiState.Searching, false, {}, showDebug = false) }
+    PodsCompanionTheme { HomeScreen(BatteryUiState.Searching, refreshing = false, onRefresh = {}) }
 }

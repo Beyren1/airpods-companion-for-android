@@ -16,6 +16,17 @@ object ScanPermissions {
             arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
         }
 
+    /**
+     * Что просим у пользователя. BLUETOOTH_CONNECT необязателен: без него скан работает,
+     * но приложение не знает, какие наушники подключены, и показывает ближайшие.
+     */
+    val requested: Array<String> =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            required + Manifest.permission.BLUETOOTH_CONNECT
+        } else {
+            required
+        }
+
     fun granted(context: Context): Boolean = required.all {
         ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
     }

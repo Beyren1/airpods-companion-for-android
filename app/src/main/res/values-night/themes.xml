@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Тёмная тема окна до отрисовки Compose: без неё при тёмной теме на миг мелькает белый фон. -->
+    <style name="Theme.PodsCompanion" parent="android:Theme.Material.NoActionBar" />
+    <style name="Theme.PodsCompanion.Popup" parent="android:Theme.Material.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+</resources>

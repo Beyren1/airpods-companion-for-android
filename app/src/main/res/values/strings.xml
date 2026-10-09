@@ -1,4 +1,39 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Pods Companion</string>
+    <string name="app_name" translatable="false">Pods Companion</string>
+    <string name="notif_channel_name">Headphone battery</string>
+    <string name="notif_channel_description">Ongoing notification with the battery level while background mode is on</string>
+    <string name="notif_title_idle" translatable="false">Pods Companion</string>
+    <string name="notif_text_idle">No headphones nearby. Open the case to see the battery</string>
+    <string name="notif_left">L %1$s</string>
+    <string name="notif_right">R %1$s</string>
+    <string name="notif_case">Case %1$s</string>
+
+    <string name="widget_name">Headphone battery</string>
+    <string name="widget_description">Battery of the left and right earbuds and the case. Updates while background mode is on.</string>
+    <string name="widget_no_data">Open the case near the phone. Background mode is required.</string>
+    <string name="widget_last_seen">Last seen nearby at %1$s</string>
+    <string name="widget_left">Left</string>
+    <string name="widget_right">Right</string>
+    <string name="widget_case">Case</string>
+    <string name="widget_battery">Battery</string>
+
+    <string name="tile_label">Headphones</string>
+    <string name="tile_no_data">No data</string>
+    <string name="tile_connecting">Connecting…</string>
+    <string name="tile_no_connection">No direct connection</string>
+    <string name="tile_mode_off">Mode: off</string>
+    <string name="tile_mode_nc">Noise cancellation</string>
+    <string name="tile_mode_transparency">Transparency</string>
+    <string name="tile_mode_adaptive">Adaptive</string>
+    <string name="low_channel_name">Low battery</string>
+    <string name="low_channel_description">Alerts when the headphones or the case are running low</string>
+    <string name="low_title">%1$s: low battery</string>
+    <string name="low_left">Left %1$s</string>
+    <string name="low_right">Right %1$s</string>
+    <string name="low_case">Case %1$s</string>
+    <string name="low_charge_hint">Put them on charge soon</string>
+    <string name="player_channel_name">Player start</string>
+    <string name="player_open_title">Headphones connected: open %1$s</string>
+    <string name="player_open_text">Tap to open the player and start the music</string>
 </resources>

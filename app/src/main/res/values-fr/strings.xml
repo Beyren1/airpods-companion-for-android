@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="notif_channel_name">Batterie des écouteurs</string>
+    <string name="notif_channel_description">Notification permanente avec la batterie quand le mode arrière-plan est activé</string>
+    <string name="notif_text_idle">Aucun écouteur à proximité. Ouvrez le boîtier pour voir la batterie</string>
+    <string name="notif_left">G %1$s</string>
+    <string name="notif_right">D %1$s</string>
+    <string name="notif_case">Boîtier %1$s</string>
+
+    <string name="widget_name">Batterie des écouteurs</string>
+    <string name="widget_description">Batterie des écouteurs gauche et droit et du boîtier. Mise à jour quand le mode arrière-plan est activé.</string>
+    <string name="widget_no_data">Ouvrez le boîtier près du téléphone. Le mode arrière-plan est nécessaire.</string>
+    <string name="widget_last_seen">Vus pour la dernière fois à %1$s</string>
+    <string name="widget_left">Gauche</string>
+    <string name="widget_right">Droit</string>
+    <string name="widget_case">Boîtier</string>
+    <string name="widget_battery">Batterie</string>
+
+    <string name="tile_label">Écouteurs</string>
+    <string name="tile_no_data">Aucune donnée</string>
+    <string name="tile_connecting">Connexion…</string>
+    <string name="tile_no_connection">Pas de connexion directe</string>
+    <string name="tile_mode_off">Mode : désactivé</string>
+    <string name="tile_mode_nc">Réduction du bruit</string>
+    <string name="tile_mode_transparency">Transparence</string>
+    <string name="tile_mode_adaptive">Adaptatif</string>
+    <string name="low_channel_name">Batterie faible</string>
+    <string name="low_channel_description">Alertes quand les écouteurs ou le boîtier sont presque déchargés</string>
+    <string name="low_title">%1$s : batterie faible</string>
+    <string name="low_left">Gauche %1$s</string>
+    <string name="low_right">Droit %1$s</string>
+    <string name="low_case">Boîtier %1$s</string>
+    <string name="low_charge_hint">À recharger bientôt</string>
+    <string name="player_channel_name">Lancement du lecteur</string>
+    <string name="player_open_title">Écouteurs connectés : ouvrir %1$s</string>
+    <string name="player_open_text">Touchez pour ouvrir le lecteur et lancer la musique</string>
+</resources>

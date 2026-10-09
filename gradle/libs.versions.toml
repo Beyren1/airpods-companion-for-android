@@ -18,6 +18,7 @@ timber = "5.0.1"
 junit5 = "5.12.1"
 truth = "1.4.4"
 turbine = "1.2.0"
+hiddenApiBypass = "6.1"
 
 [libraries]
 androidx-core-ktx = { module = "androidx.core:core-ktx", version.ref = "coreKtx" }
@@ -47,6 +48,8 @@ kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutine
 kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 
 timber = { module = "com.jakewharton.timber:timber", version.ref = "timber" }
+# Apache-2.0. Нужна, чтобы открыть классический L2CAP-сокет (скрытый API Android) для AAP.
+hiddenapibypass = { module = "org.lsposed.hiddenapibypass:hiddenapibypass", version.ref = "hiddenApiBypass" }
 
 junit-jupiter = { module = "org.junit.jupiter:junit-jupiter", version.ref = "junit5" }
 junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher" }

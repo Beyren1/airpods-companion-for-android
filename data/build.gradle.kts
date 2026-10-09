@@ -33,6 +33,7 @@ dependencies {
     // Репозитории: объединяют advertising + AAP в одно состояние наушников; настройки в DataStore.
     api(project(":protocol-aap"))
     api(project(":core-bluetooth"))
+    implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

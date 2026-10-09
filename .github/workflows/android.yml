@@ -23,3 +23,19 @@ jobs:
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/*.apk
+      - name: Build fast APK
+        run: ./gradlew --stacktrace assembleFast
+      - uses: actions/upload-artifact@v4
+        with:
+          name: app-fast
+          path: app/build/outputs/apk/fast/*.apk
+      # Проверка подписи выпуска на одноразовом ключе: настоящий ключ есть только в release.yml.
+      # Этот APK никуда не выкладывается.
+      - name: Build release APK with a throwaway key
+        run: |
+          keytool -genkeypair -keystore "$RUNNER_TEMP/ci.jks" -storepass cipass123 -keypass cipass123 \
+            -alias ci -keyalg RSA -keysize 2048 -validity 1 -dname "CN=CI"
+          RELEASE_KEYSTORE_PATH="$RUNNER_TEMP/ci.jks" RELEASE_KEYSTORE_PASSWORD=cipass123 \
+            RELEASE_KEY_ALIAS=ci RELEASE_KEY_PASSWORD=cipass123 ./gradlew --stacktrace assembleRelease
+          apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
+          "$apksigner" verify app/build/outputs/apk/release/app-release.apk
