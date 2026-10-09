@@ -48,6 +48,10 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Долгое нажатие на плитку в шторке открывает приложение. -->
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE_PREFERENCES" />
+            </intent-filter>
         </activity>
 
         <service
@@ -62,6 +66,29 @@
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
             </intent-filter>
         </receiver>
-        <!-- Код 5: виджет и Quick Settings Tile. -->
+        <!-- Виджет на рабочем столе. -->
+        <receiver
+            android:name=".widget.PodsWidgetReceiver"
+            android:exported="true"
+            android:label="@string/widget_name">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/pods_widget_info" />
+        </receiver>
+
+        <!-- Плитка в шторке быстрых настроек. -->
+        <service
+            android:name=".tile.PodsTileService"
+            android:exported="true"
+            android:icon="@drawable/ic_stat_pods"
+            android:label="@string/tile_label"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
     </application>
 </manifest>
