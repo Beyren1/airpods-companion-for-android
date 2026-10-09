@@ -181,10 +181,6 @@ class BatteryViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setLowBatteryThreshold(value) }
     }
 
-    fun setDebugEnabled(value: Boolean) {
-        viewModelScope.launch { settingsRepository.setDebugEnabled(value) }
-    }
-
     fun setTheme(value: ThemeMode) {
         viewModelScope.launch { settingsRepository.setTheme(value) }
     }

@@ -15,9 +15,6 @@
     <string name="signal_excellent">excellent</string>
     <string name="signal_good">bon</string>
     <string name="signal_weak">faible</string>
-    <string name="debug_title">Débogage</string>
-    <string name="debug_autopause_log">Journal de la pause auto</string>
-    <string name="debug_unverified_model">Ce modèle n’a pas encore été vérifié sur de vrais paquets. Copiez les octets ci-dessous et envoyez-les au développeur.</string>
     <string name="bg_title">Mode arrière-plan</string>
     <string name="bg_description">Batterie dans le volet des notifications, même app fermée. Android demandera d’autoriser les notifications et la connexion aux appareils à proximité : cette dernière permet de détecter tout de suite la connexion des écouteurs.</string>
     <string name="autopause_title">Pause automatique</string>
@@ -38,8 +35,6 @@
     <string name="connected_badge">connectés</string>
     <string name="nearby_title">À proximité</string>
     <string name="not_connected">Aucun écouteur n’est connecté au téléphone</string>
-    <string name="debug_packet_interval">Un paquet des écouteurs toutes les %1$.1f s</string>
-    <string name="debug_aap_log">Journal AAP</string>
     <string name="aap_title">Mode étendu</string>
     <string name="aap_no_permission">L’autorisation « Appareils à proximité » est nécessaire pour se connecter directement aux écouteurs.</string>
     <string name="aap_connecting">Connexion directe à %1$s…</string>
@@ -92,13 +87,9 @@
     <string name="settings_row_hint">Appui, micro, son</string>
     <string name="section_sound">Son</string>
     <string name="section_other">Autres</string>
-    <string name="section_dev">Pour les développeurs</string>
     <string name="setting_personalized_volume_hint">Adapte le volume à l’environnement</string>
     <string name="settings_need_direct">Les réglages sont disponibles quand les écouteurs sont connectés directement.</string>
     <string name="settings_none">Ces écouteurs n’ont signalé aucun réglage.</string>
-    <string name="debug_description">Paquets bruts et journaux</string>
-    <string name="debug_packets">Paquets des écouteurs connectés</string>
-    <string name="debug_nearby_packets">Paquets des écouteurs à proximité</string>
     <string name="about_title">À propos de l’app</string>
     <string name="about_version">Version %1$s</string>
     <string name="mode_tile_off">Désactivé</string>

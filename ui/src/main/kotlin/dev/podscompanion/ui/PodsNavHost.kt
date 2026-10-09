@@ -14,7 +14,6 @@ import androidx.navigation.compose.rememberNavController
 import dev.podscompanion.ui.battery.AppSettingsScreen
 import dev.podscompanion.ui.battery.BatteryUiState
 import dev.podscompanion.ui.battery.BatteryViewModel
-import dev.podscompanion.ui.battery.DebugInfo
 import dev.podscompanion.ui.battery.DeviceInfoScreen
 import dev.podscompanion.ui.battery.GesturesUi
 import dev.podscompanion.ui.battery.HeadphoneSettingsScreen
@@ -72,8 +71,6 @@ fun PodsNavHost() {
                         music = { MusicSettingsScreen(musicViewModel) },
                         stats = { StatsScreen(statsViewModel) },
                         settings = {
-                            val autoPauseLog by viewModel.autoPauseLines.collectAsStateWithLifecycle()
-                            val aapLog by viewModel.aapLog.collectAsStateWithLifecycle()
                             AppSettingsScreen(
                                 settings,
                                 onBackgroundChange = viewModel::setBackgroundEnabled,
@@ -81,10 +78,8 @@ fun PodsNavHost() {
                                 onCasePopupChange = viewModel::setCasePopup,
                                 onLowBatteryChange = viewModel::setLowBatteryAlerts,
                                 onLowBatteryThresholdChange = viewModel::setLowBatteryThreshold,
-                                onDebugChange = viewModel::setDebugEnabled,
                                 onThemeChange = viewModel::setTheme,
                                 onOpenDeviceInfo = { nav.navigate(Routes.DEVICE_INFO) },
-                                debug = DebugInfo(main, nearby?.others.orEmpty(), autoPauseLog, aapLog),
                             )
                         },
                     )
