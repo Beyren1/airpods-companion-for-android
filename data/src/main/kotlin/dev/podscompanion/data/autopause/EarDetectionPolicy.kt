@@ -17,12 +17,19 @@ class EarDetectionPolicy(
     private val confirmationsToResume: Int = 1,
     /** После паузы/продолжения столько миллисекунд не реагируем на обратное: гасит «эхо» от запоздавших пакетов. */
     private val cooldownMs: Long = 3_000,
+    /**
+     * Сколько наушников может быть «не видно», прежде чем забыть их состояние. Короткие пропуски
+     * (телефон с выключенным экраном реже слушает эфир) не должны сбрасывать паузу: иначе после
+     * пропуска первое «сняты» считалось начальным состоянием и паузы не было.
+     */
+    private val forgetAfterMs: Long = 60_000,
 ) {
     private var stableWorn: Boolean? = null
     private var candidate: Boolean? = null
     private var candidateCount = 0
     private var pausedByUs = false
     private var lastActionAtMs = Long.MIN_VALUE / 2
+    private var unknownSinceMs: Long? = null
 
     /**
      * @param worn наушники полностью надеты (оба в ушах; у Max — на голове); null — наушников не видно.
@@ -31,9 +38,11 @@ class EarDetectionPolicy(
      */
     fun onUpdate(worn: Boolean?, musicPlaying: Boolean, nowMs: Long): MediaAction? {
         if (worn == null) {
-            reset()
+            val since = unknownSinceMs ?: nowMs.also { unknownSinceMs = it }
+            if (nowMs - since >= forgetAfterMs) reset()
             return null
         }
+        unknownSinceMs = null
         if (worn != candidate) {
             candidate = worn
             candidateCount = 0
@@ -62,11 +71,20 @@ class EarDetectionPolicy(
         }
     }
 
+    /**
+     * Смена состояния пришла во время [cooldownMs] и пока отложена. Новых пакетов с тем же состоянием
+     * может не прийти (одинаковые состояния дальше не передаются), поэтому сервис сам повторяет
+     * проверку в возвращённое время. null — ничего не ждёт.
+     */
+    fun retryAtMs(): Long? =
+        if (candidate != null && candidate != stableWorn) lastActionAtMs + cooldownMs else null
+
     /** Пользователь сам нажал play/выключил настройку: забываем, что пауза была наша. */
     fun reset() {
         stableWorn = null
         candidate = null
         candidateCount = 0
         pausedByUs = false
+        unknownSinceMs = null
     }
 }

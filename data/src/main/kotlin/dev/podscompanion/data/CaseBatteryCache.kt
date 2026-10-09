@@ -23,13 +23,10 @@ class CaseBatteryCache @Inject constructor(
     private val memory = mutableMapOf<Int, Int>()
 
     suspend fun apply(status: PodsStatus): PodsStatus {
-        val key = intPreferencesKey("model_%04x".format(status.modelId))
+        val key = keyFor(status.modelId)
         val fresh = status.caseBattery
         if (fresh != null) {
-            if (memory[status.modelId] != fresh.percent) {
-                memory[status.modelId] = fresh.percent
-                context.caseStore.edit { it[key] = fresh.percent }
-            }
+            remember(status.modelId, fresh.percent)
             return status
         }
         val remembered = memory[status.modelId]
@@ -37,4 +34,16 @@ class CaseBatteryCache @Inject constructor(
             ?: return status
         return status.copy(caseBattery = BatteryLevel(remembered), caseCharging = false, caseBatteryRemembered = true)
     }
+
+    /**
+     * Запомнить заряд кейса. Кроме рекламы при открытой крышке, его присылает прямое подключение,
+     * пока наушник лежит в кейсе: так заряд запоминается, даже если крышку у телефона не открывали.
+     */
+    suspend fun remember(modelId: Int, percent: Int) {
+        if (memory[modelId] == percent) return
+        memory[modelId] = percent
+        context.caseStore.edit { it[keyFor(modelId)] = percent }
+    }
+
+    private fun keyFor(modelId: Int) = intPreferencesKey("model_%04x".format(modelId))
 }
