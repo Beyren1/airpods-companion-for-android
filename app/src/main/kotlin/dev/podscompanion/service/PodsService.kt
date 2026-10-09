@@ -42,6 +42,7 @@ import dev.podscompanion.data.settings.AppSettings
 import dev.podscompanion.data.settings.SettingsRepository
 import dev.podscompanion.data.snapshot.StatusSnapshot
 import dev.podscompanion.data.snapshot.StatusSnapshotStore
+import dev.podscompanion.data.stats.UsageStatsStore
 import dev.podscompanion.tile.PodsTileService
 import dev.podscompanion.widget.PodsWidget
 import dev.podscompanion.protocol.advertising.Capability
@@ -55,6 +56,7 @@ import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -79,6 +81,7 @@ class PodsService : LifecycleService() {
     @Inject lateinit var mediaRepository: MediaRepository
     @Inject lateinit var aapRepository: AapRepository
     @Inject lateinit var connectedAudio: ConnectedAudioDevices
+    @Inject lateinit var usageStore: UsageStatsStore
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -90,6 +93,10 @@ class PodsService : LifecycleService() {
     private lateinit var lowBatteryNotifications: LowBatteryNotifications
     private lateinit var audioManager: AudioManager
     private lateinit var music: MusicAutomation
+    private lateinit var usage: UsageTracking
+
+    /** Все наушники из последнего скана: статистике нужна модель каждой подключённой пары. */
+    @Volatile private var latestNearby: List<PodsStatus> = emptyList()
     private val policy = EarDetectionPolicy()
 
     private var scanJob: Job? = null
@@ -148,13 +155,17 @@ class PodsService : LifecycleService() {
         lifecycleScope.launch { publishSnapshots() }
         music = MusicAutomation(this, mediaRepository, aapRepository, connectedAudio, autoPauseLog) { settings }
         music.run(lifecycleScope, settingsRepository.settings)
+        usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
+        usage.run(lifecycleScope)
         startScan()
     }
 
     override fun onDestroy() {
         // Сервис остановлен: виджет и плитка покажут цифры как последние известные.
         val context = applicationContext
+        val usageToFlush = if (::usage.isInitialized) usage else null
         CoroutineScope(Dispatchers.IO).launch {
+            usageToFlush?.flush()
             snapshotStore.markAway()
             refreshSurfaces(context)
         }
@@ -192,6 +203,7 @@ class PodsService : LifecycleService() {
         Timber.d("scan start %s", intensity)
         scanJob = lifecycleScope.launch {
             repository.observeNearby(intensity)
+                .onEach { latestNearby = listOfNotNull(it.primary) + it.others }
                 .map { it.primary }
                 .catch { e ->
                     Timber.w(e, "scan stopped")
@@ -207,6 +219,7 @@ class PodsService : LifecycleService() {
 
     private fun stopScan() {
         Timber.d("scan idle")
+        latestNearby = emptyList()
         scanJob?.cancel()
         scanJob = null
         onStatus(null)
