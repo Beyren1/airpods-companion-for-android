@@ -60,6 +60,7 @@ import dev.podscompanion.protocol.aap.holdDuration
 import dev.podscompanion.protocol.aap.pressSpeed
 import dev.podscompanion.protocol.aap.toneVolume
 import dev.podscompanion.protocol.aap.MAX_DEFAULT_CONTROLS
+import dev.podscompanion.protocol.aap.NOISE_CONTROL_DEFAULT_CONTROLS
 import dev.podscompanion.protocol.aap.crownDirection
 import dev.podscompanion.protocol.aap.withDefaults
 import dev.podscompanion.protocol.aap.ListeningMode
@@ -278,10 +279,16 @@ private fun CalibrationDialog(state: CalibrationState, onRetry: () -> Unit, onDi
 
 @Composable
 private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel?, send: (AapCommand) -> Unit) {
-    // Часть настроек Max не присылают (см. MAX_DEFAULT_CONTROLS): недостающие берём заводскими.
+    // Часть настроек наушники не присылают (Max — см. MAX_DEFAULT_CONTROLS, у остальных бывает без
+    // набора режимов для зажатия): недостающие берём заводскими, чтобы их всё равно можно было выбрать.
     val isMax = model != null && Capability.DIGITAL_CROWN in model.capabilities
-    val usingDefaults = isMax && MAX_DEFAULT_CONTROLS.keys.any { it !in session.device.controls }
-    val device = if (isMax) session.device.withDefaults(MAX_DEFAULT_CONTROLS) else session.device
+    val defaults = when {
+        isMax -> MAX_DEFAULT_CONTROLS
+        model != null && Capability.NOISE_CONTROL in model.capabilities -> NOISE_CONTROL_DEFAULT_CONTROLS
+        else -> emptyMap()
+    }
+    val usingDefaults = defaults.keys.any { it !in session.device.controls }
+    val device = session.device.withDefaults(defaults)
     val personalized = device.toggle(AapToggle.PERSONALIZED_VOLUME)
     val strength = device.adaptiveStrength
     val hold = device.pressAndHold
@@ -409,7 +416,13 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
     }
 
     Text(
-        stringResource(if (usingDefaults) R.string.settings_max_hint else R.string.settings_hint),
+        stringResource(
+            when {
+                !usingDefaults -> R.string.settings_hint
+                isMax -> R.string.settings_max_hint
+                else -> R.string.settings_cycle_default_hint
+            },
+        ),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 8.dp),

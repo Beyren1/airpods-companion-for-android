@@ -273,6 +273,14 @@ val MAX_DEFAULT_CONTROLS: Map<Int, List<Int>> = mapOf(
     ControlId.CROWN_ROTATION to listOf(CrownDirection.BACK_TO_FRONT.code, 0x00, 0x00, 0x00),
 )
 
+/**
+ * Заводской набор режимов для зажатия ножки (шумоподавление + прозрачность) — для наушников с
+ * шумоподавлением, которые не сообщили свой набор: чтобы его всё равно можно было выбрать.
+ */
+val NOISE_CONTROL_DEFAULT_CONTROLS: Map<Int, List<Int>> = mapOf(
+    ControlId.LISTENING_MODE_CYCLE to listOf(0x06, 0x00, 0x00, 0x00),
+)
+
 /** Состояние, где недостающие настройки взяты из [defaults]; то, что прислали наушники, важнее. */
 fun AapDeviceState.withDefaults(defaults: Map<Int, List<Int>>): AapDeviceState =
     if (defaults.keys.all { it in controls }) this else copy(controls = defaults + controls)

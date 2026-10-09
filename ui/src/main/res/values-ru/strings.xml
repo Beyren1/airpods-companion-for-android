@@ -194,4 +194,5 @@
     <string name="hold_shorter">Короче</string>
     <string name="hold_shortest">Самая короткая</string>
     <string name="setting_tone_volume">Громкость сигналов: %1$d%%</string>
+    <string name="settings_cycle_default_hint">Эти наушники не сообщили, какие режимы перебирает зажатие, поэтому до первого изменения показан заводской набор.</string>
 </resources>

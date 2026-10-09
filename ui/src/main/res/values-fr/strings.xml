@@ -192,4 +192,5 @@
     <string name="hold_shorter">Plus courte</string>
     <string name="hold_shortest">La plus courte</string>
     <string name="setting_tone_volume">Volume des sons : %1$d %%</string>
+    <string name="settings_cycle_default_hint">Ces écouteurs n’ont pas indiqué les modes parcourus par l’appui prolongé : le choix d’usine est affiché jusqu’à ce que vous le modifiiez ici.</string>
 </resources>

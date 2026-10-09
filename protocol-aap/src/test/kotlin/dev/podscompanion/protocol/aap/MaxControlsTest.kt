@@ -56,6 +56,15 @@ class MaxControlsTest {
     }
 
     @Test
+    fun `набор режимов для зажатия по умолчанию у наушников с шумоподавлением`() {
+        assertThat(AapDeviceState().withDefaults(NOISE_CONTROL_DEFAULT_CONTROLS).modeCycle)
+            .containsExactly(ListeningMode.NOISE_CANCELLATION, ListeningMode.TRANSPARENCY)
+        val reported = AapDeviceState().apply(AapParser.parse(AapCommand.SetModeCycle(setOf(ListeningMode.OFF, ListeningMode.ADAPTIVE)).bytes)!!)
+        assertThat(reported.withDefaults(NOISE_CONTROL_DEFAULT_CONTROLS).modeCycle)
+            .containsExactly(ListeningMode.OFF, ListeningMode.ADAPTIVE)
+    }
+
+    @Test
     fun `известные настройки подписаны в журнале`() {
         assertThat(ControlId.name(0x1C)).isEqualTo("направление Digital Crown")
         assertThat(ControlId.name(0x20)).isEqualTo("автоподключение (0x20)")
