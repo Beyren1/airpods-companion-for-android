@@ -228,7 +228,7 @@ object PodsArt {
 
     private fun icon(name: String, width: Float, height: Float, block: Builder.() -> Unit): ImageVector = art(name, width, height, block)
 
-    private fun art(name: String, width: Float, height: Float, mirror: Boolean = false, block: Builder.() -> Unit): ImageVector {
+    private fun art(name: String, width: Float, height: Float, block: Builder.() -> Unit): ImageVector {
         val builder = ImageVector.Builder(
             name = name,
             defaultWidth = width.dp,
@@ -236,9 +236,7 @@ object PodsArt {
             viewportWidth = width,
             viewportHeight = height,
         )
-        if (mirror) builder.addGroup(name = "mirror", pivotX = width / 2, scaleX = -1f)
         Builder(builder).block()
-        if (mirror) builder.clearGroup()
         return builder.build()
     }
 
