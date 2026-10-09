@@ -21,8 +21,11 @@ object Aap {
     /** Первый пакет после подключения: без него наушники не отвечают. */
     val HANDSHAKE: ByteArray = bytes(0x00, 0x00, 0x04, 0x00, 0x01, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
 
-    /** Включает расширенные функции (Adaptive, Conversational Awareness). Флаги проверить по дампам. */
-    val SET_FEATURES: ByteArray = packet(Opcode.SET_FEATURES, 0xD7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+    /**
+     * Включает расширенные функции: адаптацию к разговору во время музыки, адаптивную прозрачность.
+     * Все флаги 0xFF — как в пакете, пойманном с Mac (описание протокола LibrePods).
+     */
+    val SET_FEATURES: ByteArray = packet(Opcode.SET_FEATURES, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
 
     /** Подписка на все уведомления: заряд, ухо, режим шумоподавления. */
     val REQUEST_NOTIFICATIONS: ByteArray = packet(Opcode.REQUEST_NOTIFICATIONS, 0xFF, 0xFF, 0xFF, 0xFF)
