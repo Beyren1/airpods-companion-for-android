@@ -201,7 +201,6 @@
     <string name="media_play">Play</string>
     <string name="media_next">Next</string>
     <string name="music_title">Music</string>
-    <string name="music_row_hint">Current track, player auto-start, noise mode per app</string>
     <string name="music_access_title">Access to players</string>
     <string name="music_access_granted">Granted: the app sees Spotify, YouTube Music and any other player</string>
     <string name="music_access_missing">Not granted. Tap and allow notification access: Android shows the list of players only with it. The app does not read your notifications. If the switch is grey, open App info, tap ⋮ and choose Allow restricted settings.</string>
@@ -219,4 +218,8 @@
     <string name="music_modes_description">When an app starts playing, the headphones switch to the mode chosen for it, for example Transparency for podcasts. Needs a direct connection.</string>
     <string name="music_no_players">No music apps found. Open your player once and come back.</string>
     <string name="music_mode_none">Do not change</string>
+    <string name="tab_headphones">Headphones</string>
+    <string name="tab_music">Music</string>
+    <string name="tab_settings">Settings</string>
+    <string name="music_nothing_playing">Nothing is playing. Start music in any player and it will appear here.</string>
 </resources>

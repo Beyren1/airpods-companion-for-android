@@ -67,15 +67,16 @@ import dev.podscompanion.ui.R
 private enum class Pending { CARD, AUTO_LAUNCH, APP_MODES, SMART_RESUME }
 
 /**
- * Экран «Музыка»: доступ к плеерам, карточка текущего трека, автозапуск плеера,
+ * Вкладка «Музыка»: что играет сейчас, доступ к плеерам, карточка текущего трека, автозапуск плеера,
  * режим шумоподавления под приложение и умное продолжение. У каждой функции свой переключатель.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MusicSettingsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
+fun MusicSettingsScreen(viewModel: MusicViewModel, onBack: (() -> Unit)? = null) {
     val settings by viewModel.settings.collectAsStateWithLifecycle()
     val access by viewModel.access.collectAsStateWithLifecycle()
     val players by viewModel.players.collectAsStateWithLifecycle()
+    val track by viewModel.track.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refresh() }
 
@@ -120,7 +121,10 @@ fun MusicSettingsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
             TopAppBar(
                 title = { Text(stringResource(R.string.music_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                    // Во вкладке внизу кнопки «назад» нет: экран открыт не поверх другого.
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                    }
                 },
             )
         },
@@ -133,6 +137,17 @@ fun MusicSettingsScreen(viewModel: MusicViewModel, onBack: () -> Unit) {
                 .padding(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            // Что играет сейчас: во вкладке «Музыка» видно всегда, когда есть доступ.
+            track?.let { NowPlayingCard(it, viewModel::onButton) }
+            if (access && track == null) {
+                Text(
+                    stringResource(R.string.music_nothing_playing),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                )
+            }
+
             SettingsGroup {
                 row {
                     NavRow(

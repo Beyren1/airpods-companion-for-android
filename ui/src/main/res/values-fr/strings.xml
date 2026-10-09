@@ -201,7 +201,6 @@
     <string name="media_play">Lecture</string>
     <string name="media_next">Suivant</string>
     <string name="music_title">Musique</string>
-    <string name="music_row_hint">Titre en cours, lancement du lecteur, mode par appli</string>
     <string name="music_access_title">Accès aux lecteurs</string>
     <string name="music_access_granted">Accordé : l’appli voit Spotify, YouTube Music et tout autre lecteur</string>
     <string name="music_access_missing">Non accordé. Touchez et autorisez l’accès aux notifications : Android ne montre la liste des lecteurs qu’avec lui. L’appli ne lit pas vos notifications. Si l’interrupteur est grisé, ouvrez Infos sur l’appli, touchez ⋮ et choisissez Autoriser les paramètres restreints.</string>
@@ -219,4 +218,8 @@
     <string name="music_modes_description">Quand une appli commence à jouer, les écouteurs passent au mode choisi pour elle, par exemple Transparence pour les podcasts. Connexion directe requise.</string>
     <string name="music_no_players">Aucune appli de musique trouvée. Ouvrez votre lecteur une fois puis revenez.</string>
     <string name="music_mode_none">Ne pas changer</string>
+    <string name="tab_headphones">Écouteurs</string>
+    <string name="tab_music">Musique</string>
+    <string name="tab_settings">Réglages</string>
+    <string name="music_nothing_playing">Rien en lecture. Lancez la musique dans n’importe quel lecteur et elle apparaîtra ici.</string>
 </resources>

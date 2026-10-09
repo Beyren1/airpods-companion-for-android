@@ -45,6 +45,9 @@ class MusicViewModel @Inject constructor(
         .flatMapLatest { enabled -> if (enabled) media.nowPlaying else flowOf(null) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
+    /** Текущий трек для вкладки «Музыка»: там он виден всегда, независимо от карточки на главной. */
+    val track: StateFlow<NowPlaying?> = media.nowPlaying
+
     private val _players = MutableStateFlow<List<PlayerApp>>(emptyList())
 
     /** Музыкальные приложения на телефоне: для выбора плеера и правил режимов. */

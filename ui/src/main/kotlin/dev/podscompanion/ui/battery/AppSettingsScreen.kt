@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Inventory2
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.AlertDialog
@@ -83,8 +82,7 @@ fun AppSettingsScreen(
     onThemeChange: (ThemeMode) -> Unit,
     onOpenDeviceInfo: () -> Unit,
     debug: DebugInfo,
-    onOpenMusic: () -> Unit = {},
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -113,7 +111,10 @@ fun AppSettingsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_settings_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                    // Во вкладке внизу кнопки «назад» нет: экран открыт не поверх другого.
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                    }
                 },
             )
         },
@@ -185,16 +186,6 @@ fun AppSettingsScreen(
                             Choice(LOW_BATTERY_THRESHOLDS, settings.lowBatteryThreshold, { "$it%" }, onLowBatteryThresholdChange)
                         }
                     }
-                }
-            }
-
-            SettingsGroup {
-                row {
-                    NavRow(
-                        stringResource(R.string.music_title), onOpenMusic,
-                        icon = Icons.Filled.MusicNote,
-                        description = stringResource(R.string.music_row_hint),
-                    )
                 }
             }
 

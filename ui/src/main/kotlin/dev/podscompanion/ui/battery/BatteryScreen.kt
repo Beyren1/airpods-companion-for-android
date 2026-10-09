@@ -94,7 +94,7 @@ fun HomeScreen(
     onAapCheck: () -> Unit = {},
     onCommand: (address: String, AapCommand) -> Unit = { _, _ -> },
     onOpenHeadphoneSettings: () -> Unit = {},
-    onOpenAppSettings: () -> Unit = {},
+    onOpenAppSettings: (() -> Unit)? = null,
     nowPlaying: NowPlaying? = null,
     onMediaButton: (MediaButton) -> Unit = {},
 ) {
@@ -106,8 +106,11 @@ fun HomeScreen(
             TopAppBar(
                 title = { TitleBlock(main, session) },
                 actions = {
-                    IconButton(onClick = onOpenAppSettings) {
-                        Icon(Icons.Filled.Settings, stringResource(R.string.app_settings_title))
+                    // Во вкладках настройки открываются вкладкой внизу, шестерёнка не нужна.
+                    if (onOpenAppSettings != null) {
+                        IconButton(onClick = onOpenAppSettings) {
+                            Icon(Icons.Filled.Settings, stringResource(R.string.app_settings_title))
+                        }
                     }
                 },
             )
