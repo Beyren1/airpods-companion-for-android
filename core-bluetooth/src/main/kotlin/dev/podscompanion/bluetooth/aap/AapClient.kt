@@ -22,6 +22,12 @@ sealed interface AapIo {
 }
 
 /**
+ * connect() не ответил. Так ведёт себя стек Bluetooth на Android 16 и старше у большинства
+ * производителей (Samsung A56): без root прямое подключение там невозможно, исправлено в Android 17.
+ */
+class AapConnectTimeoutException(seconds: Long) : IOException("наушники не ответили за $seconds с")
+
+/**
  * Одно соединение AAP с наушниками. Flow живёт, пока соединение открыто: при отмене подписки
  * сокет закрывается, при обрыве Flow завершается ошибкой. Переподключение — забота вызывающего.
  */
@@ -38,7 +44,7 @@ class AapClient @Inject constructor() {
         // и попытка висит вечно. Закрытый сокет прерывает connect() исключением — будет повтор.
         val connectTimeout = launch {
             delay(CONNECT_TIMEOUT_MS)
-            close(IOException("наушники не ответили за ${CONNECT_TIMEOUT_MS / 1_000} с"))
+            close(AapConnectTimeoutException(CONNECT_TIMEOUT_MS / 1_000))
             runCatching { socket.close() }
         }
         launch(Dispatchers.IO) {
