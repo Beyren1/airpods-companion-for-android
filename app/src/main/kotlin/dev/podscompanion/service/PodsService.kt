@@ -38,6 +38,8 @@ import dev.podscompanion.data.popup.LiveStatus
 import dev.podscompanion.popup.CasePopupActivity
 import dev.podscompanion.data.autopause.EarDetectionPolicy
 import dev.podscompanion.data.autopause.MediaAction
+import dev.podscompanion.data.autopause.WornState
+import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.data.settings.AppSettings
 import dev.podscompanion.data.settings.SettingsRepository
 import dev.podscompanion.data.snapshot.StatusSnapshot
@@ -45,7 +47,6 @@ import dev.podscompanion.data.snapshot.StatusSnapshotStore
 import dev.podscompanion.data.stats.UsageStatsStore
 import dev.podscompanion.tile.PodsTileService
 import dev.podscompanion.widget.PodsWidget
-import dev.podscompanion.protocol.advertising.Capability
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -107,6 +108,7 @@ class PodsService : LifecycleService() {
     private var settings = AppSettings()
 
     private var disconnectPauseJob: Job? = null
+    private var autoPauseRetryJob: Job? = null
 
     /** Подключили/отключили Bluetooth-наушники: меняем частоту скана, при отключении страхуем паузу. */
     private val audioDeviceCallback = object : AudioDeviceCallback() {
@@ -160,6 +162,7 @@ class PodsService : LifecycleService() {
         lifecycleScope.launch { publishSnapshots() }
         music = MusicAutomation(this, mediaRepository, aapRepository, connectedAudio, autoPauseLog) { settings }
         music.run(lifecycleScope, settingsRepository.settings)
+        lifecycleScope.launch { aapRepository.state.collect { evaluateAutoPause() } }
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
         startScan()
@@ -260,10 +263,19 @@ class PodsService : LifecycleService() {
         liveStatus.update(status)
         maybeShowCasePopup(status)
         checkLowBattery(status)
-        if (!settings.autoPause) return
+        evaluateAutoPause()
+    }
 
-        val worn = status?.let(::isWorn)
-        val name = status?.model?.displayName
+    /**
+     * Автопауза. Зовётся на каждое новое состояние из рекламы и на каждое событие AAP: «вынули»
+     * по AAP приходит сразу, даже если рекламы наушников телефон сейчас не слышит.
+     */
+    private fun evaluateAutoPause() {
+        if (!settings.autoPause) return
+        val status = latestStatus.value
+        val aapSession = aapSessionFor(status)
+        val worn = aapSession?.let { WornState.fromAap(it.device, it.deviceName) } ?: status?.let(WornState::fromAdvertising)
+        val name = status?.model?.displayName ?: aapSession?.deviceName
         if (worn != lastWorn || name != lastLoggedName) {
             lastWorn = worn
             lastLoggedName = name
@@ -276,30 +288,46 @@ class PodsService : LifecycleService() {
             autoPauseLog.add(if (name != null) "$state · $name" else state)
         }
         // Музыку трогаем, только если звук идёт в Bluetooth: иначе это чужие наушники рядом
-        // или пользователь слушает через динамик.
-        val playing = audioManager.isMusicActive && bluetoothAudioConnected()
-        when (policy.onUpdate(worn, playing, SystemClock.elapsedRealtime())) {
+        // или пользователь слушает через динамик. Играет — по системе или по плееру: в первые
+        // доли секунды после «play» система ещё может говорить, что звука нет. Плееры спрашиваем,
+        // только когда наушники сняты: это запрос к системе, а состояния приходят много раз в секунду.
+        val playing = bluetoothAudioConnected() &&
+            (audioManager.isMusicActive || (worn == false && mediaRepository.anyPlaying()))
+        val now = SystemClock.elapsedRealtime()
+        when (policy.onUpdate(worn, playing, now)) {
             MediaAction.PAUSE -> {
                 autoPauseLog.add("→ пауза")
-                music.onAutoPause(SystemClock.elapsedRealtime())
+                music.onAutoPause(now)
                 sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
             }
             MediaAction.RESUME -> {
                 autoPauseLog.add("→ продолжение")
-                music.beforeAutoResume(SystemClock.elapsedRealtime())
+                music.beforeAutoResume(now)
                 sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
             }
             null -> Unit
         }
+        scheduleAutoPauseRetry(now)
     }
 
-    private fun isWorn(status: PodsStatus): Boolean {
-        val model = status.model
-        return if (model != null && Capability.STEREO_BUDS !in model.capabilities) {
-            status.primary.inEar
-        } else {
-            status.left.inEar && status.right.inEar
+    /** Смену состояния отложили из-за задержки после прошлого действия: проверим ещё раз, когда она кончится. */
+    private fun scheduleAutoPauseRetry(now: Long) {
+        val at = policy.retryAtMs()
+        autoPauseRetryJob?.cancel()
+        if (at == null) return
+        autoPauseRetryJob = lifecycleScope.launch {
+            delay((at - now).coerceAtLeast(0) + 50)
+            evaluateAutoPause()
         }
+    }
+
+    /** Прямое подключение к главным наушникам, по которому знаем ухо. */
+    private fun aapSessionFor(status: PodsStatus?): AapSessionState.Connected? {
+        val sessions = aapRepository.state.value
+        if (status != null && status.connected) {
+            (sessions.forModel(status.model) as? AapSessionState.Connected)?.takeIf { it.device.earKnown }?.let { return it }
+        }
+        return sessions.sessions.filterIsInstance<AapSessionState.Connected>().filter { it.device.earKnown }.singleOrNull()
     }
 
     /**
