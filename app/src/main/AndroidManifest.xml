@@ -5,7 +5,12 @@
     <!-- Android 10–11: старые разрешения Bluetooth + геолокация обязательна для BLE-скана. -->
     <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30" />
     <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" android:maxSdkVersion="30" />
+    <!-- Геолокация: на Android 10–11 без неё нет BLE-скана, а на всех версиях — «где я оставил наушники»
+         (место телефона в момент, когда наушники отключились). Просим её только на вкладке «Найти». -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- «Разрешать всегда»: наушники обычно отключаются, когда приложение закрыто. -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <!-- Android 12+: скан без геолокации. neverForLocation может отфильтровать часть
          beacon-пакетов; если на Pixel пакеты 0x004C/0x07 пропадут, уберём флаг
@@ -79,6 +84,15 @@
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
+        <!-- Наушники отключились: запоминаем место для вкладки «Найти». Эту рассылку Android
+             доставляет и приёмнику из манифеста, когда приложение закрыто. -->
+        <receiver
+            android:name=".service.LastPlaceReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.bluetooth.device.action.ACL_DISCONNECTED" />
             </intent-filter>
         </receiver>
         <!-- Виджет на рабочем столе. -->

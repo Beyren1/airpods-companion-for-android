@@ -1,21 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Значок в строке состояния и плитке: силуэт AirPods Max, как на значке приложения. Одноцветный, цвет задаёт система. -->
+<!-- Значок в строке состояния, уведомлениях и плитке: как значок приложения — AirPods Max в кольце заряда.
+     Одноцветный, цвет задаёт система; «пустая» часть кольца полупрозрачная. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="64"
-    android:viewportHeight="64">
-    <group>
-        <path android:strokeColor="#FFFFFFFF" android:strokeWidth="3.5" android:strokeLineCap="round" android:strokeLineJoin="round"
-            android:pathData="M14,31V24a18,18 0,0 1,36 0v7" />
-        <path android:strokeColor="#FFFFFFFF" android:strokeAlpha="0.55" android:strokeWidth="4.5" android:strokeLineCap="round"
-            android:pathData="M18,31a14,13 0,0 1,28 0" />
-        <path android:fillColor="#FFFFFFFF" android:pathData="M12.5,28h3v5h-3z" />
-        <path android:fillColor="#FFFFFFFF" android:pathData="M48.5,28h3v5h-3z" />
-        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
-            android:pathData="M10,32h8a5,5 0,0 1,5 5v16a5,5 0,0 1,-5 5h-8a5,5 0,0 1,-5 -5V37a5,5 0,0 1,5 -5zM18.5,36h1.6v18h-1.6z" />
-        <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
-            android:pathData="M46,32h8a5,5 0,0 1,5 5v16a5,5 0,0 1,-5 5h-8a5,5 0,0 1,-5 -5V37a5,5 0,0 1,5 -5zM43.9,36h1.6v18h-1.6z" />
-        <path android:fillColor="#FFFFFFFF" android:pathData="M54,28.5h3.5v3.5h-3.5z" />
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Кольцо заряда: заполненная часть и разрыв слева вверху, как на значке приложения. -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round"
+        android:pathData="M13.09,1.66A10.4,10.4 0,1 1,2.04 8.99" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeAlpha="0.35" android:strokeWidth="1.8" android:strokeLineCap="round"
+        android:pathData="M2.99,6.8A10.4,10.4 0,0 1,9.625 1.875" />
+    <!-- Оголовье и сетка под ним. -->
+    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round"
+        android:pathData="M6.7,13.2V11.4a5.3,5.3 0,0 1,10.6 0V13.2" />
+    <path android:strokeColor="#FFFFFFFF" android:strokeAlpha="0.55" android:strokeWidth="1.3" android:strokeLineCap="round"
+        android:pathData="M8.6,12.6a3.4,3 0,0 1,6.8 0" />
+    <!-- Чашки наклонены низом внутрь, как на рисунке значка. -->
+    <group android:rotation="-15" android:pivotX="7.5" android:pivotY="15.9">
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M7.5,12.6a1.9,1.9 0,0 1,1.9 1.9v2.8a1.9,1.9 0,0 1,-1.9 1.9a1.9,1.9 0,0 1,-1.9 -1.9v-2.8a1.9,1.9 0,0 1,1.9 -1.9z" />
+    </group>
+    <group android:rotation="15" android:pivotX="16.5" android:pivotY="15.9">
+        <path android:fillColor="#FFFFFFFF"
+            android:pathData="M16.5,12.6a1.9,1.9 0,0 1,1.9 1.9v2.8a1.9,1.9 0,0 1,-1.9 1.9a1.9,1.9 0,0 1,-1.9 -1.9v-2.8a1.9,1.9 0,0 1,1.9 -1.9z" />
     </group>
 </vector>

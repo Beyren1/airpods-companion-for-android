@@ -10,6 +10,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BarChart
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.TravelExplore
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -29,12 +30,13 @@ private val TABS = listOf(
     Tab(R.string.tab_headphones, Icons.Filled.Headphones),
     Tab(R.string.tab_music, Icons.Filled.MusicNote),
     Tab(R.string.tab_stats, Icons.Filled.BarChart),
+    Tab(R.string.tab_find, Icons.Filled.TravelExplore),
     Tab(R.string.tab_settings, Icons.Filled.Settings),
 )
 
 /**
  * Вкладки внизу экрана, между которыми можно листать пальцем вправо-влево, как в играх:
- * «Наушники», «Музыка», «Статистика», «Настройки». Нажатие на вкладку прокручивает к ней,
+ * «Наушники», «Музыка», «Статистика», «Найти», «Настройки». Нажатие на вкладку прокручивает к ней,
  * «назад» на любой вкладке, кроме первой, возвращает на первую.
  */
 @Composable
@@ -42,6 +44,7 @@ fun MainTabs(
     headphones: @Composable () -> Unit,
     music: @Composable () -> Unit,
     stats: @Composable () -> Unit,
+    find: @Composable () -> Unit,
     settings: @Composable () -> Unit,
 ) {
     // rememberPagerState сохраняет вкладку: вернулись из настроек наушников — открыта та же.
@@ -76,6 +79,7 @@ fun MainTabs(
                 0 -> headphones()
                 1 -> music()
                 2 -> stats()
+                3 -> find()
                 else -> settings()
             }
         }
