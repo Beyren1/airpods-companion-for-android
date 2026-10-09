@@ -21,8 +21,15 @@ class ConnectedNameMatcherTest {
     }
 
     @Test
-    fun `неоднозначное или переименованное имя не совпадает`() {
-        assertThat(ConnectedNameMatcher.bestMatch(nearby, listOf("AirPods"))).isNull()
+    fun `имя AirPods без линейки — не Pro и не Max`() {
+        assertThat(ConnectedNameMatcher.bestMatch(nearby, listOf("AirPods"))).isEqualTo(PodsModel.AIRPODS_4_ANC)
+        assertThat(ConnectedNameMatcher.modelsForName("AirPods")).containsNoneOf(
+            PodsModel.AIRPODS_MAX_USB_C, PodsModel.AIRPODS_PRO_2_USB_C, PodsModel.AIRPODS_PRO,
+        )
+    }
+
+    @Test
+    fun `переименованное имя не совпадает`() {
         assertThat(ConnectedNameMatcher.bestMatch(nearby, listOf("Мои уши"))).isNull()
         assertThat(ConnectedNameMatcher.bestMatch(nearby, emptyList())).isNull()
     }

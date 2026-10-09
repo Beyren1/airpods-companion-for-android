@@ -137,6 +137,27 @@ class NearbyPodsTrackerTest {
     }
 
     @Test
+    fun `подключили AirPods 4 — Max и Pro 2 рядом главными не становятся`() {
+        packet("FOUR", status(PodsModel.AIRPODS_4_ANC, rssi = -70), 0)
+        packet("MAX", status(PodsModel.AIRPODS_MAX_USB_C, rssi = -40, left = 90, right = null), 0)
+        packet("PRO", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -45), 0)
+
+        val nearby = tracker.snapshot(0, listOf("AirPods"))
+
+        assertThat(nearby.primary?.model).isEqualTo(PodsModel.AIRPODS_4_ANC)
+    }
+
+    @Test
+    fun `две пары с именем AirPods — главные те, чей заряд сообщили по прямому подключению`() {
+        packet("THREE", status(PodsModel.AIRPODS_3, rssi = -40, left = 30, right = 30), 0)
+        packet("FOUR", status(PodsModel.AIRPODS_4_ANC, rssi = -70, left = 80, right = 80), 0)
+
+        val nearby = tracker.snapshot(0, listOf("AirPods"), connectedBatteries = listOf(87, 85))
+
+        assertThat(nearby.primary?.model).isEqualTo(PodsModel.AIRPODS_4_ANC)
+    }
+
+    @Test
     fun `70 и 100 от одной пары — показываем заряд, совпадающий с сообщённым телефону`() {
         packet("A", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -66, left = 70, right = 70), 0)
         packet("B", status(PodsModel.AIRPODS_PRO_2_USB_C, rssi = -68, left = 100, right = 100), 0)

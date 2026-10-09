@@ -37,6 +37,9 @@ class PodsRepository @Inject constructor(
         val tracker = NearbyPodsTracker()
         var connectedNames: List<String>? = null
         var connectedBatteries = emptyList<Int>()
+        // Точный заряд от прямого подключения: по нему среди нескольких пар «AirPods» рядом
+        // находим ту, что подключена (заряд из системы приходит не всегда и с опозданием).
+        var aapBatteries = emptyList<Int>()
         // Пока система не ответила, что подключено, ничего не показываем: иначе на долю секунды
         // главными становятся ближайшие наушники, а потом прыгают в список «рядом».
         var namesKnown = false
@@ -45,7 +48,7 @@ class PodsRepository @Inject constructor(
         var aapSide: AapOverlay.Side? = null
         suspend fun emit() {
             if (!namesKnown) return
-            val nearby = tracker.snapshot(now(), connectedNames, connectedBatteries)
+            val nearby = tracker.snapshot(now(), connectedNames, connectedBatteries + aapBatteries)
             val primary = nearby.primary
             val session = aapSessions.forModel(primary?.model)
             // Прямое подключение есть только к подключённым наушникам: накладываем его только на них.
@@ -65,6 +68,9 @@ class PodsRepository @Inject constructor(
             // Каждое событие AAP (вынули наушник) сразу даёт новое состояние, без ожидания рекламы.
             aap.state.collect {
                 aapSessions = it
+                aapBatteries = it.sessions.filterIsInstance<AapSessionState.Connected>().flatMap { session ->
+                    listOfNotNull(session.device.left, session.device.right, session.device.single).map { battery -> battery.percent }
+                }
                 emit()
             }
         }
