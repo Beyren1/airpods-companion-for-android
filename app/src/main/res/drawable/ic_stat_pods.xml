@@ -1,21 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Значок в строке состояния: должен быть одноцветным, система сама красит его. -->
+<!-- Значок в строке состояния и плитке: тот же рисунок, что у значка приложения, одноцветный (цвет задаёт система). -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
-    android:viewportWidth="24"
-    android:viewportHeight="24">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M8,12m-3,0a3,3 0,1 1,6 0a3,3 0,1 1,-6 0" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2"
-        android:strokeLineCap="round"
-        android:pathData="M14,8.5a5,5 0,0 1,0 7" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="2"
-        android:strokeLineCap="round"
-        android:pathData="M17,6a8.5,8.5 0,0 1,0 12" />
+    android:viewportWidth="56"
+    android:viewportHeight="56">
+    <group android:translateX="-26" android:translateY="-26">
+        <group android:rotation="-10" android:pivotX="54" android:pivotY="54">
+            <group android:translateX="26.65" android:translateY="28.5" android:scaleX="0.75" android:scaleY="0.75">
+                <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+                    android:pathData="M14,6c8,-4 20,0 20,12 0,7 -3,11 -7,13v27a4,4 0,0 1,-8 0V31c-6,-1 -12,-6 -12,-13 0,-6 3,-10 7,-12zM29,17a4,4 0,1 0,-8 0a4,4 0,1 0,8 0z" />
+            </group>
+        </group>
+        <group android:rotation="10" android:pivotX="54" android:pivotY="54">
+            <group android:translateX="45.35" android:translateY="28.5" android:scaleX="0.75" android:scaleY="0.75">
+                <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+                    android:pathData="M34,6c-8,-4 -20,0 -20,12 0,7 3,11 7,13v27a4,4 0,0 0,8 0V31c6,-1 12,-6 12,-13 0,-6 -3,-10 -7,-12zM19,17a4,4 0,1 1,8 0a4,4 0,1 1,-8 0z" />
+            </group>
+        </group>
+    </group>
 </vector>

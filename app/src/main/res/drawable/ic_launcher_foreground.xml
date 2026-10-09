@@ -1,20 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- Значок приложения: пара наушников-капелек. Внутри круга 66 dp, который не обрезает ни одна форма значка. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M46,54m-8,0a8,8 0,1 1,16 0a8,8 0,1 1,-16 0" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:pathData="M60,44a14,14 0,0 1,0 20" />
-    <path
-        android:strokeColor="#FFFFFFFF"
-        android:strokeWidth="4"
-        android:strokeLineCap="round"
-        android:pathData="M66,38a22,22 0,0 1,0 32" />
+    <group android:rotation="-10" android:pivotX="54" android:pivotY="54">
+        <group android:translateX="26.65" android:translateY="28.5" android:scaleX="0.75" android:scaleY="0.75">
+            <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+                android:pathData="M14,6c8,-4 20,0 20,12 0,7 -3,11 -7,13v27a4,4 0,0 1,-8 0V31c-6,-1 -12,-6 -12,-13 0,-6 3,-10 7,-12zM29,17a4,4 0,1 0,-8 0a4,4 0,1 0,8 0z" />
+        </group>
+    </group>
+    <group android:rotation="10" android:pivotX="54" android:pivotY="54">
+        <group android:translateX="45.35" android:translateY="28.5" android:scaleX="0.75" android:scaleY="0.75">
+            <path android:fillColor="#FFFFFFFF" android:fillType="evenOdd"
+                android:pathData="M34,6c-8,-4 -20,0 -20,12 0,7 3,11 7,13v27a4,4 0,0 0,8 0V31c6,-1 12,-6 12,-13 0,-6 -3,-10 -7,-12zM19,17a4,4 0,1 1,8 0a4,4 0,1 1,-8 0z" />
+        </group>
+    </group>
 </vector>

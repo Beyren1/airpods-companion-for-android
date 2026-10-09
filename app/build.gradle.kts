@@ -14,8 +14,25 @@ android {
         applicationId = "dev.podscompanion"
         minSdk = 29
         targetSdk = 36
+        // versionCode растёт на 1 с каждым выпуском (Android по нему понимает, что это обновление),
+        // versionName — то, что видит человек.
         versionCode = 1
-        versionName = "0.1.0"
+        versionName = "1.0.0"
+    }
+
+    // Ключ подписи выпуска. Его файл и пароли никогда не лежат в репозитории: GitHub Actions берёт их
+    // из секретов (см. .github/workflows/release.yml и docs/vypusk.md). Без них release собирается
+    // неподписанным, а обычные debug/fast-сборки работают как раньше.
+    val releaseKeystore = System.getenv("RELEASE_KEYSTORE_PATH")
+    signingConfigs {
+        if (releaseKeystore != null) {
+            create("release") {
+                storeFile = file(releaseKeystore)
+                storePassword = System.getenv("RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = System.getenv("RELEASE_KEY_ALIAS")
+                keyPassword = System.getenv("RELEASE_KEY_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
@@ -29,6 +46,7 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("boolean", "PACKET_LOGGING", "false")
+            signingConfig = signingConfigs.findByName("release")
         }
         // Быстрая сборка для проверки на телефоне: как release (R8, без отладчика — Compose и весь код
         // работают в разы быстрее), но подписана debug-ключом и с тем же id, что debug. Ставится поверх
