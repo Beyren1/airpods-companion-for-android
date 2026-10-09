@@ -162,6 +162,8 @@
     <string name="info_yes">oui</string>
     <string name="info_no">non</string>
     <string name="info_direct_mode">Connexion directe (AAP)</string>
+    <string name="info_share_log">Envoyer le journal de connexion</string>
+    <string name="info_share_log_hint">Ce que l’application a envoyé aux écouteurs et ce qu’ils ont répondu. Aide à comprendre pourquoi un réglage ne s’est pas appliqué.</string>
     <string name="info_direct_works">Fonctionne sur ce téléphone</string>
     <string name="info_direct_blocked">Android sur ce téléphone ne l’autorise pas</string>
     <string name="info_direct_unknown">Pas encore vérifié : connectez vos écouteurs</string>

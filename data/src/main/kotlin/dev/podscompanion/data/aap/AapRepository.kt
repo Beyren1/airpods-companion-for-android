@@ -12,31 +12,37 @@ import dev.podscompanion.protocol.aap.AapDeviceState
 import dev.podscompanion.protocol.aap.AapEvent
 import dev.podscompanion.protocol.aap.AapParser
 import dev.podscompanion.protocol.aap.AapStreams
+import dev.podscompanion.protocol.aap.ModeRequest
 import dev.podscompanion.protocol.aap.Opcode
 import dev.podscompanion.protocol.aap.ControlId
 import dev.podscompanion.protocol.util.Hex
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlin.coroutines.cancellation.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -60,23 +66,59 @@ class AapRepository @Inject constructor(
     private val retryRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
     /**
-     * Команды для каждого соединения (по адресу). Буфер на 16 команд: несколько настроек подряд
-     * не должны затирать друг друга; при переполнении выбрасываются самые старые.
+     * Всё, что относится к одним наушникам и переживает переподключение: очередь команд
+     * и выбранный, но ещё не подтверждённый режим шумоподавления.
      */
-    private val outgoing = ConcurrentHashMap<String, Channel<ByteArray>>()
+    private class Link {
+        /** Буфер на 16 команд: несколько настроек подряд не затирают друг друга; лишние — самые старые — выбрасываются. */
+        val commands = Channel<ByteArray>(16, BufferOverflow.DROP_OLDEST)
+        val mode = ModeRequest()
+        /** Разбудить таймер повторов: появился запрос режима. */
+        val wake = Channel<Unit>(Channel.CONFLATED)
+    }
 
+    private val links = ConcurrentHashMap<String, Link>()
+
+    private fun link(address: String): Link = links.getOrPut(address) { Link() }
+
+    /**
+     * Соединения живут независимо: когда подключаются или отключаются одни наушники, соединение
+     * с другими не рвётся. Раньше любое изменение списка (в том числе другой порядок адресов)
+     * переподключало все наушники, и выбор режима в эти секунды терялся.
+     */
     val state: StateFlow<AapSessions> = connectedAudio.devices()
         .map { devices -> devices?.filter(::isApple) }
-        // Заряд по HFP меняется часто, а переподключаться из-за этого не нужно: сравниваем адреса.
-        .distinctUntilChanged { a, b -> a?.map { it.device.address } == b?.map { it.device.address } }
-        .flatMapLatest { targets ->
-            when {
-                targets == null -> flowOf(AapSessions(noPermission = true))
-                targets.isEmpty() -> flowOf(AapSessions())
-                else -> combine(targets.map(::session)) { AapSessions(sessions = it.toList()) }
-            }
-        }
+        // Заряд по HFP меняется часто, а переподключаться из-за этого не нужно: сравниваем набор адресов.
+        .distinctUntilChanged { a, b -> a?.map { it.device.address }?.toSet() == b?.map { it.device.address }?.toSet() }
+        .let(::sessionsFor)
         .stateIn(scope, SharingStarted.WhileSubscribed(5_000), AapSessions())
+
+    private fun sessionsFor(targets: Flow<List<ConnectedAudioDevice>?>): Flow<AapSessions> = channelFlow {
+        val jobs = HashMap<String, Job>()
+        val byAddress = MutableStateFlow<Map<String, AapSessionState>>(emptyMap())
+        // null — нет разрешения, иначе адреса в порядке системы.
+        val order = MutableStateFlow<List<String>?>(emptyList())
+        launch {
+            combine(order, byAddress) { addresses, states ->
+                if (addresses == null) AapSessions(noPermission = true)
+                else AapSessions(sessions = addresses.mapNotNull(states::get))
+            }.distinctUntilChanged().collect { send(it) }
+        }
+        targets.collect { list ->
+            val addresses = list?.map { it.device.address }
+            (jobs.keys - addresses.orEmpty().toSet()).forEach { gone ->
+                jobs.remove(gone)?.cancel()
+                byAddress.update { it - gone }
+            }
+            list?.forEach { target ->
+                val address = target.device.address
+                if (address !in jobs) {
+                    jobs[address] = launch { session(target).collect { s -> byAddress.update { it + (address to s) } } }
+                }
+            }
+            order.value = addresses
+        }
+    }
 
     private val _headMotion = MutableSharedFlow<HeadSample>(extraBufferCapacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
@@ -92,14 +134,24 @@ class AapRepository @Inject constructor(
     }
 
     /**
-     * Отправить команду наушникам [address]. Ничего не делает без прямого подключения.
-     * Новое значение придёт от наушников ответным уведомлением, по нему и обновится экран.
+     * Отправить команду наушникам [address]. Пока соединение устанавливается, команда ждёт в очереди;
+     * если оно оборвалось, переподключаемся сразу, не дожидаясь паузы между попытками.
+     * Режим шумоподавления сразу показывается на экране и повторяется, пока наушники его не подтвердят
+     * (см. [ModeRequest]); остальные настройки обновятся ответным уведомлением наушников.
      */
     fun send(address: String, command: AapCommand) {
-        val session = state.value.sessions.firstOrNull { it.address == address }
-        if (session is AapSessionState.Connected) {
-            log.add("${session.deviceName}: ${command.label}")
-            packets(address, command).forEach { outgoing[address]?.trySend(it) }
+        val session = state.value.sessions.firstOrNull { it.address == address } ?: return
+        val link = link(address)
+        if (command is AapCommand.SetListeningMode) {
+            link.mode.request(command.mode, SystemClock.elapsedRealtime())
+            link.wake.trySend(Unit)
+        }
+        log.add("${session.deviceName}: ${command.label}")
+        when (session) {
+            is AapSessionState.Connected, is AapSessionState.Connecting ->
+                packets(address, command).forEach { link.commands.trySend(it) }
+            // Режим отправится после переподключения (ModeRequest.onReconnected), прочее — устарело бы.
+            is AapSessionState.Failed -> retryNow()
         }
     }
 
@@ -144,28 +196,68 @@ class AapRepository @Inject constructor(
     private fun isApple(device: ConnectedAudioDevice): Boolean =
         device.supportsAap || ConnectedNameMatcher.knownModels(listOf(device.name)).isNotEmpty()
 
-    private fun session(target: ConnectedAudioDevice): Flow<AapSessionState> = flow {
+    /** Что пришло в цикл соединения: событие сокета или проверка повтора режима. */
+    private sealed interface Step {
+        class Io(val io: AapIo) : Step
+        data object Tick : Step
+    }
+
+    /** Пока ждём подтверждения режима — проверяем каждые [MODE_TICK_MS], иначе спим до нового запроса. */
+    private fun modeTicks(link: Link): Flow<Step> = flow {
+        while (true) {
+            if (link.mode.pending == null) link.wake.receive() else delay(MODE_TICK_MS)
+            emit(Step.Tick)
+        }
+    }
+
+    private fun session(target: ConnectedAudioDevice): Flow<AapSessionState> = channelFlow {
         val address = target.device.address
-        val commands = Channel<ByteArray>(16, BufferOverflow.DROP_OLDEST).also { outgoing[address] = it }
+        val link = link(address)
+        val commands = link.commands
+        // Команды, оставшиеся от прошлого подключения этих наушников, уже не актуальны.
+        while (commands.tryReceive().isSuccess) Unit
         var attempt = 0
         while (true) {
             attempt++
-            emit(AapSessionState.Connecting(target.name, address, attempt))
+            send(AapSessionState.Connecting(target.name, address, attempt))
             log.add("${target.name}: подключение, попытка $attempt")
             var device = AapDeviceState()
             var connected = false
             var method = "?"
             var motionPackets = 0
             var streamPackets = 0
-            val failure = runCatching {
-                client.connect(target.device, commands).collect { io ->
+            var shown: AapDeviceState? = null
+            // Отправляем экрану только изменения; режим поверх — выбранный, пока наушники не подтвердили.
+            suspend fun publish() {
+                if (!connected) return
+                val next = link.mode.shown(device)
+                if (next == shown) return
+                shown = next
+                send(AapSessionState.Connected(target.name, address, method, next))
+            }
+            val failure = try {
+                merge(client.connect(target.device, commands).map { Step.Io(it) }, modeTicks(link)).collect { step ->
+                    val io = (step as? Step.Io)?.io
+                    if (io == null) {
+                        // Пока соединение устанавливается, команда и так ждёт в очереди: повторы не тратим.
+                        if (connected) link.mode.due(SystemClock.elapsedRealtime())?.let { mode ->
+                            log.add("${target.name}: нет подтверждения, режим $mode ещё раз")
+                            commands.trySend(AapCommand.SetListeningMode(mode).bytes)
+                        }
+                        publish()
+                        return@collect
+                    }
                     when (io) {
                         is AapIo.Connected -> {
                             connected = true
                             attempt = 0
                             method = io.method
                             log.add("${target.name}: подключено (${io.method})")
-                            emit(AapSessionState.Connected(target.name, address, io.method, device))
+                            // Выбор режима, сделанный перед обрывом, не теряется.
+                            link.mode.onReconnected(SystemClock.elapsedRealtime())?.let { mode ->
+                                commands.trySend(AapCommand.SetListeningMode(mode).bytes)
+                            }
+                            publish()
                         }
                         is AapIo.Sent -> {
                             log.add("→ ${Hex.encode(io.data)}")
@@ -174,7 +266,7 @@ class AapRepository @Inject constructor(
                             val event = AapParser.parse(io.data)
                             if (event.isSetting()) {
                                 device = device.apply(event!!)
-                                emit(AapSessionState.Connected(target.name, address, method, device))
+                                publish()
                             }
                         }
                         is AapIo.Received -> {
@@ -219,24 +311,27 @@ class AapRepository @Inject constructor(
                             }
                             if (event is AapEvent.DeviceInfo) log.add("${target.name}: ${event.label()}")
                             else log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
-                            if (event != null) {
-                                val updated = device.apply(event)
-                                if (updated != device) {
-                                    device = updated
-                                    emit(AapSessionState.Connected(target.name, address, method, device))
-                                }
-                            }
+                            if (event is AapEvent.ListeningModeChanged) link.mode.onReported(event.mode)
+                            if (event != null) device = device.apply(event)
+                            publish()
                         }
                     }
                 }
-            }.exceptionOrNull()
+                null
+            } catch (e: CancellationException) {
+                // Наушники отключили или подписчиков нет: выходим, а не переподключаемся.
+                throw e
+            } catch (e: Throwable) {
+                e
+            }
 
             val reason = if (failure is L2capUnavailableException) FailureReason.SOCKET_BLOCKED else FailureReason.CONNECTION_FAILED
             val details = (failure?.cause ?: failure)?.let { "${it::class.simpleName}: ${it.message}" } ?: "соединение закрыто"
             log.add("${target.name}: ошибка: $details")
-            val delaySec = if (connected) 1 else BACKOFF_SEC[(attempt - 1).coerceIn(0, BACKOFF_SEC.lastIndex)]
-            emit(AapSessionState.Failed(target.name, address, reason, details, delaySec))
-            withTimeoutOrNull(delaySec * 1_000L) { retryRequests.first() }
+            // Оборвалось рабочее соединение — сразу пробуем снова: обычно наушники просто на миг пропали.
+            val delayMs = if (connected) RECONNECT_AFTER_DROP_MS else BACKOFF_SEC[(attempt - 1).coerceIn(0, BACKOFF_SEC.lastIndex)] * 1_000L
+            send(AapSessionState.Failed(target.name, address, reason, details, ((delayMs + 999) / 1_000).toInt()))
+            withTimeoutOrNull(delayMs) { retryRequests.first() }
         }
     }
 
@@ -257,6 +352,8 @@ class AapRepository @Inject constructor(
     }
 
     private companion object {
+        const val MODE_TICK_MS = 200L
+        const val RECONNECT_AFTER_DROP_MS = 300L
         val BACKOFF_SEC = intArrayOf(3, 10, 30, 60)
         const val MOTION_LOG_EVERY = 100
         const val STREAM_DATA_MIN = 32

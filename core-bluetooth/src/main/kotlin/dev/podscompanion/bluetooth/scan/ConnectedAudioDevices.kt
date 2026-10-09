@@ -17,10 +17,16 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.podscompanion.protocol.aap.Aap
 import javax.inject.Inject
 import javax.inject.Singleton
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.shareIn
 
 /**
  * Имена Bluetooth-наушников, подключённых к телефону для звука (профиль A2DP).
@@ -44,13 +50,32 @@ data class ConnectedAudioDevice(
 class ConnectedAudioDevices @Inject constructor(
     @ApplicationContext private val context: Context,
 ) {
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /**
+     * Один источник на всё приложение: экран, сервис, соединения AAP и музыка подписываются на него
+     * одновременно. Раньше у каждого был свой прокси A2DP и свой приёмник рассылок, и на каждое
+     * изменение заряда список устройств (с reflection и SDP-записями) собирался пять раз.
+     * Без подписчиков источник засыпает через 5 с; новый подписчик сразу получает последний список.
+     */
+    private val shared: Flow<List<ConnectedAudioDevice>?> by lazy {
+        observe().shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
+    }
+
+    fun devices(): Flow<List<ConnectedAudioDevice>?> = shared
+
     @SuppressLint("MissingPermission")
-    fun devices(): Flow<List<ConnectedAudioDevice>?> = callbackFlow<List<ConnectedAudioDevice>?> {
+    private fun observe(): Flow<List<ConnectedAudioDevice>?> = callbackFlow<List<ConnectedAudioDevice>?> {
         val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
-        if (adapter == null || !hasConnectPermission()) {
+        if (adapter == null) {
             trySend(null)
             awaitClose { }
             return@callbackFlow
+        }
+        // Источник общий и живёт долго: разрешение могут выдать, пока он работает, — дождёмся его.
+        if (!hasConnectPermission()) {
+            trySend(null)
+            while (!hasConnectPermission()) delay(PERMISSION_POLL_MS)
         }
 
         var proxy: BluetoothA2dp? = null
@@ -137,6 +162,8 @@ class ConnectedAudioDevices @Inject constructor(
             PackageManager.PERMISSION_GRANTED
 
     private companion object {
+        const val PERMISSION_POLL_MS = 1_000L
+
         // Системные константы, скрытые из публичного SDK (@SystemApi), значения стабильны с Android 8.
         const val ACTION_BATTERY_LEVEL_CHANGED = "android.bluetooth.device.action.BATTERY_LEVEL_CHANGED"
         const val EXTRA_BATTERY_LEVEL = "android.bluetooth.device.extra.BATTERY_LEVEL"

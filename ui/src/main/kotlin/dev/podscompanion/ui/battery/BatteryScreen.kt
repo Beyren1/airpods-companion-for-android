@@ -57,7 +57,6 @@ import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -578,7 +577,7 @@ private fun NotConnectedCard() {
 
 @Composable
 private fun Searching() {
-    val pulse by rememberInfiniteTransition(label = "pulse").animateFloat(
+    val pulse = rememberInfiniteTransition(label = "pulse").animateFloat(
         initialValue = 0.85f,
         targetValue = 1.1f,
         animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
@@ -592,7 +591,11 @@ private fun Searching() {
         Box(
             Modifier
                 .size(112.dp)
-                .scale(pulse)
+                // Читаем в graphicsLayer: пульсация не пересобирает экран на каждом кадре.
+                .graphicsLayer {
+                    scaleX = pulse.value
+                    scaleY = pulse.value
+                }
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center,

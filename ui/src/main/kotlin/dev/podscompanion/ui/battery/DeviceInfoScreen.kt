@@ -3,6 +3,7 @@ package dev.podscompanion.ui.battery
 import android.annotation.SuppressLint
 import android.bluetooth.BluetoothManager
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,7 +47,7 @@ import dev.podscompanion.ui.R
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun DeviceInfoScreen(aapSessions: AapSessions, nearby: NearbyPods?, onBack: () -> Unit) {
+fun DeviceInfoScreen(aapSessions: AapSessions, nearby: NearbyPods?, logText: () -> String, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
@@ -67,7 +68,7 @@ fun DeviceInfoScreen(aapSessions: AapSessions, nearby: NearbyPods?, onBack: () -
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 HeadphonesSections(aapSessions, nearby)
-                PhoneSection(aapSessions)
+                PhoneSection(aapSessions, logText)
             }
         }
     }
@@ -161,7 +162,7 @@ private fun advertBattery(status: PodsStatus): String {
 }
 
 @Composable
-private fun PhoneSection(aapSessions: AapSessions) {
+private fun PhoneSection(aapSessions: AapSessions, logText: () -> String) {
     val context = LocalContext.current
     val bluetooth = remember { bluetoothFacts(context) }
     val yes = stringResource(R.string.info_yes)
@@ -198,8 +199,21 @@ private fun PhoneSection(aapSessions: AapSessions) {
             )
         }
         row { InfoRow(stringResource(R.string.info_direct_mode), directModeText(aapSessions)) }
+        row {
+            NavRow(
+                stringResource(R.string.info_share_log),
+                { shareLog(context, logText()) },
+                description = stringResource(R.string.info_share_log_hint),
+            )
+        }
         row { InfoRow(stringResource(R.string.about_title), stringResource(R.string.about_version, appVersion())) }
     }
+}
+
+/** Журнал — обычным текстом через «Поделиться»: в мессенджер, почту или заметки. */
+private fun shareLog(context: Context, text: String) {
+    val send = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+    runCatching { context.startActivity(Intent.createChooser(send, null)) }
 }
 
 /** Работает ли прямое подключение на этом телефоне: по текущим попыткам подключиться. */

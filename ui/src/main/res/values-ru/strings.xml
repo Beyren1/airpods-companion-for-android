@@ -164,6 +164,8 @@
     <string name="info_yes">есть</string>
     <string name="info_no">нет</string>
     <string name="info_direct_mode">Прямое подключение (AAP)</string>
+    <string name="info_share_log">Отправить журнал соединения</string>
+    <string name="info_share_log_hint">Что приложение отправляло наушникам и что они отвечали. Помогает понять, почему настройка не сработала.</string>
     <string name="info_direct_works">Работает на этом телефоне</string>
     <string name="info_direct_blocked">Android на этом телефоне его не даёт</string>
     <string name="info_direct_unknown">Пока не проверено: подключите наушники</string>

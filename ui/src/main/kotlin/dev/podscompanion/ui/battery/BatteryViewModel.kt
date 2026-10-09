@@ -82,9 +82,11 @@ class BatteryViewModel @Inject constructor(
     private val aapLogger: AapLog,
 ) : ViewModel() {
 
-    /** Прямое подключение к наушникам (расширенный режим) и его журнал для отладки. */
+    /** Прямое подключение к наушникам (расширенный режим). */
     val aapSessions: StateFlow<AapSessions> = aapRepository.state
-    val aapLog: StateFlow<List<String>> = aapLogger.lines
+
+    /** Журнал соединения и автопаузы одним текстом: пользователь отправляет его, если настройка не сработала. */
+    fun diagnosticLog(): String = aapLogger.text() + "\n\n--- автопауза ---\n" + autoPauseLines.value.joinToString("\n")
 
     /** Кнопка «Проверить расширенный режим». */
     fun checkAap() = aapRepository.retryNow()
