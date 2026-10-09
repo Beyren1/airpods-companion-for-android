@@ -29,6 +29,8 @@ data class AapDeviceState(
     val batteryPrimarySwaps: Int = 0,
     /** Последние значения всех настроек по [ControlId]; удобные геттеры в AapControls.kt. */
     val controls: Map<Int, List<Int>> = emptyMap(),
+    /** Паспорт наушников (модель, серийные номера, прошивка); null — ещё не приходил. */
+    val info: AapDeviceInfo? = null,
 ) {
     fun apply(event: AapEvent): AapDeviceState = when (event) {
         is AapEvent.Battery -> event.components.fold(withBatteryOrder(event)) { state, battery ->
@@ -54,6 +56,7 @@ data class AapDeviceState(
             controls = controls + (ControlId.CONVERSATIONAL_AWARENESS to listOf(if (event.enabled) 0x01 else 0x02)),
         )
         is AapEvent.ControlChanged -> copy(controls = controls + (event.id to event.value))
+        is AapEvent.DeviceInfo -> copy(info = event.info)
         is AapEvent.HeadMotion, is AapEvent.ProximityKeys, is AapEvent.Unknown -> this
     }
 

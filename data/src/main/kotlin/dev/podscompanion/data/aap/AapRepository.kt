@@ -217,7 +217,8 @@ class AapRepository @Inject constructor(
                                 if (logged) log.add("← ${Hex.encode(io.data)} · поток $stream")
                                 return@collect
                             }
-                            log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
+                            if (event is AapEvent.DeviceInfo) log.add("${target.name}: ${event.label()}")
+                            else log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
                             if (event != null) {
                                 val updated = device.apply(event)
                                 if (updated != device) {
@@ -250,6 +251,8 @@ class AapRepository @Inject constructor(
         is AapEvent.HeadMotion -> "датчики головы"
         is AapEvent.ProximityKeys -> "ключи рекламы получены" + if (encryptionKey == null) " (без ключа шифрования)" else ""
         is AapEvent.ControlChanged -> "${ControlId.name(id)} = " + value.joinToString(" ") { "%02X".format(it) }
+        // Серийные номера в журнал не пишем: его показывают на скриншотах.
+        is AapEvent.DeviceInfo -> "паспорт: ${info.modelNumber ?: "?"}, прошивка ${info.firmware ?: "?"}"
         is AapEvent.Unknown -> "неизвестный 0x%04X".format(opcode)
     }
 

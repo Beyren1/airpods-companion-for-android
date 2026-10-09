@@ -92,6 +92,7 @@ object Opcode {
     const val REQUEST_NOTIFICATIONS = 0x000F
     const val HEAD_TRACKING = 0x0017
     const val RENAME = 0x001A
+    const val DEVICE_INFO = 0x001D
     const val PROXIMITY_KEYS_REQUEST = 0x0030
     const val PROXIMITY_KEYS = 0x0031
     const val SET_FEATURES = 0x004D
@@ -173,6 +174,9 @@ sealed interface AapEvent {
         override fun toString() = "ProximityKeys(irk=${irk != null}, encryptionKey=${encryptionKey != null})"
     }
 
+    /** Паспорт наушников: номер модели, серийные номера, прошивка. */
+    data class DeviceInfo(val info: AapDeviceInfo) : AapEvent
+
     /** Всё, что пока не разбираем: попадёт в журнал AAP для реверса. */
     data class Unknown(val opcode: Int, val raw: ByteArray) : AapEvent {
         override fun equals(other: Any?) = other is Unknown && opcode == other.opcode && raw.contentEquals(other.raw)
@@ -192,6 +196,7 @@ object AapParser {
                 Opcode.CONTROL -> parseControl(data)
                 Opcode.HEAD_TRACKING -> parseHeadMotion(data)
                 Opcode.PROXIMITY_KEYS -> parseProximityKeys(data)
+                Opcode.DEVICE_INFO -> AapDeviceInfo.parse(data)?.let(AapEvent::DeviceInfo)
                 else -> null
             }
         }.getOrNull() ?: AapEvent.Unknown(opcode, data)

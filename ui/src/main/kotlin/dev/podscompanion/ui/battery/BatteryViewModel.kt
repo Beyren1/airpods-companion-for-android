@@ -14,6 +14,7 @@ import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.settings.AppSettings
 import dev.podscompanion.data.settings.SettingsRepository
+import dev.podscompanion.data.settings.ThemeMode
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -159,6 +160,10 @@ class BatteryViewModel @Inject constructor(
 
     fun setDebugEnabled(value: Boolean) {
         viewModelScope.launch { settingsRepository.setDebugEnabled(value) }
+    }
+
+    fun setTheme(value: ThemeMode) {
+        viewModelScope.launch { settingsRepository.setTheme(value) }
     }
 
     /** Каждое новое значение перезапускает скан с нуля (и заново выбирает главные наушники). */

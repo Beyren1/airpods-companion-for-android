@@ -1,5 +1,6 @@
 package dev.podscompanion.popup
 
+import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -25,7 +26,10 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.popup.CaseOpenDetector
 import dev.podscompanion.data.popup.LiveStatus
+import dev.podscompanion.data.settings.SettingsRepository
+import dev.podscompanion.data.settings.AppSettings
 import dev.podscompanion.ui.battery.CasePopupCard
+import dev.podscompanion.ui.theme.AppLanguage
 import dev.podscompanion.ui.theme.PodsCompanionTheme
 import javax.inject.Inject
 import kotlinx.coroutines.delay
@@ -39,11 +43,17 @@ import kotlinx.coroutines.delay
 class CasePopupActivity : ComponentActivity() {
 
     @Inject lateinit var liveStatus: LiveStatus
+    @Inject lateinit var settings: SettingsRepository
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(AppLanguage.wrap(newBase))
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            PodsCompanionTheme {
+            val appSettings by settings.settings.collectAsStateWithLifecycle(AppSettings())
+            PodsCompanionTheme(appSettings.theme) {
                 val status by liveStatus.status.collectAsStateWithLifecycle()
                 // Последний пакет с открытым кейсом: карточка не мигает, пока окно уезжает.
                 var shown by remember { mutableStateOf<PodsStatus?>(null) }
