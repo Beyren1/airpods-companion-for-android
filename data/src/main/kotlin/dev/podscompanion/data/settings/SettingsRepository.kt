@@ -98,7 +98,7 @@ class SettingsRepository @Inject constructor(
         val AUTO_PAUSE = booleanPreferencesKey("auto_pause")
         val DEBUG = booleanPreferencesKey("debug_enabled")
         val HEAD_GESTURES = booleanPreferencesKey("head_gestures")
-        val HEAD_CALIBRATION = stringPreferencesKey("head_calibration")
+        val HEAD_CALIBRATION = stringPreferencesKey("head_calibration_v2") // v2: другие числа в пакете, старая калибровка не подходит
         val CASE_POPUP = booleanPreferencesKey("case_popup")
         val CASE_POPUP_SHOWN = stringSetPreferencesKey("case_popup_shown")
     }

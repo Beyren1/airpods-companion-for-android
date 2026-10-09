@@ -187,7 +187,9 @@ class AapRepository @Inject constructor(
                                     log.add("← ${Hex.encode(io.data)} · датчики головы")
                                 }
                                 if (motionPackets++ % MOTION_LOG_EVERY == 0) log.add("${target.name}: датчики головы ${event.axes}")
-                                _headMotion.tryEmit(HeadSample(address, SystemClock.elapsedRealtime(), event))
+                                // В пакете бывает до 8 записей: отдаём каждую отдельно, детектору нужен ряд значений.
+                                val now = SystemClock.elapsedRealtime()
+                                event.samples.forEach { _headMotion.tryEmit(HeadSample(address, now, AapEvent.HeadMotion(listOf(it)))) }
                                 return@collect
                             }
                             if (event is AapEvent.ProximityKeys) {
