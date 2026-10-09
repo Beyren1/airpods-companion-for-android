@@ -49,13 +49,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -268,7 +268,7 @@ private fun Part(
             // Все части в одном масштабе по реальным размерам: кейс Pro заметно шире наушника.
             val dpPerMm = ringSize.value / 92f * 0.95f
             Image(
-                rememberVectorPainter(art.image), null,
+                painterResource(art.image), null,
                 alpha = if (highlighted || !dimmed) 1f else 0.5f,
                 modifier = Modifier.size((art.widthMm * dpPerMm).dp, (art.heightMm * dpPerMm).dp),
             )
@@ -405,7 +405,7 @@ private fun Nearby(others: List<PodsStatus>) {
                     Surface(shape = CircleShape, color = MaterialTheme.colorScheme.surfaceContainerHighest, modifier = Modifier.size(40.dp)) {
                         Box(contentAlignment = Alignment.Center) {
                             Image(
-                                rememberVectorPainter(if (stereo) PodsArt.caseFor(pods.model).image else PodsArt.OverEarArt.image), null,
+                                painterResource(if (stereo) PodsArt.caseFor(pods.model).image else PodsArt.OverEarArt.image), null,
                                 modifier = Modifier.size(26.dp),
                             )
                         }
