@@ -54,6 +54,11 @@ import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.protocol.aap.AapToggle
 import dev.podscompanion.protocol.aap.CrownDirection
+import dev.podscompanion.protocol.aap.HoldDuration
+import dev.podscompanion.protocol.aap.PressSpeed
+import dev.podscompanion.protocol.aap.holdDuration
+import dev.podscompanion.protocol.aap.pressSpeed
+import dev.podscompanion.protocol.aap.toneVolume
 import dev.podscompanion.protocol.aap.MAX_DEFAULT_CONTROLS
 import dev.podscompanion.protocol.aap.crownDirection
 import dev.podscompanion.protocol.aap.withDefaults
@@ -273,7 +278,7 @@ private fun CalibrationDialog(state: CalibrationState, onRetry: () -> Unit, onDi
 
 @Composable
 private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel?, send: (AapCommand) -> Unit) {
-    // Max не присылают свои настройки после подключения, поэтому недостающие берём заводскими.
+    // Часть настроек Max не присылают (см. MAX_DEFAULT_CONTROLS): недостающие берём заводскими.
     val isMax = model != null && Capability.DIGITAL_CROWN in model.capabilities
     val usingDefaults = isMax && MAX_DEFAULT_CONTROLS.keys.any { it !in session.device.controls }
     val device = if (isMax) session.device.withDefaults(MAX_DEFAULT_CONTROLS) else session.device
@@ -284,6 +289,9 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
     val mic = device.micMode
     val ear = device.toggle(AapToggle.EAR_DETECTION)
     val crown = device.crownDirection
+    val speed = device.pressSpeed
+    val holdTime = device.holdDuration
+    val tones = device.toneVolume
 
     if (personalized != null || strength != null) {
         SectionTitle(stringResource(R.string.section_sound))
@@ -346,7 +354,25 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
         }
     }
 
-    if (mic != null || ear != null) {
+    if (speed != null || holdTime != null) {
+        SectionTitle(stringResource(R.string.section_press))
+        SettingsGroup {
+            if (speed != null) row {
+                BlockRow {
+                    Text(stringResource(R.string.setting_press_speed), style = MaterialTheme.typography.bodyLarge)
+                    ChipChoice(PressSpeed.entries, speed, { v -> stringResource(v.title()) }) { v -> send(AapCommand.SetPressSpeed(v)) }
+                }
+            }
+            if (holdTime != null) row {
+                BlockRow {
+                    Text(stringResource(R.string.setting_hold_duration), style = MaterialTheme.typography.bodyLarge)
+                    ChipChoice(HoldDuration.entries, holdTime, { v -> stringResource(v.title()) }) { v -> send(AapCommand.SetHoldDuration(v)) }
+                }
+            }
+        }
+    }
+
+    if (mic != null || ear != null || tones != null) {
         SectionTitle(stringResource(R.string.section_other))
         SettingsGroup {
             if (mic != null) row {
@@ -367,10 +393,13 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
                     icon = Icons.Filled.Hearing,
                 )
             }
+            if (tones != null) row { ToneVolumeSlider(tones) { value -> send(AapCommand.SetToneVolume(value)) } }
         }
     }
 
-    if (personalized == null && strength == null && hold == null && cycle == null && mic == null && ear == null && crown == null) {
+    if (personalized == null && strength == null && hold == null && cycle == null && mic == null && ear == null && crown == null &&
+        speed == null && holdTime == null && tones == null
+    ) {
         Text(
             stringResource(R.string.settings_none),
             style = MaterialTheme.typography.bodyLarge,
@@ -411,6 +440,36 @@ private fun ModeCycle(modes: List<ListeningMode>, selected: Set<ListeningMode>, 
     }
 }
 
+/** Выбор одного варианта чипами: длинные подписи переносятся на новую строку, а не обрезаются. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun <T> ChipChoice(options: List<T>, selected: T, label: @Composable (T) -> String, onSelect: (T) -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        options.forEach { option ->
+            FilterChip(
+                selected = option == selected,
+                onClick = { if (option != selected) onSelect(option) },
+                label = { Text(label(option)) },
+            )
+        }
+    }
+}
+
+/** Громкость сигналов наушников, 0..100 %. Команда уходит, когда палец отпущен. */
+@Composable
+private fun ToneVolumeSlider(value: Int, onChange: (Int) -> Unit) {
+    var position by remember(value) { mutableFloatStateOf(value.toFloat()) }
+    BlockRow {
+        Text(stringResource(R.string.setting_tone_volume, position.toInt()), style = MaterialTheme.typography.bodyLarge)
+        Slider(
+            value = position,
+            onValueChange = { position = it },
+            onValueChangeFinished = { onChange(position.toInt()) },
+            valueRange = 0f..100f,
+        )
+    }
+}
+
 /** Ползунок шлёт команду, когда палец отпущен, а не на каждый шаг. Проверено на Pro 2: 0 — больше звуков вокруг. */
 @Composable
 private fun StrengthSlider(value: Int, onChange: (Int) -> Unit) {
@@ -443,6 +502,18 @@ private fun MicMode.title() = when (this) {
     MicMode.AUTO -> R.string.mic_auto
     MicMode.ALWAYS_LEFT -> R.string.mic_left
     MicMode.ALWAYS_RIGHT -> R.string.mic_right
+}
+
+private fun PressSpeed.title() = when (this) {
+    PressSpeed.DEFAULT -> R.string.speed_default
+    PressSpeed.SLOWER -> R.string.speed_slower
+    PressSpeed.SLOWEST -> R.string.speed_slowest
+}
+
+private fun HoldDuration.title() = when (this) {
+    HoldDuration.DEFAULT -> R.string.speed_default
+    HoldDuration.SHORTER -> R.string.hold_shorter
+    HoldDuration.SHORTEST -> R.string.hold_shortest
 }
 
 private fun CrownDirection.title() = when (this) {

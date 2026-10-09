@@ -182,5 +182,14 @@
     <string name="crown_back_to_front">Back to front</string>
     <string name="crown_front_to_back">Front to back</string>
     <string name="setting_head_detection">Automatic head detection</string>
-    <string name="settings_max_hint">AirPods Max do not report their current settings, so factory values are shown until you change them here. A change applies right away.</string>
+    <string name="settings_max_hint">AirPods Max do not report their noise control button, Digital Crown and head detection settings, so factory values are shown for them until you change them here. A change applies right away.</string>
+    <string name="section_press">Pressing</string>
+    <string name="setting_press_speed">Press speed</string>
+    <string name="setting_hold_duration">Press and hold duration</string>
+    <string name="speed_default">Default</string>
+    <string name="speed_slower">Slower</string>
+    <string name="speed_slowest">Slowest</string>
+    <string name="hold_shorter">Shorter</string>
+    <string name="hold_shortest">Shortest</string>
+    <string name="setting_tone_volume">Tone volume: %1$d%%</string>
 </resources>

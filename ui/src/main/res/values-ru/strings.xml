@@ -184,5 +184,14 @@
     <string name="crown_back_to_front">Сзади вперёд</string>
     <string name="crown_front_to_back">Спереди назад</string>
     <string name="setting_head_detection">Автоопределение надевания</string>
-    <string name="settings_max_hint">AirPods Max не сообщают текущие настройки, поэтому до первого изменения здесь показаны заводские значения. Изменение применяется сразу.</string>
+    <string name="settings_max_hint">Кнопку шумоподавления, Digital Crown и определение надевания AirPods Max не сообщают, поэтому до первого изменения у них показаны заводские значения. Изменение применяется сразу.</string>
+    <string name="section_press">Нажатия</string>
+    <string name="setting_press_speed">Скорость нажатия</string>
+    <string name="setting_hold_duration">Длительность зажатия</string>
+    <string name="speed_default">Обычная</string>
+    <string name="speed_slower">Медленнее</string>
+    <string name="speed_slowest">Самая медленная</string>
+    <string name="hold_shorter">Короче</string>
+    <string name="hold_shortest">Самая короткая</string>
+    <string name="setting_tone_volume">Громкость сигналов: %1$d%%</string>
 </resources>

@@ -31,6 +31,31 @@ class MaxControlsTest {
     }
 
     @Test
+    fun `настройки из журнала Max после подключения`() {
+        val state = listOf(
+            "04 00 04 00 09 00 0D 03 00 00 00",
+            "04 00 04 00 09 00 1B 02 00 00 00",
+            "04 00 04 00 09 00 24 00 03 00 00",
+            "04 00 04 00 09 00 18 00 00 00 00",
+            "04 00 04 00 09 00 17 00 00 00 00",
+            "04 00 04 00 09 00 1F 50 50 00 00",
+        ).mapNotNull { AapParser.parse(Hex.decode(it)) }
+            .fold(AapDeviceState()) { s, e -> s.apply(e) }
+
+        assertThat(state.listeningMode).isEqualTo(ListeningMode.TRANSPARENCY)
+        assertThat(state.pressSpeed).isEqualTo(PressSpeed.DEFAULT)
+        assertThat(state.holdDuration).isEqualTo(HoldDuration.DEFAULT)
+        assertThat(state.toneVolume).isEqualTo(80)
+    }
+
+    @Test
+    fun `команды скорости, зажатия и громкости сигналов`() {
+        assertThat(Hex.encode(AapCommand.SetPressSpeed(PressSpeed.SLOWEST).bytes)).isEqualTo("04 00 04 00 09 00 17 02 00 00 00")
+        assertThat(Hex.encode(AapCommand.SetHoldDuration(HoldDuration.SHORTER).bytes)).isEqualTo("04 00 04 00 09 00 18 01 00 00 00")
+        assertThat(Hex.encode(AapCommand.SetToneVolume(100).bytes)).isEqualTo("04 00 04 00 09 00 1F 64 64 00 00")
+    }
+
+    @Test
     fun `известные настройки подписаны в журнале`() {
         assertThat(ControlId.name(0x1C)).isEqualTo("направление Digital Crown")
         assertThat(ControlId.name(0x20)).isEqualTo("автоподключение (0x20)")

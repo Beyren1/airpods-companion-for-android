@@ -13,11 +13,20 @@ object ControlId {
     const val EAR_DETECTION = 0x0A
     const val LISTENING_MODE = 0x0D
     const val PRESS_AND_HOLD = 0x16
+
+    /** Скорость двойного/тройного нажатия (Универсальный доступ на iPhone). Max присылают её после подключения. */
+    const val PRESS_SPEED = 0x17
+
+    /** Сколько держать кнопку для «зажатия». Max присылают после подключения. */
+    const val HOLD_DURATION = 0x18
     const val LISTENING_MODE_CYCLE = 0x1A
     const val ONE_BUD_NOISE_CONTROL = 0x1B
 
     /** Направление колёсика Digital Crown у Max. */
     const val CROWN_ROTATION = 0x1C
+
+    /** Громкость звуковых сигналов, 0..100; у Max два одинаковых байта (журнал: 50 50 = 80 %). */
+    const val TONE_VOLUME = 0x1F
     const val PERSONALIZED_VOLUME = 0x26
     const val CONVERSATIONAL_AWARENESS = 0x28
     const val ADAPTIVE_STRENGTH = 0x2E
@@ -31,6 +40,9 @@ object ControlId {
         LISTENING_MODE_CYCLE -> "режимы по нажатию"
         ONE_BUD_NOISE_CONTROL -> "шумоподавление в одном ухе"
         CROWN_ROTATION -> "направление Digital Crown"
+        PRESS_SPEED -> "скорость нажатия"
+        HOLD_DURATION -> "длительность зажатия"
+        TONE_VOLUME -> "громкость сигналов"
         PERSONALIZED_VOLUME -> "персонализированная громкость"
         CONVERSATIONAL_AWARENESS -> "адаптация к разговору"
         ADAPTIVE_STRENGTH -> "сила адаптивного режима"
@@ -47,10 +59,7 @@ object ControlId {
         0x12 to "голосовой вызов",
         0x14 to "одно нажатие",
         0x15 to "двойное нажатие",
-        0x17 to "интервал двойного нажатия",
-        0x18 to "длительность зажатия",
         0x1E to "автоответ",
-        0x1F to "громкость сигналов",
         0x20 to "автоподключение",
         0x23 to "интервал жеста громкости",
         0x24 to "управление звонком",
@@ -111,6 +120,24 @@ enum class CrownDirection(val code: Int) {
     }
 }
 
+/** Скорость нажатия: 00 — обычная, 01 — медленнее, 02 — самая медленная (как в Универсальном доступе iPhone). */
+enum class PressSpeed(val code: Int) {
+    DEFAULT(0x00), SLOWER(0x01), SLOWEST(0x02);
+
+    companion object {
+        fun of(code: Int) = entries.firstOrNull { it.code == code }
+    }
+}
+
+/** Длительность зажатия: 00 — обычная, 01 — короче, 02 — самая короткая. */
+enum class HoldDuration(val code: Int) {
+    DEFAULT(0x00), SHORTER(0x01), SHORTEST(0x02);
+
+    companion object {
+        fun of(code: Int) = entries.firstOrNull { it.code == code }
+    }
+}
+
 /** Долгое нажатие: первый байт значения — правый наушник, второй — левый (сверить по журналу). */
 data class PressAndHold(val right: PressAction?, val left: PressAction?)
 
@@ -148,6 +175,22 @@ sealed interface AapCommand {
     data class SetCrownDirection(val direction: CrownDirection) : AapCommand {
         override val bytes get() = control(ControlId.CROWN_ROTATION, direction.code)
         override val label get() = "Digital Crown $direction"
+    }
+
+    data class SetPressSpeed(val speed: PressSpeed) : AapCommand {
+        override val bytes get() = control(ControlId.PRESS_SPEED, speed.code)
+        override val label get() = "скорость нажатия $speed"
+    }
+
+    data class SetHoldDuration(val duration: HoldDuration) : AapCommand {
+        override val bytes get() = control(ControlId.HOLD_DURATION, duration.code)
+        override val label get() = "длительность зажатия $duration"
+    }
+
+    /** Громкость сигналов, 0..100: оба байта одинаковые, как присылают сами Max. */
+    data class SetToneVolume(val value: Int) : AapCommand {
+        override val bytes get() = value.coerceIn(0, 100).let { control(ControlId.TONE_VOLUME, it, it) }
+        override val label get() = "громкость сигналов $value"
     }
 
     /** Сила адаптивного режима, 0..100. */
@@ -206,12 +249,22 @@ val AapDeviceState.modeCycle: Set<ListeningMode>?
 val AapDeviceState.adaptiveStrength: Int?
     get() = controls[ControlId.ADAPTIVE_STRENGTH]?.firstOrNull()
 
+val AapDeviceState.pressSpeed: PressSpeed?
+    get() = controls[ControlId.PRESS_SPEED]?.firstOrNull()?.let(PressSpeed::of)
+
+val AapDeviceState.holdDuration: HoldDuration?
+    get() = controls[ControlId.HOLD_DURATION]?.firstOrNull()?.let(HoldDuration::of)
+
+val AapDeviceState.toneVolume: Int?
+    get() = controls[ControlId.TONE_VOLUME]?.firstOrNull()?.takeIf { it in 0..100 }
+
 val AapDeviceState.crownDirection: CrownDirection?
     get() = controls[ControlId.CROWN_ROTATION]?.firstOrNull()?.let(CrownDirection::of)
 
 /**
- * Заводские значения настроек Max: Max после подключения не присылают текущие значения, но команды
- * на изменение принимают. Пока наушники не сообщили своё, экран показывает эти.
+ * Заводские значения настроек Max. По журналу Max после подключения присылают режим, 0x17, 0x18, 0x1B,
+ * 0x1F и 0x24, а кнопку шумоподавления, Crown и определение надевания — нет. Пока наушники не сообщили
+ * своё, экран показывает эти.
  * Кнопка шумоподавления: шумоподавление + прозрачность (02 + 04); надевание определяется; Crown сзади вперёд.
  */
 val MAX_DEFAULT_CONTROLS: Map<Int, List<Int>> = mapOf(
