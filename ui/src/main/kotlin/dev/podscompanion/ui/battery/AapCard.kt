@@ -92,13 +92,14 @@ fun AapStatusCard(state: AapSessionState?, noPermission: Boolean, onCheck: () ->
  */
 @Composable
 fun ModeTiles(modes: List<ListeningMode>, current: ListeningMode?, onSelect: (ListeningMode) -> Unit) {
-    // Нажатый режим подсвечивается сразу, не дожидаясь ответа наушников (он приходит через долю секунды).
-    // Если ответа нет, через 2 с возвращаемся к тому, что сообщили наушники.
+    // Нажатый режим подсвечивается сразу, в том же кадре. Дальше его держит само соединение
+    // (повторяет команду, пока наушники не подтвердят), а здесь — только до первого ответа.
+    // Уведомление со старым режимом, пришедшее раньше подтверждения, подсветку не сбрасывает.
     var pending by remember { mutableStateOf<ListeningMode?>(null) }
-    LaunchedEffect(current) { pending = null }
+    LaunchedEffect(current) { if (current == pending) pending = null }
     LaunchedEffect(pending) {
         if (pending != null) {
-            delay(2_000)
+            delay(3_000)
             pending = null
         }
     }

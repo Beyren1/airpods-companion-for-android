@@ -101,7 +101,7 @@ fun PodsNavHost() {
                     )
                 }
                 composable(Routes.DEVICE_INFO) {
-                    DeviceInfoScreen(aapSessions, nearby, onBack = { nav.popBackStack() })
+                    DeviceInfoScreen(aapSessions, nearby, logText = viewModel::diagnosticLog, onBack = { nav.popBackStack() })
                 }
             }
         }

@@ -162,6 +162,8 @@
     <string name="info_yes">yes</string>
     <string name="info_no">no</string>
     <string name="info_direct_mode">Direct connection (AAP)</string>
+    <string name="info_share_log">Send connection log</string>
+    <string name="info_share_log_hint">What the app sent to the headphones and what they answered. Helps find why a setting did not apply.</string>
     <string name="info_direct_works">Works on this phone</string>
     <string name="info_direct_blocked">Android on this phone does not allow it</string>
     <string name="info_direct_unknown">Not checked yet: connect your headphones</string>
