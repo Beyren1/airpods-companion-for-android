@@ -24,4 +24,11 @@
     <string name="tile_mode_nc">Réduction du bruit</string>
     <string name="tile_mode_transparency">Transparence</string>
     <string name="tile_mode_adaptive">Adaptatif</string>
+    <string name="low_channel_name">Batterie faible</string>
+    <string name="low_channel_description">Alertes quand les écouteurs ou le boîtier sont presque déchargés</string>
+    <string name="low_title">%1$s : batterie faible</string>
+    <string name="low_left">Gauche %1$s</string>
+    <string name="low_right">Droit %1$s</string>
+    <string name="low_case">Boîtier %1$s</string>
+    <string name="low_charge_hint">À recharger bientôt</string>
 </resources>

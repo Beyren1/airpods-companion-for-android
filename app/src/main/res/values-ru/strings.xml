@@ -26,4 +26,11 @@
     <string name="tile_mode_nc">Шумоподавление</string>
     <string name="tile_mode_transparency">Прозрачность</string>
     <string name="tile_mode_adaptive">Адаптивный</string>
+    <string name="low_channel_name">Низкий заряд</string>
+    <string name="low_channel_description">Предупреждения, когда наушники или кейс разряжаются</string>
+    <string name="low_title">%1$s: низкий заряд</string>
+    <string name="low_left">Левый %1$s</string>
+    <string name="low_right">Правый %1$s</string>
+    <string name="low_case">Кейс %1$s</string>
+    <string name="low_charge_hint">Скоро нужно зарядить</string>
 </resources>

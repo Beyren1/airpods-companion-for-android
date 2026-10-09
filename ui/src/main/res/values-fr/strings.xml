@@ -192,4 +192,7 @@
     <string name="hold_shortest">La plus courte</string>
     <string name="setting_tone_volume">Volume des sons : %1$d %%</string>
     <string name="settings_cycle_default_hint">Ces écouteurs n’ont pas indiqué les modes parcourus par l’appui prolongé : le choix d’usine est affiché jusqu’à ce que vous le modifiiez ici.</string>
+    <string name="low_battery_title">Alertes de batterie faible</string>
+    <string name="low_battery_description">Une notification quand un écouteur, le boîtier ou les AirPods Max descendent au niveau choisi, puis à nouveau à 10 %. Uniquement pour vos écouteurs.</string>
+    <string name="low_battery_threshold">Première alerte à</string>
 </resources>

@@ -173,6 +173,14 @@ class BatteryViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setCasePopup(value) }
     }
 
+    fun setLowBatteryAlerts(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setLowBatteryAlerts(value) }
+    }
+
+    fun setLowBatteryThreshold(value: Int) {
+        viewModelScope.launch { settingsRepository.setLowBatteryThreshold(value) }
+    }
+
     fun setDebugEnabled(value: Boolean) {
         viewModelScope.launch { settingsRepository.setDebugEnabled(value) }
     }

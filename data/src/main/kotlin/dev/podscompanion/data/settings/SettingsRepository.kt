@@ -3,6 +3,7 @@ package dev.podscompanion.data.settings
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -31,7 +32,14 @@ data class AppSettings(
     val casePopupShown: Set<Int> = emptySet(),
     /** Светлая, тёмная или как в системе. */
     val theme: ThemeMode = ThemeMode.SYSTEM,
+    /** Уведомление, когда заряд наушников или кейса падает до порога (работает в фоновом режиме). */
+    val lowBatteryAlerts: Boolean = true,
+    /** Первый порог в процентах; второе предупреждение всегда на 10 %. */
+    val lowBatteryThreshold: Int = 20,
 )
+
+/** Пороги, которые можно выбрать в настройках. */
+val LOW_BATTERY_THRESHOLDS = listOf(10, 20, 30)
 
 /** Оформление приложения. SYSTEM — следовать теме телефона. */
 enum class ThemeMode { SYSTEM, LIGHT, DARK }
@@ -54,6 +62,8 @@ class SettingsRepository @Inject constructor(
                 casePopup = prefs[CASE_POPUP] ?: false,
                 casePopupShown = prefs[CASE_POPUP_SHOWN].orEmpty().mapNotNull { it.toIntOrNull() }.toSet(),
                 theme = ThemeMode.entries.firstOrNull { it.name == prefs[THEME] } ?: ThemeMode.SYSTEM,
+                lowBatteryAlerts = prefs[LOW_BATTERY] ?: true,
+                lowBatteryThreshold = prefs[LOW_BATTERY_THRESHOLD]?.takeIf { it in LOW_BATTERY_THRESHOLDS } ?: 20,
             )
         }
         .distinctUntilChanged()
@@ -86,6 +96,14 @@ class SettingsRepository @Inject constructor(
         context.settingsStore.edit { it[THEME] = value.name }
     }
 
+    suspend fun setLowBatteryAlerts(value: Boolean) {
+        context.settingsStore.edit { it[LOW_BATTERY] = value }
+    }
+
+    suspend fun setLowBatteryThreshold(value: Int) {
+        context.settingsStore.edit { it[LOW_BATTERY_THRESHOLD] = value }
+    }
+
     suspend fun setHeadGestures(value: Boolean) {
         context.settingsStore.edit { it[HEAD_GESTURES] = value }
     }
@@ -112,5 +130,7 @@ class SettingsRepository @Inject constructor(
         val CASE_POPUP = booleanPreferencesKey("case_popup")
         val CASE_POPUP_SHOWN = stringSetPreferencesKey("case_popup_shown")
         val THEME = stringPreferencesKey("theme")
+        val LOW_BATTERY = booleanPreferencesKey("low_battery_alerts")
+        val LOW_BATTERY_THRESHOLD = intPreferencesKey("low_battery_threshold")
     }
 }
