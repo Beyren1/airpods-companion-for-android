@@ -19,17 +19,19 @@ import dev.podscompanion.ui.battery.DeviceInfoScreen
 import dev.podscompanion.ui.battery.GesturesUi
 import dev.podscompanion.ui.battery.HeadphoneSettingsScreen
 import dev.podscompanion.ui.battery.HomeScreen
+import dev.podscompanion.ui.battery.MusicSettingsScreen
+import dev.podscompanion.ui.battery.MusicViewModel
 import dev.podscompanion.ui.permissions.ScanPermissionGate
 
 private object Routes {
     const val HOME = "home"
     const val HEADPHONES = "headphones"
-    const val APP_SETTINGS = "app_settings"
     const val DEVICE_INFO = "device_info"
 }
 
 /**
- * Экраны приложения: главная, настройки наушников, настройки приложения и «Об устройствах».
+ * Экраны приложения: три вкладки (наушники, музыка, настройки приложения), поверх них
+ * настройки наушников и «Об устройствах».
  * ViewModel одна на все экраны (создаётся до NavHost, поэтому живёт, пока открыта Activity):
  * скан и прямое подключение не перезапускаются при переходе между экранами.
  */
@@ -38,6 +40,8 @@ fun PodsNavHost() {
     Surface(Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
         ScanPermissionGate {
             val viewModel: BatteryViewModel = hiltViewModel()
+            val musicViewModel: MusicViewModel = hiltViewModel()
+            val nowPlaying by musicViewModel.nowPlaying.collectAsStateWithLifecycle()
             val state by viewModel.state.collectAsStateWithLifecycle()
             val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
             val settings by viewModel.settings.collectAsStateWithLifecycle()
@@ -50,13 +54,35 @@ fun PodsNavHost() {
 
             NavHost(nav, startDestination = Routes.HOME) {
                 composable(Routes.HOME) {
-                    HomeScreen(
-                        state, refreshing, viewModel::refresh,
-                        aapSessions = aapSessions,
-                        onAapCheck = viewModel::checkAap,
-                        onCommand = viewModel::send,
-                        onOpenHeadphoneSettings = { nav.navigate(Routes.HEADPHONES) },
-                        onOpenAppSettings = { nav.navigate(Routes.APP_SETTINGS) },
+                    MainTabs(
+                        headphones = {
+                            HomeScreen(
+                                state, refreshing, viewModel::refresh,
+                                aapSessions = aapSessions,
+                                onAapCheck = viewModel::checkAap,
+                                onCommand = viewModel::send,
+                                onOpenHeadphoneSettings = { nav.navigate(Routes.HEADPHONES) },
+                                nowPlaying = nowPlaying,
+                                onMediaButton = musicViewModel::onButton,
+                            )
+                        },
+                        music = { MusicSettingsScreen(musicViewModel) },
+                        settings = {
+                            val autoPauseLog by viewModel.autoPauseLines.collectAsStateWithLifecycle()
+                            val aapLog by viewModel.aapLog.collectAsStateWithLifecycle()
+                            AppSettingsScreen(
+                                settings,
+                                onBackgroundChange = viewModel::setBackgroundEnabled,
+                                onAutoPauseChange = viewModel::setAutoPause,
+                                onCasePopupChange = viewModel::setCasePopup,
+                                onLowBatteryChange = viewModel::setLowBatteryAlerts,
+                                onLowBatteryThresholdChange = viewModel::setLowBatteryThreshold,
+                                onDebugChange = viewModel::setDebugEnabled,
+                                onThemeChange = viewModel::setTheme,
+                                onOpenDeviceInfo = { nav.navigate(Routes.DEVICE_INFO) },
+                                debug = DebugInfo(main, nearby?.others.orEmpty(), autoPauseLog, aapLog),
+                            )
+                        },
                     )
                 }
                 composable(Routes.HEADPHONES) {
@@ -73,23 +99,6 @@ fun PodsNavHost() {
                             onCalibrate = viewModel::startCalibration,
                             onCalibrationDismiss = viewModel::dismissCalibration,
                         ),
-                    )
-                }
-                composable(Routes.APP_SETTINGS) {
-                    val autoPauseLog by viewModel.autoPauseLines.collectAsStateWithLifecycle()
-                    val aapLog by viewModel.aapLog.collectAsStateWithLifecycle()
-                    AppSettingsScreen(
-                        settings,
-                        onBackgroundChange = viewModel::setBackgroundEnabled,
-                        onAutoPauseChange = viewModel::setAutoPause,
-                        onCasePopupChange = viewModel::setCasePopup,
-                        onLowBatteryChange = viewModel::setLowBatteryAlerts,
-                        onLowBatteryThresholdChange = viewModel::setLowBatteryThreshold,
-                        onDebugChange = viewModel::setDebugEnabled,
-                        onThemeChange = viewModel::setTheme,
-                        onOpenDeviceInfo = { nav.navigate(Routes.DEVICE_INFO) },
-                        debug = DebugInfo(main, nearby?.others.orEmpty(), autoPauseLog, aapLog),
-                        onBack = { nav.popBackStack() },
                     )
                 }
                 composable(Routes.DEVICE_INFO) {

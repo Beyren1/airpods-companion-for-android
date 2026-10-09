@@ -68,6 +68,7 @@ import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.data.aap.AapSessions
 import dev.podscompanion.data.displayText
+import dev.podscompanion.data.media.NowPlaying
 import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.protocol.aap.AapToggle
 import dev.podscompanion.protocol.aap.toggle
@@ -93,7 +94,9 @@ fun HomeScreen(
     onAapCheck: () -> Unit = {},
     onCommand: (address: String, AapCommand) -> Unit = { _, _ -> },
     onOpenHeadphoneSettings: () -> Unit = {},
-    onOpenAppSettings: () -> Unit = {},
+    onOpenAppSettings: (() -> Unit)? = null,
+    nowPlaying: NowPlaying? = null,
+    onMediaButton: (MediaButton) -> Unit = {},
 ) {
     val main = (state as? BatteryUiState.Found)?.nearby?.primary
     val session = if (main?.connected == true) aapSessions.forModel(main.model) else null
@@ -103,8 +106,11 @@ fun HomeScreen(
             TopAppBar(
                 title = { TitleBlock(main, session) },
                 actions = {
-                    IconButton(onClick = onOpenAppSettings) {
-                        Icon(Icons.Filled.Settings, stringResource(R.string.app_settings_title))
+                    // Во вкладках настройки открываются вкладкой внизу, шестерёнка не нужна.
+                    if (onOpenAppSettings != null) {
+                        IconButton(onClick = onOpenAppSettings) {
+                            Icon(Icons.Filled.Settings, stringResource(R.string.app_settings_title))
+                        }
                     }
                 },
             )
@@ -133,6 +139,7 @@ fun HomeScreen(
                         if (session is AapSessionState.Connected) {
                             Controls(session, main?.model, onCommand, onOpenHeadphoneSettings)
                         }
+                        nowPlaying?.let { NowPlayingCard(it, onMediaButton) }
                         if (state.nearby.others.isNotEmpty()) Nearby(state.nearby.others)
                     }
                 }

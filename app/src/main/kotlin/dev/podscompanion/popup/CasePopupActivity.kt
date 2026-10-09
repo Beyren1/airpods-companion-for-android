@@ -28,7 +28,9 @@ import dev.podscompanion.data.popup.CaseOpenDetector
 import dev.podscompanion.data.popup.LiveStatus
 import dev.podscompanion.data.settings.SettingsRepository
 import dev.podscompanion.data.settings.AppSettings
+import dev.podscompanion.data.media.MediaRepository
 import dev.podscompanion.ui.battery.CasePopupCard
+import dev.podscompanion.ui.battery.MediaButton
 import dev.podscompanion.ui.theme.AppLanguage
 import dev.podscompanion.ui.theme.PodsCompanionTheme
 import javax.inject.Inject
@@ -44,6 +46,7 @@ class CasePopupActivity : ComponentActivity() {
 
     @Inject lateinit var liveStatus: LiveStatus
     @Inject lateinit var settings: SettingsRepository
+    @Inject lateinit var media: MediaRepository
 
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLanguage.wrap(newBase))
@@ -55,6 +58,7 @@ class CasePopupActivity : ComponentActivity() {
             val appSettings by settings.settings.collectAsStateWithLifecycle(AppSettings())
             PodsCompanionTheme(appSettings.theme) {
                 val status by liveStatus.status.collectAsStateWithLifecycle()
+                val track by media.nowPlaying.collectAsStateWithLifecycle()
                 // Последний пакет с открытым кейсом: карточка не мигает, пока окно уезжает.
                 var shown by remember { mutableStateOf<PodsStatus?>(null) }
                 var visible by remember { mutableStateOf(false) }
@@ -94,6 +98,14 @@ class CasePopupActivity : ComponentActivity() {
                         shown?.let { pods ->
                             CasePopupCard(
                                 pods, onClose = close,
+                                nowPlaying = track.takeIf { appSettings.nowPlayingCard },
+                                onMediaButton = { button ->
+                                    when (button) {
+                                        MediaButton.PREVIOUS -> media.previous()
+                                        MediaButton.PLAY_PAUSE -> media.playPause()
+                                        MediaButton.NEXT -> media.next()
+                                    }
+                                },
                                 modifier = Modifier
                                     .navigationBarsPadding()
                                     .padding(12.dp)

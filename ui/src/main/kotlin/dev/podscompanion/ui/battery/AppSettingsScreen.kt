@@ -82,7 +82,7 @@ fun AppSettingsScreen(
     onThemeChange: (ThemeMode) -> Unit,
     onOpenDeviceInfo: () -> Unit,
     debug: DebugInfo,
-    onBack: () -> Unit,
+    onBack: (() -> Unit)? = null,
 ) {
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions(),
@@ -111,7 +111,10 @@ fun AppSettingsScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.app_settings_title)) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                    // Во вкладке внизу кнопки «назад» нет: экран открыт не поверх другого.
+                    if (onBack != null) {
+                        IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.back)) }
+                    }
                 },
             )
         },

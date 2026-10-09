@@ -18,14 +18,21 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.media.NowPlaying
 import dev.podscompanion.ui.R
 
 /**
  * Карточка, которая всплывает снизу, когда открыли кейс рядом с телефоном: название наушников,
- * рисунки левого, кейса и правого с зарядом и кнопка «Готово».
+ * рисунки левого, кейса и правого с зарядом, текущий трек (если включён) и кнопка «Готово».
  */
 @Composable
-fun CasePopupCard(status: PodsStatus, onClose: () -> Unit, modifier: Modifier = Modifier) {
+fun CasePopupCard(
+    status: PodsStatus,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+    nowPlaying: NowPlaying? = null,
+    onMediaButton: (MediaButton) -> Unit = {},
+) {
     val model = status.model
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -55,6 +62,13 @@ fun CasePopupCard(status: PodsStatus, onClose: () -> Unit, modifier: Modifier = 
                 Part(
                     PodsArt.budFor(model, left = false), stringResource(R.string.right), status.right.battery, status.right.charging,
                     note = null, highlighted = false, exact = status.exactBattery, modifier = Modifier.weight(1f),
+                )
+            }
+            nowPlaying?.let {
+                NowPlayingCard(
+                    it, onMediaButton,
+                    modifier = Modifier.padding(horizontal = 8.dp),
+                    container = MaterialTheme.colorScheme.surfaceContainerHighest,
                 )
             }
             Button(onClick = onClose, modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
