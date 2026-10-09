@@ -177,4 +177,12 @@
     <string name="info_direct_works">Работает на этом телефоне</string>
     <string name="info_direct_blocked">Android на этом телефоне его не даёт</string>
     <string name="info_direct_unknown">Пока не проверено: подключите наушники</string>
+    <string name="setting_noise_button">Кнопка шумоподавления</string>
+    <string name="setting_noise_button_cycle">Режимы по нажатию кнопки</string>
+    <string name="setting_crown">Digital Crown</string>
+    <string name="setting_crown_hint">Куда крутить, чтобы стало громче</string>
+    <string name="crown_back_to_front">Сзади вперёд</string>
+    <string name="crown_front_to_back">Спереди назад</string>
+    <string name="setting_head_detection">Автоопределение надевания</string>
+    <string name="settings_max_hint">AirPods Max не сообщают текущие настройки, поэтому до первого изменения здесь показаны заводские значения. Изменение применяется сразу.</string>
 </resources>

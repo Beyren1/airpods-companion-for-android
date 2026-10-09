@@ -15,6 +15,9 @@ object ControlId {
     const val PRESS_AND_HOLD = 0x16
     const val LISTENING_MODE_CYCLE = 0x1A
     const val ONE_BUD_NOISE_CONTROL = 0x1B
+
+    /** Направление колёсика Digital Crown у Max. */
+    const val CROWN_ROTATION = 0x1C
     const val PERSONALIZED_VOLUME = 0x26
     const val CONVERSATIONAL_AWARENESS = 0x28
     const val ADAPTIVE_STRENGTH = 0x2E
@@ -27,11 +30,43 @@ object ControlId {
         PRESS_AND_HOLD -> "долгое нажатие"
         LISTENING_MODE_CYCLE -> "режимы по нажатию"
         ONE_BUD_NOISE_CONTROL -> "шумоподавление в одном ухе"
+        CROWN_ROTATION -> "направление Digital Crown"
         PERSONALIZED_VOLUME -> "персонализированная громкость"
         CONVERSATIONAL_AWARENESS -> "адаптация к разговору"
         ADAPTIVE_STRENGTH -> "сила адаптивного режима"
-        else -> "настройка 0x%02X".format(id)
+        else -> OTHER_NAMES[id]?.let { "$it (0x%02X)".format(id) } ?: "настройка 0x%02X".format(id)
     }
+
+    /**
+     * Настройки, которые приложение пока не показывает, — только для журнала: по ним видно, что прислали
+     * наушники. Названия из публичного реверса, не сверены.
+     */
+    private val OTHER_NAMES = mapOf(
+        0x05 to "режим кнопок",
+        0x06 to "владелец соединения",
+        0x12 to "голосовой вызов",
+        0x14 to "одно нажатие",
+        0x15 to "двойное нажатие",
+        0x17 to "интервал двойного нажатия",
+        0x18 to "длительность зажатия",
+        0x1E to "автоответ",
+        0x1F to "громкость сигналов",
+        0x20 to "автоподключение",
+        0x23 to "интервал жеста громкости",
+        0x24 to "управление звонком",
+        0x25 to "жест громкости",
+        0x27 to "выключение микрофона",
+        0x29 to "SSL",
+        0x2C to "слуховой аппарат",
+        0x2F to "усиление жестом",
+        0x30 to "пульсометр",
+        0x31 to "звук в кейсе",
+        0x32 to "сигналы Siri",
+        0x33 to "помощь слуху",
+        0x34 to "разрешить «Выкл»",
+        0x35 to "определение сна",
+        0x36 to "разрешить автоподключение",
+    )
 }
 
 /** Настройки «вкл/выкл»: значение 01 — вкл, 02 — выкл. */
@@ -58,6 +93,18 @@ enum class PressAction(val code: Int) {
 
     /** На iPhone — Siri; на Android наушники отправляют команду голосового помощника. */
     VOICE_ASSISTANT(0x01);
+
+    companion object {
+        fun of(code: Int) = entries.firstOrNull { it.code == code }
+    }
+}
+
+/**
+ * Куда крутить Digital Crown, чтобы стало громче. Как в настройках iPhone: «Сзади вперёд» (по умолчанию)
+ * или «Спереди назад». Коды 01/02 из публичного реверса, сверить по iPhone.
+ */
+enum class CrownDirection(val code: Int) {
+    BACK_TO_FRONT(0x01), FRONT_TO_BACK(0x02);
 
     companion object {
         fun of(code: Int) = entries.firstOrNull { it.code == code }
@@ -96,6 +143,11 @@ sealed interface AapCommand {
     data class SetModeCycle(val modes: Set<ListeningMode>) : AapCommand {
         override val bytes get() = control(ControlId.LISTENING_MODE_CYCLE, modeCycleMask(modes))
         override val label get() = "режимы по нажатию $modes"
+    }
+
+    data class SetCrownDirection(val direction: CrownDirection) : AapCommand {
+        override val bytes get() = control(ControlId.CROWN_ROTATION, direction.code)
+        override val label get() = "Digital Crown $direction"
     }
 
     /** Сила адаптивного режима, 0..100. */
@@ -153,3 +205,21 @@ val AapDeviceState.modeCycle: Set<ListeningMode>?
 
 val AapDeviceState.adaptiveStrength: Int?
     get() = controls[ControlId.ADAPTIVE_STRENGTH]?.firstOrNull()
+
+val AapDeviceState.crownDirection: CrownDirection?
+    get() = controls[ControlId.CROWN_ROTATION]?.firstOrNull()?.let(CrownDirection::of)
+
+/**
+ * Заводские значения настроек Max: Max после подключения не присылают текущие значения, но команды
+ * на изменение принимают. Пока наушники не сообщили своё, экран показывает эти.
+ * Кнопка шумоподавления: шумоподавление + прозрачность (02 + 04); надевание определяется; Crown сзади вперёд.
+ */
+val MAX_DEFAULT_CONTROLS: Map<Int, List<Int>> = mapOf(
+    ControlId.LISTENING_MODE_CYCLE to listOf(0x06, 0x00, 0x00, 0x00),
+    ControlId.EAR_DETECTION to listOf(0x01, 0x00, 0x00, 0x00),
+    ControlId.CROWN_ROTATION to listOf(CrownDirection.BACK_TO_FRONT.code, 0x00, 0x00, 0x00),
+)
+
+/** Состояние, где недостающие настройки взяты из [defaults]; то, что прислали наушники, важнее. */
+fun AapDeviceState.withDefaults(defaults: Map<Int, List<Int>>): AapDeviceState =
+    if (defaults.keys.all { it in controls }) this else copy(controls = defaults + controls)

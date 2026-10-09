@@ -175,4 +175,12 @@
     <string name="info_direct_works">Fonctionne sur ce téléphone</string>
     <string name="info_direct_blocked">Android sur ce téléphone ne l’autorise pas</string>
     <string name="info_direct_unknown">Pas encore vérifié : connectez vos écouteurs</string>
+    <string name="setting_noise_button">Bouton de contrôle du bruit</string>
+    <string name="setting_noise_button_cycle">Modes à l’appui du bouton</string>
+    <string name="setting_crown">Digital Crown</string>
+    <string name="setting_crown_hint">Sens de rotation pour monter le volume</string>
+    <string name="crown_back_to_front">D’arrière en avant</string>
+    <string name="crown_front_to_back">D’avant en arrière</string>
+    <string name="setting_head_detection">Détection automatique sur la tête</string>
+    <string name="settings_max_hint">Les AirPods Max ne signalent pas leurs réglages actuels : les valeurs d’usine sont affichées jusqu’à ce que vous les modifiiez ici. Une modification s’applique immédiatement.</string>
 </resources>

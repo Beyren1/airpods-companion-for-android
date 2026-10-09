@@ -175,4 +175,12 @@
     <string name="info_direct_works">Works on this phone</string>
     <string name="info_direct_blocked">Android on this phone does not allow it</string>
     <string name="info_direct_unknown">Not checked yet: connect your headphones</string>
+    <string name="setting_noise_button">Noise control button</string>
+    <string name="setting_noise_button_cycle">Modes on button press</string>
+    <string name="setting_crown">Digital Crown</string>
+    <string name="setting_crown_hint">Which way to turn it for louder</string>
+    <string name="crown_back_to_front">Back to front</string>
+    <string name="crown_front_to_back">Front to back</string>
+    <string name="setting_head_detection">Automatic head detection</string>
+    <string name="settings_max_hint">AirPods Max do not report their current settings, so factory values are shown until you change them here. A change applies right away.</string>
 </resources>
