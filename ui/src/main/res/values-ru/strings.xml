@@ -53,7 +53,6 @@
     <string name="setting_ca">Адаптация к разговору</string>
     <string name="setting_personalized_volume">Персонализированная громкость</string>
     <string name="setting_ear_detection">Автоопределение уха</string>
-    <string name="setting_one_bud_nc">Шумоподавление с одним наушником</string>
     <string name="setting_mic">Микрофон</string>
     <string name="mic_auto">Авто</string>
     <string name="mic_left">Левый</string>

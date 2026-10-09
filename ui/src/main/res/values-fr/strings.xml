@@ -53,7 +53,6 @@
     <string name="setting_ca">Détection de conversation</string>
     <string name="setting_personalized_volume">Volume personnalisé</string>
     <string name="setting_ear_detection">Détection automatique de l’oreille</string>
-    <string name="setting_one_bud_nc">Réduction du bruit avec un seul écouteur</string>
     <string name="setting_mic">Micro</string>
     <string name="mic_auto">Auto</string>
     <string name="mic_left">Gauche</string>

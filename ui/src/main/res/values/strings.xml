@@ -53,7 +53,6 @@
     <string name="setting_ca">Conversation awareness</string>
     <string name="setting_personalized_volume">Personalized volume</string>
     <string name="setting_ear_detection">Automatic ear detection</string>
-    <string name="setting_one_bud_nc">Noise cancellation with one earbud</string>
     <string name="setting_mic">Microphone</string>
     <string name="mic_auto">Auto</string>
     <string name="mic_left">Left</string>

@@ -20,7 +20,6 @@ object ControlId {
     /** Сколько держать кнопку для «зажатия». Max присылают после подключения. */
     const val HOLD_DURATION = 0x18
     const val LISTENING_MODE_CYCLE = 0x1A
-    const val ONE_BUD_NOISE_CONTROL = 0x1B
 
     /** Направление колёсика Digital Crown у Max. */
     const val CROWN_ROTATION = 0x1C
@@ -38,7 +37,6 @@ object ControlId {
         LISTENING_MODE -> "режим"
         PRESS_AND_HOLD -> "долгое нажатие"
         LISTENING_MODE_CYCLE -> "режимы по нажатию"
-        ONE_BUD_NOISE_CONTROL -> "шумоподавление в одном ухе"
         CROWN_ROTATION -> "направление Digital Crown"
         PRESS_SPEED -> "скорость нажатия"
         HOLD_DURATION -> "длительность зажатия"
@@ -83,7 +81,6 @@ enum class AapToggle(val id: Int) {
     CONVERSATIONAL_AWARENESS(ControlId.CONVERSATIONAL_AWARENESS),
     PERSONALIZED_VOLUME(ControlId.PERSONALIZED_VOLUME),
     EAR_DETECTION(ControlId.EAR_DETECTION),
-    ONE_BUD_NOISE_CONTROL(ControlId.ONE_BUD_NOISE_CONTROL),
 }
 
 /** Какой наушник слушает микрофоном. */
