@@ -20,8 +20,6 @@ import dev.podscompanion.ui.battery.HeadphoneSettingsScreen
 import dev.podscompanion.ui.battery.HomeScreen
 import dev.podscompanion.ui.battery.MusicSettingsScreen
 import dev.podscompanion.ui.battery.MusicViewModel
-import dev.podscompanion.ui.find.FindScreen
-import dev.podscompanion.ui.find.FindViewModel
 import dev.podscompanion.ui.permissions.ScanPermissionGate
 import dev.podscompanion.ui.stats.StatsScreen
 import dev.podscompanion.ui.stats.StatsViewModel
@@ -33,7 +31,7 @@ private object Routes {
 }
 
 /**
- * Экраны приложения: пять вкладок (наушники, музыка, статистика, поиск наушников, настройки приложения), поверх них
+ * Экраны приложения: четыре вкладки (наушники, музыка, статистика, настройки приложения), поверх них
  * настройки наушников и «Об устройствах».
  * ViewModel одна на все экраны (создаётся до NavHost, поэтому живёт, пока открыта Activity):
  * скан и прямое подключение не перезапускаются при переходе между экранами.
@@ -45,7 +43,6 @@ fun PodsNavHost() {
             val viewModel: BatteryViewModel = hiltViewModel()
             val musicViewModel: MusicViewModel = hiltViewModel()
             val statsViewModel: StatsViewModel = hiltViewModel()
-            val findViewModel: FindViewModel = hiltViewModel()
             val nowPlaying by musicViewModel.nowPlaying.collectAsStateWithLifecycle()
             val state by viewModel.state.collectAsStateWithLifecycle()
             val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
@@ -73,7 +70,6 @@ fun PodsNavHost() {
                         },
                         music = { MusicSettingsScreen(musicViewModel) },
                         stats = { StatsScreen(statsViewModel) },
-                        find = { FindScreen(findViewModel) },
                         settings = {
                             AppSettingsScreen(
                                 settings,
