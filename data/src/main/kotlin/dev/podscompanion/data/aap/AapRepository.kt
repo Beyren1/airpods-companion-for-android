@@ -129,7 +129,7 @@ class AapRepository @Inject constructor(
             AapCommand.StopHeadTracking -> false
             else -> return listOf(command.bytes)
         }
-        val streams = listOf(AapStreams.DOCUMENTED_HEAD_STREAM) + announcedStreams[address].orEmpty().sorted()
+        val streams = listOf(AapStreams.ALTERNATE_HEAD_STREAM, AapStreams.DOCUMENTED_HEAD_STREAM) + announcedStreams[address].orEmpty().sorted()
         return streams.distinct().map { AapStreams.request(streamSeq++ % 120 + 1, it, on) }
     }
 
@@ -186,7 +186,7 @@ class AapRepository @Inject constructor(
                                     motionLogBudget[address] = budget - 1
                                     log.add("← ${Hex.encode(io.data)} · датчики головы")
                                 }
-                                if (motionPackets++ % MOTION_LOG_EVERY == 0) log.add("${target.name}: датчики головы ${event.orientation}")
+                                if (motionPackets++ % MOTION_LOG_EVERY == 0) log.add("${target.name}: датчики головы ${event.axes}")
                                 _headMotion.tryEmit(HeadSample(address, SystemClock.elapsedRealtime(), event))
                                 return@collect
                             }

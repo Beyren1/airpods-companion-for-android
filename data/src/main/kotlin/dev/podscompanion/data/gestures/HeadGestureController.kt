@@ -85,7 +85,7 @@ class HeadGestureController @Inject constructor(
                 val detector = HeadGestureDetector(calibration)
                 val gesture = aap.headMotion
                     .filter { it.address == address }
-                    .mapNotNull { detector.onSample(it.timeMs, it.motion.orientation) }
+                    .mapNotNull { detector.onSample(it.timeMs, it.motion.axes) }
                     .first()
                 log.add("${session.deviceName}: ${if (gesture == HeadGesture.NOD) "кивок — отвечаю" else "покачивание — отклоняю"}")
                 act(gesture)

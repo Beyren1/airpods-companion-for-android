@@ -23,9 +23,9 @@ object Aap {
 
     /**
      * Включает расширенные функции: адаптацию к разговору во время музыки, адаптивную прозрачность.
-     * Все флаги 0xFF — как в пакете, пойманном с Mac (описание протокола LibrePods).
+     * Флаги 0xD7 — как в приложении LibrePods, где датчики головы работают (0xFF с Mac не помог).
      */
-    val SET_FEATURES: ByteArray = packet(Opcode.SET_FEATURES, 0xFF, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
+    val SET_FEATURES: ByteArray = packet(Opcode.SET_FEATURES, 0xD7, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00)
 
     /** Подписка на все уведомления: заряд, ухо, режим шумоподавления. */
     val REQUEST_NOTIFICATIONS: ByteArray = packet(Opcode.REQUEST_NOTIFICATIONS, 0xFF, 0xFF, 0xFF, 0xFF)
@@ -157,7 +157,10 @@ sealed interface AapEvent {
      * Положение головы из потока датчиков: три угла и два ускорения, знаковые 16 бит.
      * Какой угол — кивок, а какой — поворот, узнаём калибровкой (см. HeadGestureDetector).
      */
-    data class HeadMotion(val orientation: List<Int>, val horizontal: Int, val vertical: Int) : AapEvent
+    data class HeadMotion(val orientation: List<Int>, val horizontal: Int, val vertical: Int) : AapEvent {
+        /** Все пять чисел подряд: какое из них отвечает за кивок и покачивание, решает калибровка. */
+        val axes: List<Int> get() = orientation + listOf(horizontal, vertical)
+    }
 
     /** Ключи рекламы этих наушников (см. [Aap.REQUEST_PROXIMITY_KEYS]); null — наушники такой не прислали. */
     class ProximityKeys(val irk: ByteArray?, val encryptionKey: ByteArray?) : AapEvent {
