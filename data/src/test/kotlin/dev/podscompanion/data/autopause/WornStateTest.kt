@@ -25,6 +25,11 @@ class WornStateTest {
     }
 
     @Test
+    fun `состояние второго наушника неизвестно — не решаем`() {
+        assertThat(WornState.fromAap(buds(EarState.IN_EAR, EarState.UNKNOWN), "AirPods")).isNull()
+    }
+
+    @Test
     fun `Max — по одной чашке`() {
         val max = AapDeviceState(
             single = AapBattery(BatteryComponent.SINGLE, 80, charging = false, connected = true),

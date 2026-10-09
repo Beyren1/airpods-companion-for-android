@@ -19,10 +19,16 @@ object WornState {
         if (!device.earKnown) return null
         val primaryIn = device.primaryEar == EarState.IN_EAR
         val models = ConnectedNameMatcher.modelsForName(deviceName)
-        val oneEarpiece = device.single != null ||
-            (models.isNotEmpty() && models.none { Capability.STEREO_BUDS in it.capabilities })
-        // Второго наушника нет в пакете (один в кейсе с закрытой крышкой и т. п.): судим по первому.
-        if (oneEarpiece || device.secondaryEar == EarState.UNKNOWN) return primaryIn
+        // Одна «чашка» — только у моделей без двух наушников (Max). По одному заряду не судим:
+        // вкладыши тоже могут прислать общий заряд.
+        val oneEarpiece = if (models.isNotEmpty()) {
+            models.none { Capability.STEREO_BUDS in it.capabilities }
+        } else {
+            device.single != null && device.left == null && device.right == null
+        }
+        if (oneEarpiece) return primaryIn
+        // У вкладышей нужен второй наушник. Не знаем его состояние — не решаем, ждём рекламу.
+        if (device.secondaryEar == EarState.UNKNOWN) return null
         return primaryIn && device.secondaryEar == EarState.IN_EAR
     }
 
