@@ -81,6 +81,7 @@ class PodsRepository @Inject constructor(
             // Прямое подключение есть только к подключённым наушникам: накладываем его только на них.
             send(
                 if (session is AapSessionState.Connected && primary != null && primary.connected) {
+                    session.device.case?.let { caseCache.remember(primary.modelId, it.percent) }
                     val earAt = earChangedAt[session.address]
                     val adFresh = earAt == null || primary.lastSeenMs > earAt + AD_AFTER_EAR_MS
                     val side = AapOverlay.resolveSide(primary, session.device, aapSide, adFresh)
