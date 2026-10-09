@@ -1,16 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Значок в строке состояния, уведомлениях и плитке: как значок приложения — AirPods Max в кольце заряда.
-     Одноцветный, цвет задаёт система; «пустая» часть кольца полупрозрачная. -->
+<!-- Значок в строке состояния, уведомлениях и плитке: AirPods Max, как на значке приложения, без кольца.
+     Одноцветный, цвет задаёт система. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Кольцо заряда: заполненная часть и разрыв слева вверху, как на значке приложения. -->
-    <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.8" android:strokeLineCap="round"
-        android:pathData="M13.09,1.66A10.4,10.4 0,1 1,2.04 8.99" />
-    <path android:strokeColor="#FFFFFFFF" android:strokeAlpha="0.35" android:strokeWidth="1.8" android:strokeLineCap="round"
-        android:pathData="M2.99,6.8A10.4,10.4 0,0 1,9.625 1.875" />
+    <!-- Рисунок в 1,4 раза крупнее, чтобы занять весь значок. -->
+    <group android:scaleX="1.4" android:scaleY="1.4" android:pivotX="12" android:pivotY="12.65">
     <!-- Оголовье и сетка под ним. -->
     <path android:strokeColor="#FFFFFFFF" android:strokeWidth="1.5" android:strokeLineCap="round" android:strokeLineJoin="round"
         android:pathData="M6.7,13.2V11.4a5.3,5.3 0,0 1,10.6 0V13.2" />
@@ -24,5 +21,6 @@
     <group android:rotation="15" android:pivotX="16.5" android:pivotY="15.9">
         <path android:fillColor="#FFFFFFFF"
             android:pathData="M16.5,12.6a1.9,1.9 0,0 1,1.9 1.9v2.8a1.9,1.9 0,0 1,-1.9 1.9a1.9,1.9 0,0 1,-1.9 -1.9v-2.8a1.9,1.9 0,0 1,1.9 -1.9z" />
+    </group>
     </group>
 </vector>
