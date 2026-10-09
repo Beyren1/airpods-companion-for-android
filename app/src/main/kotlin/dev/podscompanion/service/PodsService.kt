@@ -4,6 +4,7 @@ import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.content.BroadcastReceiver
+import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -14,9 +15,11 @@ import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.os.Build
 import android.os.SystemClock
+import android.service.quicksettings.TileService
 import android.view.KeyEvent
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
+import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
@@ -29,10 +32,17 @@ import dev.podscompanion.data.autopause.EarDetectionPolicy
 import dev.podscompanion.data.autopause.MediaAction
 import dev.podscompanion.data.settings.AppSettings
 import dev.podscompanion.data.settings.SettingsRepository
+import dev.podscompanion.data.snapshot.StatusSnapshot
+import dev.podscompanion.data.snapshot.StatusSnapshotStore
+import dev.podscompanion.tile.PodsTileService
+import dev.podscompanion.widget.PodsWidget
 import dev.podscompanion.protocol.advertising.Capability
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -56,6 +66,10 @@ class PodsService : LifecycleService() {
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var autoPauseLog: AutoPauseLog
     @Inject lateinit var headGestures: HeadGestureController
+    @Inject lateinit var snapshotStore: StatusSnapshotStore
+
+    /** Последнее состояние для виджета и плитки: пишем в файл, только когда изменились цифры. */
+    private val latestStatus = MutableStateFlow<PodsStatus?>(null)
 
     private lateinit var notifications: PodsNotifications
     private lateinit var audioManager: AudioManager
@@ -113,10 +127,17 @@ class PodsService : LifecycleService() {
         }
         lifecycleScope.launch { idleWatchdog() }
         headGestures.run(lifecycleScope)
+        lifecycleScope.launch { publishSnapshots() }
         startScan()
     }
 
     override fun onDestroy() {
+        // Сервис остановлен: виджет и плитка покажут цифры как последние известные.
+        val context = applicationContext
+        CoroutineScope(Dispatchers.IO).launch {
+            snapshotStore.markAway()
+            refreshSurfaces(context)
+        }
         runCatching { unregisterReceiver(wakeReceiver) }
         runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
         super.onDestroy()
@@ -181,8 +202,23 @@ class PodsService : LifecycleService() {
         }
     }
 
+    private suspend fun publishSnapshots() {
+        latestStatus
+            .map { status -> status?.let { StatusSnapshot.from(it, nowMs = 0) } }
+            .distinctUntilChanged()
+            .collect { snapshot ->
+                if (snapshot == null) {
+                    snapshotStore.markAway()
+                } else {
+                    snapshotStore.save(snapshot.copy(updatedAtMs = System.currentTimeMillis()))
+                }
+                refreshSurfaces(this)
+            }
+    }
+
     private fun onStatus(status: PodsStatus?) {
         notifications.update(status)
+        latestStatus.value = status
         if (!settings.autoPause) return
 
         val worn = status?.let(::isWorn)
@@ -239,6 +275,12 @@ class PodsService : LifecycleService() {
             checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) == PackageManager.PERMISSION_GRANTED
 
     companion object {
+        /** Перерисовать виджет и попросить систему обновить плитку. */
+        private suspend fun refreshSurfaces(context: Context) {
+            runCatching { PodsWidget().updateAll(context) }
+            runCatching { TileService.requestListeningState(context, ComponentName(context, PodsTileService::class.java)) }
+        }
+
         private const val IDLE_AFTER_MS = 2 * 60_000L
         private const val WATCHDOG_PERIOD_MS = 30_000L
 

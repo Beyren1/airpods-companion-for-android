@@ -1,5 +1,6 @@
 package dev.podscompanion.ui.battery
 
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
@@ -11,6 +12,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.PathFillType
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.vector.PathParser
@@ -18,43 +20,42 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.protocol.advertising.PodsModel
+import dev.podscompanion.ui.R
 
 /**
- * Свои упрощённые рисунки наушников: вкладыш-«капля», кейс и накладные.
- * Это не изображения Apple. Цвет задаёт tint у Icon, поэтому все фигуры одноцветные,
- * а «дырки» (сетка динамика, индикатор кейса) вырезаны правилом EvenOdd.
+ * Рисунки наушников. Цветные части (наушники, кейсы, Max) — PNG из иллюстрации, которую дал
+ * владелец проекта (res/drawable-nodpi/pods_*). Одноцветные значки ниже нарисованы кодом:
+ * цвет им задаёт tint у Icon, «дырки» вырезаны правилом EvenOdd.
  */
 object PodsArt {
     /** Рисунок и его реальный размер в миллиметрах: по нему части рисуются в одном масштабе. */
-    data class Art(val image: ImageVector, val widthMm: Float, val heightMm: Float)
+    data class Art(@DrawableRes val image: Int, val widthMm: Float, val heightMm: Float)
 
-    val LeftBud get() = Art(BudLeft, 23f, 31f)
-    val RightBud get() = Art(BudRight, 23f, 31f)
-    val OverEarArt get() = Art(OverEar, 44f, 44f)
-
-    /** Кейс в настоящих пропорциях: у AirPods 4 маленький и почти квадратный, у Pro широкий. */
-    fun caseFor(model: PodsModel?): Art = when (model) {
-        PodsModel.AIRPODS_4, PodsModel.AIRPODS_4_ANC -> Art(Case4, 50.1f, 46.2f)
-        PodsModel.AIRPODS_PRO, PodsModel.AIRPODS_PRO_2, PodsModel.AIRPODS_PRO_2_USB_C, PodsModel.AIRPODS_PRO_3 ->
-            Art(CasePro, 60.6f, 45.2f)
-        else -> Art(Case, 54f, 47f)
+    /** Левый и правый наушник этой модели: Pro — с амбушюрой, AirPods 1–2 — с длинной ножкой. */
+    fun budFor(model: PodsModel?, left: Boolean): Art = when (model.family()) {
+        Family.PRO -> if (left) Art(R.drawable.pods_pro_left, 27.1f, 35.2f) else Art(R.drawable.pods_pro_right, 27.5f, 35.2f)
+        Family.CLASSIC -> if (left) Art(R.drawable.pods_classic_left, 21.7f, 41.7f) else Art(R.drawable.pods_classic_right, 21.7f, 41.7f)
+        Family.OPEN -> if (left) Art(R.drawable.pods_4_left, 27.1f, 41.4f) else Art(R.drawable.pods_4_right, 27.1f, 41.4f)
     }
 
-    /** Кейс Pro: 60,6 × 45,2 мм, крышка около трети высоты, индикатор спереди. */
-    private val CasePro: ImageVector by lazy {
-        icon("CasePro", 60.6f, 45.2f) {
-            fill("M14 0h32.6a14 13 0 0 1 14 13H0a14 13 0 0 1 14-13z")
-            fill("M0 14.4h60.6V31.2a14 14 0 0 1-14 14H14a14 14 0 0 1-14-14z" + "M31.5 22a1.2 1.2 0 1 0-2.4 0a1.2 1.2 0 1 0 2.4 0z")
-        }
+    val OverEarArt get() = Art(R.drawable.pods_max, 44f, 49.9f)
+
+    /** Кейс в пропорциях картинки: у Pro широкий, у AirPods 4 и 1–2 выше. */
+    fun caseFor(model: PodsModel?): Art = when (model.family()) {
+        Family.PRO -> Art(R.drawable.pods_pro_case, 60.6f, 53.7f)
+        Family.CLASSIC -> Art(R.drawable.pods_classic_case, 44.3f, 57.3f)
+        Family.OPEN -> Art(R.drawable.pods_4_case, 50.1f, 59.8f)
     }
 
-    /** Кейс AirPods 4: 50,1 × 46,2 мм, сильнее скруглён, без кнопки. */
-    private val Case4: ImageVector by lazy {
-        icon("Case4", 50.1f, 46.2f) {
-            fill("M18 0h14.1a18 15 0 0 1 18 15H0a18 15 0 0 1 18-15z")
-            fill("M0 16.4h50.1V28.2a18 18 0 0 1-18 18H18a18 18 0 0 1-18-18z" + "M26.25 25a1.2 1.2 0 1 0-2.4 0a1.2 1.2 0 1 0 2.4 0z")
-        }
+    private enum class Family { PRO, OPEN, CLASSIC }
+
+    private fun PodsModel?.family() = when (this) {
+        PodsModel.AIRPODS_PRO, PodsModel.AIRPODS_PRO_2, PodsModel.AIRPODS_PRO_2_USB_C, PodsModel.AIRPODS_PRO_3 -> Family.PRO
+        PodsModel.AIRPODS_1, PodsModel.AIRPODS_2 -> Family.CLASSIC
+        else -> Family.OPEN
     }
+
+    /** Одноцветные значки (для мест, где нужен цвет темы): */
 
     val BudLeft: ImageVector by lazy {
         icon("BudLeft", 48f, 64f) {
@@ -98,26 +99,30 @@ object PodsArt {
     }
 
     private class Builder(val builder: ImageVector.Builder) {
-        fun fill(d: String) {
+        fun fill(d: String, color: Color = Color.Black) {
             builder.addPath(
                 pathData = PathParser().parsePathString(d).toNodes(),
                 pathFillType = PathFillType.EvenOdd,
-                fill = SolidColor(Color.Black),
+                fill = SolidColor(color),
             )
         }
 
-        fun stroke(d: String, width: Float, alpha: Float = 1f) {
+        fun stroke(d: String, color: Color = Color.Black, width: Float, alpha: Float = 1f) {
             builder.addPath(
                 pathData = PathParser().parsePathString(d).toNodes(),
-                stroke = SolidColor(Color.Black),
+                stroke = SolidColor(color),
                 strokeAlpha = alpha,
                 strokeLineWidth = width,
                 strokeLineCap = StrokeCap.Round,
+                strokeLineJoin = StrokeJoin.Round,
             )
         }
+
     }
 
-    private fun icon(name: String, width: Float, height: Float, block: Builder.() -> Unit): ImageVector {
+    private fun icon(name: String, width: Float, height: Float, block: Builder.() -> Unit): ImageVector = art(name, width, height, block)
+
+    private fun art(name: String, width: Float, height: Float, block: Builder.() -> Unit): ImageVector {
         val builder = ImageVector.Builder(
             name = name,
             defaultWidth = width.dp,
