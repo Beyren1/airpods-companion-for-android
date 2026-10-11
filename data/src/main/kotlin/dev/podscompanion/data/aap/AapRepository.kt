@@ -55,6 +55,9 @@ import kotlinx.coroutines.withTimeoutOrNull
 /** Один пакет датчиков головы: от каких наушников и когда пришёл. */
 data class HeadSample(val address: String, val timeMs: Long, val motion: AapEvent.HeadMotion)
 
+/** Нажатие ножки, которое наушники [address] отдали телефону. */
+data class StemPressSample(val address: String, val event: AapEvent.StemPressed)
+
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
 class AapRepository @Inject constructor(
@@ -128,6 +131,11 @@ class AapRepository @Inject constructor(
      * Идёт десятки раз в секунду, поэтому в состояние и журнал не попадает.
      */
     val headMotion: SharedFlow<HeadSample> = _headMotion
+
+    private val _stemPresses = MutableSharedFlow<StemPressSample>(extraBufferCapacity = 8, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /** Нажатия ножки, которые наушники присылают телефону (после [AapCommand.SetStemConfig]). */
+    val stemPresses: SharedFlow<StemPressSample> = _stemPresses
 
     /** Кнопка «Проверить расширенный режим»: не ждать паузы между попытками. */
     fun retryNow() {
@@ -310,6 +318,7 @@ class AapRepository @Inject constructor(
                                 if (logged) log.add("← ${Hex.encode(io.data)} · поток $stream")
                                 return@collect
                             }
+                            if (event is AapEvent.StemPressed) _stemPresses.tryEmit(StemPressSample(address, event))
                             if (event is AapEvent.DeviceInfo) log.add("${target.name}: ${event.label()}")
                             else log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
                             if (event is AapEvent.ListeningModeChanged) link.mode.onReported(event.mode)
@@ -348,6 +357,7 @@ class AapRepository @Inject constructor(
         is AapEvent.ListeningModeChanged -> "режим $mode"
         is AapEvent.ConversationalAwarenessChanged -> "адаптация к разговору ${if (enabled) "вкл" else "выкл"}"
         is AapEvent.HeadMotion -> "датчики головы"
+        is AapEvent.StemPressed -> "нажатие ножки $press" + when (left) { true -> " (левый)"; false -> " (правый)"; null -> "" }
         is AapEvent.ProximityKeys -> "ключи рекламы получены" + if (encryptionKey == null) " (без ключа шифрования)" else ""
         is AapEvent.ControlChanged -> "${ControlId.name(id)} = " + value.joinToString(" ") { "%02X".format(it) }
         // Серийные номера в журнал не пишем: его показывают на скриншотах.

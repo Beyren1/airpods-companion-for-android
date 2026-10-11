@@ -34,4 +34,6 @@
     <string name="player_channel_name">Lancement du lecteur</string>
     <string name="player_open_title">Écouteurs connectés : ouvrir %1$s</string>
     <string name="player_open_text">Touchez pour ouvrir le lecteur et lancer la musique</string>
+    <string name="camera_service_label">Pods Companion : déclencheur photo</string>
+    <string name="camera_service_description">Permet de prendre une photo en appuyant sur la tige des AirPods. L’app vérifie seulement si l’appareil photo est ouvert et appuie sur son déclencheur ; elle ne lit pas les autres apps.</string>
 </resources>

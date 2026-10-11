@@ -17,6 +17,7 @@ import dev.podscompanion.ui.battery.BatteryViewModel
 import dev.podscompanion.ui.battery.DeviceInfoScreen
 import dev.podscompanion.ui.battery.GesturesUi
 import dev.podscompanion.ui.battery.HeadphoneSettingsScreen
+import dev.podscompanion.ui.battery.StemUi
 import dev.podscompanion.ui.battery.HomeScreen
 import dev.podscompanion.ui.battery.MusicSettingsScreen
 import dev.podscompanion.ui.battery.MusicViewModel
@@ -97,6 +98,13 @@ fun PodsNavHost() {
                             onEnabledChange = viewModel::setHeadGestures,
                             onCalibrate = viewModel::startCalibration,
                             onCalibrationDismiss = viewModel::dismissCalibration,
+                        ),
+                        stem = StemUi(
+                            actions = settings.stemActions,
+                            cameraShutter = settings.cameraShutter,
+                            backgroundEnabled = settings.backgroundEnabled,
+                            onActionChange = viewModel::setStemAction,
+                            onCameraShutterChange = viewModel::setCameraShutter,
                         ),
                     )
                 }
