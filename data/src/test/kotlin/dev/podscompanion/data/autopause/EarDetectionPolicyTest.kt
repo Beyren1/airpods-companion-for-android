@@ -65,11 +65,40 @@ class EarDetectionPolicyTest {
     }
 
     @Test
-    fun `наушники пропали — сброс, после возвращения не продолжаем`() {
+    fun `наушники пропали надолго — сброс, после возвращения не продолжаем`() {
         feed(worn = true, playing = true)
         feed(worn = false, playing = true) // пауза
         feed(worn = null, playing = false)
+        now += 61_000
+        feed(worn = null, playing = false, times = 1)
         assertThat(feed(worn = true, playing = false)).isNull()
+    }
+
+    @Test
+    fun `короткий пропуск пакетов не мешает паузе`() {
+        feed(worn = true, playing = true)
+        feed(worn = null, playing = true, times = 5)
+        assertThat(feed(worn = false, playing = true, times = 1)).isEqualTo(MediaAction.PAUSE)
+    }
+
+    @Test
+    fun `короткий пропуск пакетов после паузы — вставили, продолжаем`() {
+        feed(worn = true, playing = true)
+        feed(worn = false, playing = true) // пауза
+        feed(worn = null, playing = false, times = 5)
+        assertThat(feed(worn = true, playing = false, times = 1)).isEqualTo(MediaAction.RESUME)
+    }
+
+    @Test
+    fun `смена во время задержки ждёт повтора, а не теряется`() {
+        val policy = EarDetectionPolicy(cooldownMs = 3_000)
+        policy.onUpdate(true, true, 0)
+        assertThat(policy.onUpdate(false, true, 5_000)).isEqualTo(MediaAction.PAUSE)
+        // Вставили обратно через секунду: пока задержка, продолжения нет, но оно запланировано.
+        assertThat(policy.onUpdate(true, false, 6_000)).isNull()
+        assertThat(policy.retryAtMs()).isEqualTo(8_000)
+        assertThat(policy.onUpdate(true, false, 8_000)).isEqualTo(MediaAction.RESUME)
+        assertThat(policy.retryAtMs()).isNull()
     }
 
     @Test

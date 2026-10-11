@@ -7,6 +7,8 @@ import dev.podscompanion.bluetooth.scan.BluetoothUnavailableException
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.NearbyPods
+import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.popup.LiveStatus
 import dev.podscompanion.data.aap.AapLog
 import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.aap.AapSessions
@@ -55,6 +57,12 @@ private fun <T> Flow<T>.throttleLatest(periodMs: Long): Flow<T> = conflate().tra
 }
 private const val RECORD_MS = 4_000L
 
+/** Сколько после начала скана показываем уже известные наушники, пока скан их не услышал. */
+private const val KNOWN_GRACE_MS = 5_000L
+
+/** Наушники с прошлого открытия экрана подставляем, только если видели их недавно. */
+private const val KNOWN_MAX_AGE_MS = 2 * 60_000L
+
 /** Калибровка жестов головой: кивнуть, затем покачать головой. */
 sealed interface CalibrationState {
     enum class Step { NOD, SHAKE }
@@ -80,6 +88,7 @@ class BatteryViewModel @Inject constructor(
     autoPauseLog: AutoPauseLog,
     private val aapRepository: AapRepository,
     private val aapLogger: AapLog,
+    private val liveStatus: LiveStatus,
 ) : ViewModel() {
 
     /** Прямое подключение к наушникам (расширенный режим). */
@@ -203,11 +212,26 @@ class BatteryViewModel @Inject constructor(
     val state: StateFlow<BatteryUiState> = restarts
         // flatMapLatest: при новом restarts старый скан отменяется (stopScan), стартует новый.
         .flatMapLatest {
+            val startedAt = SystemClock.elapsedRealtime()
+            val useKnown = !skipKnownOnce
+            skipKnownOnce = false
             repository.observeNearby(ScanIntensity.LOW_LATENCY)
                 .map<NearbyPods, BatteryUiState> { nearby ->
-                    if (nearby.primary == null && nearby.others.isEmpty()) BatteryUiState.Searching else BatteryUiState.Found(nearby)
+                    val primary = nearby.primary
+                    if (primary != null && primary.connected) rememberPrimary(primary)
+                    // Скан только начался и своих наушников ещё не услышал: первую секунду-две
+                    // показываем, что знали до этого, а не «наушники не подключены».
+                    val known = if (primary == null && useKnown && SystemClock.elapsedRealtime() - startedAt < KNOWN_GRACE_MS) knownPrimary() else null
+                    when {
+                        known != null -> BatteryUiState.Found(nearby.copy(primary = known))
+                        primary == null && nearby.others.isEmpty() -> BatteryUiState.Searching
+                        else -> BatteryUiState.Found(nearby)
+                    }
                 }
-                .onStart { emit(BatteryUiState.Searching) }
+                .onStart {
+                    val known = if (useKnown) knownPrimary() else null
+                    emit(if (known != null) BatteryUiState.Found(NearbyPods(known, emptyList())) else BatteryUiState.Searching)
+                }
                 .catch { e ->
                     emit(
                         if (e is BluetoothUnavailableException) BatteryUiState.BluetoothOff
@@ -219,8 +243,31 @@ class BatteryViewModel @Inject constructor(
         .onEach { if (it !is BatteryUiState.Searching) stopRefreshing() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), BatteryUiState.Searching)
 
+    /** Последние подключённые наушники с экрана и когда их видели (elapsedRealtime). */
+    private var lastPrimary: PodsStatus? = null
+    private var lastPrimaryAtMs = 0L
+
+    /** Свайп вниз: пользователь хочет свежий скан, старое состояние не подставляем. */
+    private var skipKnownOnce = false
+
+    private fun rememberPrimary(status: PodsStatus) {
+        lastPrimary = status
+        lastPrimaryAtMs = SystemClock.elapsedRealtime()
+    }
+
+    /**
+     * Подключённые наушники, известные до начала скана: от фонового сервиса (он слушает всё время)
+     * или с прошлого открытия экрана, если это было недавно.
+     */
+    private fun knownPrimary(): PodsStatus? {
+        liveStatus.status.value?.takeIf { it.connected }?.let { return it }
+        val last = lastPrimary ?: return null
+        return last.takeIf { SystemClock.elapsedRealtime() - lastPrimaryAtMs < KNOWN_MAX_AGE_MS }
+    }
+
     /** Свайп вниз: перезапуск скана. Индикатор крутится до первого результата, но не дольше 5 с. */
     fun refresh() {
+        skipKnownOnce = true
         _refreshing.value = true
         restarts.value++
         refreshTimeout?.cancel()

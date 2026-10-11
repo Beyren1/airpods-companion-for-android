@@ -28,14 +28,19 @@ object AapOverlay {
      * 4. Бит стороны из рекламы. Он ненадёжен: у Pro 2 при обоих наушниках в ушах он указывал на
      *    другой наушник, и после вынимания ~5 с, до свежего пакета, вынутым показывался не тот.
      */
-    fun resolveSide(status: PodsStatus, aap: AapDeviceState, previous: Side?): Side {
+    /**
+     * @param adFresh реклама пришла уже после последней смены уха по AAP. Старая реклама может
+     *   показывать вынутым другой наушник (вынули правый, вставили, сразу вынули левый — реклама
+     *   ещё про правый): сверяться с ней нельзя, иначе стороны переворачиваются и так и остаются.
+     */
+    fun resolveSide(status: PodsStatus, aap: AapDeviceState, previous: Side?, adFresh: Boolean = true): Side {
         val primaryIn = aap.primaryEar == EarState.IN_EAR
         val secondaryIn = aap.secondaryEar == EarState.IN_EAR
         val aapDiffers = primaryIn != secondaryIn && aap.secondaryEar != EarState.UNKNOWN
         val adDiffers = status.left.inEar != status.right.inEar
         val fromBattery = aap.batteryPrimaryIsLeft
         return when {
-            aapDiffers && adDiffers -> Side(primaryIn == status.left.inEar, aap.primarySwaps, confirmed = true)
+            aapDiffers && adDiffers && adFresh -> Side(primaryIn == status.left.inEar, aap.primarySwaps, confirmed = true)
             previous != null && previous.confirmed -> previous
             fromBattery != null -> Side(fromBattery, aap.batteryPrimarySwaps)
             previous != null -> previous

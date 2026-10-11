@@ -105,4 +105,31 @@ class AapOverlayTest {
         assertThat(result.left.inEar).isFalse()
         assertThat(result.right.inEar).isTrue()
     }
+
+    @Test
+    fun `старая реклама про другой наушник не переворачивает стороны`() {
+        // Заряд «левый, правый»: primary — левый. Вынули правый (secondary), реклама это подтвердила.
+        var aap = AapDeviceState()
+            .apply(AapEvent.EarDetection(EarState.IN_EAR, EarState.IN_EAR))
+            .apply(
+                AapEvent.Battery(
+                    listOf(
+                        AapBattery(BatteryComponent.LEFT, 100, charging = false, connected = true),
+                        AapBattery(BatteryComponent.RIGHT, 93, charging = false, connected = true),
+                    ),
+                ),
+            )
+            .apply(AapEvent.EarDetection(EarState.IN_EAR, EarState.OUT_OF_EAR))
+        val rightOut = advertised.copy(right = worn.copy(inEar = false))
+        var side = AapOverlay.resolveSide(rightOut, aap, previous = null)
+        assertThat(side.primaryIsLeftNow(aap)).isTrue()
+
+        // Правый вставили и сразу вынули левый (primary): реклама ещё старая — «правый вынут».
+        aap = aap.apply(AapEvent.EarDetection(EarState.IN_EAR, EarState.IN_EAR))
+        aap = aap.apply(AapEvent.EarDetection(EarState.OUT_OF_EAR, EarState.IN_EAR))
+        side = AapOverlay.resolveSide(rightOut, aap, side, adFresh = false)
+        val result = AapOverlay.apply(rightOut, aap, side.primaryIsLeftNow(aap))
+        assertThat(result.left.inEar).isFalse()
+        assertThat(result.right.inEar).isTrue()
+    }
 }
