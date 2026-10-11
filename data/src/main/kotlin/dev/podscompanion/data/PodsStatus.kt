@@ -39,6 +39,10 @@ data class PodsStatus(
     val owner: String? = null,
     /** Заряд расшифрован из рекламы ключом наушников: точный, а не десятками. */
     val exactFromAdvert: Boolean = false,
+    /** Состояние собрано из рекламы; false — рекламы не слышно, карточка по подключению (см. [ConnectedFallback]). */
+    val advertised: Boolean = true,
+    /** Флагам «в ухе» можно верить; false — их никто не прислал, и по ним нельзя ставить автопаузу. */
+    val earKnown: Boolean = true,
 ) {
     /** Заряд точный (из AAP или расшифрованной рекламы), а не десятками. */
     val exactBattery: Boolean get() = exactFromAdvert ||

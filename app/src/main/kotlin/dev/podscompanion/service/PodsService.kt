@@ -273,10 +273,11 @@ class PodsService : LifecycleService() {
     private fun evaluateAutoPause() {
         if (!settings.autoPause) return
         val status = latestStatus.value
-        // Обычно наушники видны в рекламе, и на их состояние уже наложено AAP с правильными сторонами.
-        // Только если рекламы сейчас не слышно, решаем по AAP напрямую.
-        val aapSession = if (status == null) aapSessionFor(null) else null
-        val worn = status?.let(WornState::fromAdvertising) ?: aapSession?.let { WornState.fromAap(it.device, it.deviceName) }
+        // Обычно на состояние уже наложено AAP с правильными сторонами. Если флагам «в ухе» верить
+        // нельзя (рекламы не слышно и AAP ухо не прислал), пробуем AAP напрямую, иначе музыку не трогаем.
+        val usable = status?.takeIf { it.earKnown }
+        val aapSession = if (usable == null) aapSessionFor(status) else null
+        val worn = usable?.let(WornState::fromAdvertising) ?: aapSession?.let { WornState.fromAap(it.device, it.deviceName) }
         val name = status?.model?.displayName ?: aapSession?.deviceName
         if (worn != lastWorn || name != lastLoggedName) {
             lastWorn = worn
