@@ -73,6 +73,21 @@ import dev.podscompanion.protocol.aap.pressAndHold
 import dev.podscompanion.protocol.aap.toggle
 import dev.podscompanion.protocol.advertising.PodsModel
 import dev.podscompanion.ui.R
+import android.content.Intent
+import android.provider.Settings
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Bedtime
+import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
+import dev.podscompanion.data.settings.CUSTOM_STEM_PRESSES
+import dev.podscompanion.data.settings.StemAction
+import dev.podscompanion.data.stem.CameraBridge
+import dev.podscompanion.protocol.aap.CallControl
+import dev.podscompanion.protocol.aap.StemPress
+import dev.podscompanion.protocol.aap.VolumeSwipeSpeed
+import dev.podscompanion.protocol.aap.callControl
+import dev.podscompanion.protocol.aap.volumeSwipeSpeed
 
 /**
  * Настройки наушников по прямому подключению, сгруппированные по смыслу. Показываем только то,
@@ -87,6 +102,7 @@ fun HeadphoneSettingsScreen(
     onCommand: (address: String, AapCommand) -> Unit,
     onBack: () -> Unit,
     gestures: GesturesUi = GesturesUi(),
+    stem: StemUi = StemUi(),
 ) {
     val context = LocalContext.current
     val setAlias = rememberAliasSetter { result ->
@@ -124,7 +140,7 @@ fun HeadphoneSettingsScreen(
                 if (model == null || Capability.HEAD_GESTURES in model.capabilities) {
                     HeadGesturesSection(gestures, onCalibrate = { gestures.onCalibrate(session.address) })
                 }
-                SettingsContent(session, model) { onCommand(session.address, it) }
+                SettingsContent(session, model, stem) { onCommand(session.address, it) }
             } else {
                 Text(
                     stringResource(R.string.settings_need_direct),
@@ -146,6 +162,15 @@ data class GesturesUi(
     val onEnabledChange: (Boolean) -> Unit = {},
     val onCalibrate: (address: String) -> Unit = {},
     val onCalibrationDismiss: () -> Unit = {},
+)
+
+/** Свои действия на нажатия ножки и затвор камеры: хранятся в приложении, выполняет их фоновый сервис. */
+data class StemUi(
+    val actions: Map<StemPress, StemAction> = emptyMap(),
+    val cameraShutter: Boolean = false,
+    val backgroundEnabled: Boolean = false,
+    val onActionChange: (StemPress, StemAction?) -> Unit = { _, _ -> },
+    val onCameraShutterChange: (Boolean) -> Unit = {},
 )
 
 /** Имя наушников: по нажатию окно для нового имени. */
@@ -278,7 +303,7 @@ private fun CalibrationDialog(state: CalibrationState, onRetry: () -> Unit, onDi
 }
 
 @Composable
-private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel?, send: (AapCommand) -> Unit) {
+private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel?, stem: StemUi, send: (AapCommand) -> Unit) {
     // Часть настроек наушники не присылают (Max — см. MAX_DEFAULT_CONTROLS, у остальных бывает без
     // набора режимов для зажатия): недостающие берём заводскими, чтобы их всё равно можно было выбрать.
     val isMax = model != null && Capability.DIGITAL_CROWN in model.capabilities
@@ -299,6 +324,14 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
     val speed = device.pressSpeed
     val holdTime = device.holdDuration
     val tones = device.toneVolume
+    val call = device.callControl
+    val swipe = device.toggle(AapToggle.VOLUME_SWIPE)
+    val swipeSpeed = device.volumeSwipeSpeed
+    val allowOff = device.toggle(AapToggle.ALLOW_OFF)
+    val sleep = device.toggle(AapToggle.SLEEP_DETECTION)
+    val charging = device.toggle(AapToggle.OPTIMIZED_CHARGING)
+    // Ножка есть у наушников, которые сообщают настройку зажатия; у Max её нет.
+    val hasStem = !isMax && hold != null
 
     if (personalized != null || strength != null) {
         SectionTitle(stringResource(R.string.section_sound))
@@ -347,6 +380,25 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
         }
     }
 
+    if (hasStem) StemSection(stem, noiseControl = cycle != null)
+
+    if (call != null) {
+        SectionTitle(stringResource(R.string.section_calls))
+        SettingsGroup {
+            row {
+                BlockRow {
+                    Text(stringResource(R.string.setting_call_mute), style = MaterialTheme.typography.bodyLarge)
+                    Choice(CallControl.entries, call, { c -> stringResource(c.title()) }) { c -> send(AapCommand.SetCallControl(c)) }
+                    Text(
+                        stringResource(if (call == CallControl.MUTE_ON_SINGLE) R.string.setting_call_end_double else R.string.setting_call_end_single),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
+
     if (crown != null) {
         SectionTitle(stringResource(R.string.setting_crown))
         SettingsGroup {
@@ -361,7 +413,7 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
         }
     }
 
-    if (speed != null || holdTime != null) {
+    if (speed != null || holdTime != null || swipe != null || swipeSpeed != null) {
         SectionTitle(stringResource(R.string.section_press))
         SettingsGroup {
             if (speed != null) row {
@@ -376,10 +428,23 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
                     ChipChoice(HoldDuration.entries, holdTime, { v -> stringResource(v.title()) }) { v -> send(AapCommand.SetHoldDuration(v)) }
                 }
             }
+            if (swipe != null) row {
+                SwitchRow(
+                    stringResource(R.string.setting_volume_swipe), swipe,
+                    { on -> send(AapCommand.SetToggle(AapToggle.VOLUME_SWIPE, on)) },
+                    description = stringResource(R.string.setting_volume_swipe_hint),
+                )
+            }
+            if (swipeSpeed != null && swipe != false) row {
+                BlockRow {
+                    Text(stringResource(R.string.setting_volume_swipe_speed), style = MaterialTheme.typography.bodyLarge)
+                    ChipChoice(VolumeSwipeSpeed.entries, swipeSpeed, { v -> stringResource(v.title()) }) { v -> send(AapCommand.SetVolumeSwipeSpeed(v)) }
+                }
+            }
         }
     }
 
-    if (mic != null || ear != null || tones != null) {
+    if (mic != null || ear != null || tones != null || allowOff != null || sleep != null || charging != null) {
         SectionTitle(stringResource(R.string.section_other))
         SettingsGroup {
             if (mic != null) row {
@@ -401,11 +466,35 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
                 )
             }
             if (tones != null) row { ToneVolumeSlider(tones) { value -> send(AapCommand.SetToneVolume(value)) } }
+            if (allowOff != null) row {
+                SwitchRow(
+                    stringResource(R.string.setting_allow_off), allowOff,
+                    { on -> send(AapCommand.SetToggle(AapToggle.ALLOW_OFF, on)) },
+                    description = stringResource(R.string.setting_allow_off_hint),
+                )
+            }
+            if (sleep != null) row {
+                SwitchRow(
+                    stringResource(R.string.setting_sleep), sleep,
+                    { on -> send(AapCommand.SetToggle(AapToggle.SLEEP_DETECTION, on)) },
+                    icon = Icons.Filled.Bedtime,
+                    description = stringResource(R.string.setting_sleep_hint),
+                )
+            }
+            if (charging != null) row {
+                SwitchRow(
+                    stringResource(R.string.setting_optimized_charging), charging,
+                    { on -> send(AapCommand.SetToggle(AapToggle.OPTIMIZED_CHARGING, on)) },
+                    icon = Icons.Filled.BatteryChargingFull,
+                    description = stringResource(R.string.setting_optimized_charging_hint),
+                )
+            }
         }
     }
 
     if (personalized == null && strength == null && hold == null && cycle == null && mic == null && ear == null && crown == null &&
-        speed == null && holdTime == null && tones == null
+        speed == null && holdTime == null && tones == null && call == null && swipe == null && swipeSpeed == null &&
+        allowOff == null && sleep == null && charging == null
     ) {
         Text(
             stringResource(R.string.settings_none),
@@ -427,6 +516,67 @@ private fun SettingsContent(session: AapSessionState.Connected, model: PodsModel
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         modifier = Modifier.padding(horizontal = 8.dp),
     )
+}
+
+/**
+ * Свои действия на одно, двойное и тройное нажатие ножки и затвор камеры. Их выполняет приложение,
+ * поэтому нужен фоновый режим; «Обычное» — наушники делают своё (пауза, следующий, предыдущий трек).
+ */
+@Composable
+private fun StemSection(ui: StemUi, noiseControl: Boolean) {
+    val context = LocalContext.current
+    var serviceOn by remember { mutableStateOf(CameraBridge.serviceEnabled(context)) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { serviceOn = CameraBridge.serviceEnabled(context) }
+    var explainCamera by rememberSaveable { mutableStateOf(false) }
+    val actions = listOf<StemAction?>(null, StemAction.PLAY_PAUSE, StemAction.NEXT_TRACK, StemAction.PREVIOUS_TRACK, StemAction.ASSISTANT) +
+        if (noiseControl) listOf(StemAction.NOISE_MODE) else emptyList()
+
+    SectionTitle(stringResource(R.string.section_stem))
+    SettingsGroup {
+        CUSTOM_STEM_PRESSES.forEach { press ->
+            row {
+                BlockRow {
+                    Text(stringResource(press.title()), style = MaterialTheme.typography.bodyLarge)
+                    ChipChoice(actions, ui.actions[press], { a -> stringResource(a?.title() ?: press.defaultTitle()) }) { a ->
+                        ui.onActionChange(press, a)
+                    }
+                }
+            }
+        }
+        row {
+            SwitchRow(
+                stringResource(R.string.setting_camera), ui.cameraShutter && serviceOn,
+                { on -> if (on && !serviceOn) explainCamera = true else ui.onCameraShutterChange(on) },
+                icon = Icons.Filled.PhotoCamera,
+                description = stringResource(R.string.setting_camera_hint),
+            )
+        }
+    }
+    if (!ui.backgroundEnabled && (ui.actions.isNotEmpty() || ui.cameraShutter)) {
+        Text(
+            stringResource(R.string.stem_need_background),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.padding(horizontal = 8.dp),
+        )
+    }
+    if (explainCamera) {
+        AlertDialog(
+            onDismissRequest = { explainCamera = false },
+            title = { Text(stringResource(R.string.camera_dialog_title)) },
+            text = { Text(stringResource(R.string.camera_dialog_text)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    explainCamera = false
+                    ui.onCameraShutterChange(true)
+                    runCatching {
+                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    }
+                }) { Text(stringResource(R.string.camera_dialog_open)) }
+            },
+            dismissButton = { TextButton(onClick = { explainCamera = false }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
 }
 
 @Composable
@@ -532,6 +682,40 @@ private fun HoldDuration.title() = when (this) {
 private fun CrownDirection.title() = when (this) {
     CrownDirection.BACK_TO_FRONT -> R.string.crown_back_to_front
     CrownDirection.FRONT_TO_BACK -> R.string.crown_front_to_back
+}
+
+private fun CallControl.title() = when (this) {
+    CallControl.MUTE_ON_SINGLE -> R.string.call_press_once
+    CallControl.MUTE_ON_DOUBLE -> R.string.call_press_twice
+}
+
+private fun VolumeSwipeSpeed.title() = when (this) {
+    VolumeSwipeSpeed.DEFAULT -> R.string.speed_default
+    VolumeSwipeSpeed.LONGER -> R.string.swipe_longer
+    VolumeSwipeSpeed.LONGEST -> R.string.swipe_longest
+}
+
+private fun StemPress.title() = when (this) {
+    StemPress.SINGLE -> R.string.stem_single
+    StemPress.DOUBLE -> R.string.stem_double
+    StemPress.TRIPLE -> R.string.stem_triple
+    StemPress.LONG -> R.string.setting_press_hold
+}
+
+/** «Обычное» с подсказкой, что делают наушники сами. */
+private fun StemPress.defaultTitle() = when (this) {
+    StemPress.SINGLE -> R.string.stem_default_single
+    StemPress.DOUBLE -> R.string.stem_default_double
+    StemPress.TRIPLE -> R.string.stem_default_triple
+    StemPress.LONG -> R.string.stem_default_single
+}
+
+private fun StemAction.title() = when (this) {
+    StemAction.PLAY_PAUSE -> R.string.stem_play_pause
+    StemAction.NEXT_TRACK -> R.string.stem_next
+    StemAction.PREVIOUS_TRACK -> R.string.stem_previous
+    StemAction.ASSISTANT -> R.string.press_assistant
+    StemAction.NOISE_MODE -> R.string.stem_noise_mode
 }
 
 private fun PressAction.title() = when (this) {

@@ -33,6 +33,7 @@ import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.media.MediaRepository
 import dev.podscompanion.data.battery.LowBatteryWatcher
 import dev.podscompanion.data.gestures.HeadGestureController
+import dev.podscompanion.data.stem.StemActionController
 import dev.podscompanion.data.popup.CaseOpenDetector
 import dev.podscompanion.data.popup.LiveStatus
 import dev.podscompanion.popup.CasePopupActivity
@@ -76,6 +77,7 @@ class PodsService : LifecycleService() {
     @Inject lateinit var settingsRepository: SettingsRepository
     @Inject lateinit var autoPauseLog: AutoPauseLog
     @Inject lateinit var headGestures: HeadGestureController
+    @Inject lateinit var stemActions: StemActionController
     @Inject lateinit var snapshotStore: StatusSnapshotStore
     @Inject lateinit var liveStatus: LiveStatus
     @Inject lateinit var mediaRepository: MediaRepository
@@ -152,6 +154,7 @@ class PodsService : LifecycleService() {
         }
         lifecycleScope.launch { idleWatchdog() }
         headGestures.run(lifecycleScope)
+        stemActions.run(lifecycleScope)
         lifecycleScope.launch { publishSnapshots() }
         music = MusicAutomation(this, mediaRepository, aapRepository, connectedAudio, autoPauseLog) { settings }
         music.run(lifecycleScope, settingsRepository.settings)
@@ -169,6 +172,7 @@ class PodsService : LifecycleService() {
             snapshotStore.markAway()
             refreshSurfaces(context)
         }
+        if (::stemActions.isInitialized) stemActions.release()
         runCatching { unregisterReceiver(wakeReceiver) }
         runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
         super.onDestroy()

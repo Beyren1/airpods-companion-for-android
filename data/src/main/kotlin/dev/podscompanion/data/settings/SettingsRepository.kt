@@ -11,6 +11,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.podscompanion.data.media.AppModeRulesCodec
 import dev.podscompanion.protocol.aap.HeadCalibration
 import dev.podscompanion.protocol.aap.ListeningMode
+import dev.podscompanion.protocol.aap.StemPress
 import javax.inject.Inject
 import javax.inject.Singleton
 import kotlinx.coroutines.flow.Flow
@@ -48,7 +49,20 @@ data class AppSettings(
     val appModeRules: Map<String, ListeningMode> = emptyMap(),
     /** Сняли наушники больше чем на 2 минуты — при надевании отмотать трек на 5 секунд назад. */
     val smartResume: Boolean = false,
+    /** Свои действия на нажатия ножки; нет в списке — наушники делают своё обычное. */
+    val stemActions: Map<StemPress, StemAction> = emptyMap(),
+    /** В открытой камере одно нажатие ножки делает снимок (нужна служба специальных возможностей). */
+    val cameraShutter: Boolean = false,
 )
+
+/**
+ * Что сделать по нажатию ножки вместо обычного. Работает, пока запущен фоновый режим:
+ * наушники отдают нажатие телефону, а выполняет его приложение.
+ */
+enum class StemAction { PLAY_PAUSE, NEXT_TRACK, PREVIOUS_TRACK, ASSISTANT, NOISE_MODE }
+
+/** Нажатия, для которых можно выбрать своё действие. Зажатие настраивается в самих наушниках. */
+val CUSTOM_STEM_PRESSES = listOf(StemPress.SINGLE, StemPress.DOUBLE, StemPress.TRIPLE)
 
 /** Пороги, которые можно выбрать в настройках. */
 val LOW_BATTERY_THRESHOLDS = listOf(10, 20, 30)
@@ -82,6 +96,10 @@ class SettingsRepository @Inject constructor(
                 appModes = prefs[APP_MODES] ?: false,
                 appModeRules = AppModeRulesCodec.decode(prefs[APP_MODE_RULES].orEmpty()),
                 smartResume = prefs[SMART_RESUME] ?: false,
+                stemActions = CUSTOM_STEM_PRESSES.mapNotNull { press ->
+                    StemAction.entries.firstOrNull { it.name == prefs[stemKey(press)] }?.let { press to it }
+                }.toMap(),
+                cameraShutter = prefs[CAMERA_SHUTTER] ?: false,
             )
         }
         .distinctUntilChanged()
@@ -150,6 +168,15 @@ class SettingsRepository @Inject constructor(
         context.settingsStore.edit { it[SMART_RESUME] = value }
     }
 
+    /** [action] null — пусть наушники делают своё обычное. */
+    suspend fun setStemAction(press: StemPress, action: StemAction?) {
+        context.settingsStore.edit { if (action == null) it.remove(stemKey(press)) else it[stemKey(press)] = action.name }
+    }
+
+    suspend fun setCameraShutter(value: Boolean) {
+        context.settingsStore.edit { it[CAMERA_SHUTTER] = value }
+    }
+
     suspend fun setHeadGestures(value: Boolean) {
         context.settingsStore.edit { it[HEAD_GESTURES] = value }
     }
@@ -184,5 +211,8 @@ class SettingsRepository @Inject constructor(
         val APP_MODES = booleanPreferencesKey("app_modes")
         val APP_MODE_RULES = stringSetPreferencesKey("app_mode_rules")
         val SMART_RESUME = booleanPreferencesKey("smart_resume")
+        val CAMERA_SHUTTER = booleanPreferencesKey("camera_shutter")
+
+        fun stemKey(press: StemPress) = stringPreferencesKey("stem_action_${press.name.lowercase()}")
     }
 }

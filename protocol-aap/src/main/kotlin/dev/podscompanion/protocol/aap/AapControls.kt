@@ -26,9 +26,33 @@ object ControlId {
 
     /** Громкость звуковых сигналов, 0..100; у Max два одинаковых байта (журнал: 50 50 = 80 %). */
     const val TONE_VOLUME = 0x1F
+
+    /** Скорость жеста громкости по ножке: 01 обычная, 02 дольше, 03 ещё дольше. */
+    const val VOLUME_SWIPE_SPEED = 0x23
+
+    /** Звонок: что делает одно нажатие (см. [CallControl]). Max присылают 00 03. */
+    const val CALL_CONTROL = 0x24
+
+    /** Громкость свайпом по ножке (Pro 2). */
+    const val VOLUME_SWIPE = 0x25
     const val PERSONALIZED_VOLUME = 0x26
     const val CONVERSATIONAL_AWARENESS = 0x28
     const val ADAPTIVE_STRENGTH = 0x2E
+
+    /** Разрешить режим «Выкл»: новые прошивки без этого не переключаются в «Выкл». */
+    const val ALLOW_OFF = 0x34
+
+    /** Пауза, когда вы уснули (свежие прошивки). */
+    const val SLEEP_DETECTION = 0x35
+
+    /**
+     * Какие нажатия ножки наушники не выполняют сами, а присылают телефону (пакет [Opcode.STEM_PRESS]):
+     * битовая маска, одно 01, двойное 02, тройное 04, зажатие 08.
+     */
+    const val STEM_CONFIG = 0x39
+
+    /** Оптимизированная зарядка: не заряжать до 100 %, пока это не нужно. */
+    const val OPTIMIZED_CHARGING = 0x3B
 
     /** Подпись для журнала. */
     fun name(id: Int): String = when (id) {
@@ -44,6 +68,13 @@ object ControlId {
         PERSONALIZED_VOLUME -> "персонализированная громкость"
         CONVERSATIONAL_AWARENESS -> "адаптация к разговору"
         ADAPTIVE_STRENGTH -> "сила адаптивного режима"
+        VOLUME_SWIPE_SPEED -> "скорость жеста громкости"
+        CALL_CONTROL -> "управление звонком"
+        VOLUME_SWIPE -> "жест громкости"
+        ALLOW_OFF -> "разрешить «Выкл»"
+        SLEEP_DETECTION -> "пауза во сне"
+        STEM_CONFIG -> "нажатия для телефона"
+        OPTIMIZED_CHARGING -> "оптимизированная зарядка"
         else -> OTHER_NAMES[id]?.let { "$it (0x%02X)".format(id) } ?: "настройка 0x%02X".format(id)
     }
 
@@ -59,9 +90,6 @@ object ControlId {
         0x15 to "двойное нажатие",
         0x1E to "автоответ",
         0x20 to "автоподключение",
-        0x23 to "интервал жеста громкости",
-        0x24 to "управление звонком",
-        0x25 to "жест громкости",
         0x27 to "выключение микрофона",
         0x29 to "SSL",
         0x2C to "слуховой аппарат",
@@ -70,8 +98,6 @@ object ControlId {
         0x31 to "звук в кейсе",
         0x32 to "сигналы Siri",
         0x33 to "помощь слуху",
-        0x34 to "разрешить «Выкл»",
-        0x35 to "определение сна",
         0x36 to "разрешить автоподключение",
     )
 }
@@ -81,6 +107,44 @@ enum class AapToggle(val id: Int) {
     CONVERSATIONAL_AWARENESS(ControlId.CONVERSATIONAL_AWARENESS),
     PERSONALIZED_VOLUME(ControlId.PERSONALIZED_VOLUME),
     EAR_DETECTION(ControlId.EAR_DETECTION),
+    VOLUME_SWIPE(ControlId.VOLUME_SWIPE),
+    ALLOW_OFF(ControlId.ALLOW_OFF),
+    SLEEP_DETECTION(ControlId.SLEEP_DETECTION),
+    OPTIMIZED_CHARGING(ControlId.OPTIMIZED_CHARGING),
+}
+
+/**
+ * Нажатия ножки во время звонка. Второй байт значения: 03 — одно нажатие выключает и включает
+ * микрофон, два — завершают звонок (заводское); 02 — наоборот. Первый байт всегда 00.
+ */
+enum class CallControl(val code: Int) {
+    MUTE_ON_SINGLE(0x03), MUTE_ON_DOUBLE(0x02);
+
+    companion object {
+        fun of(code: Int) = entries.firstOrNull { it.code == code }
+    }
+}
+
+/** Как долго вести пальцем по ножке, чтобы сменить громкость: 01 обычно, 02 дольше, 03 ещё дольше. */
+enum class VolumeSwipeSpeed(val code: Int) {
+    DEFAULT(0x01), LONGER(0x02), LONGEST(0x03);
+
+    companion object {
+        /** 00 некоторые наушники присылают вместо 01: это то же «обычно». */
+        fun of(code: Int) = if (code == 0x00) DEFAULT else entries.firstOrNull { it.code == code }
+    }
+}
+
+/** Нажатие ножки, которое наушники прислали телефону (см. [ControlId.STEM_CONFIG]). */
+enum class StemPress(val code: Int, val bit: Int) {
+    SINGLE(0x05, 0x01), DOUBLE(0x06, 0x02), TRIPLE(0x07, 0x04), LONG(0x08, 0x08);
+
+    companion object {
+        fun of(code: Int) = entries.firstOrNull { it.code == code }
+
+        /** Маска для [AapCommand.SetStemConfig]. */
+        fun mask(presses: Set<StemPress>): Int = presses.sumOf { it.bit }
+    }
 }
 
 /** Какой наушник слушает микрофоном. */
@@ -196,6 +260,22 @@ sealed interface AapCommand {
         override val label get() = "сила адаптивного режима $value"
     }
 
+    data class SetCallControl(val value: CallControl) : AapCommand {
+        override val bytes get() = control(ControlId.CALL_CONTROL, 0x00, value.code)
+        override val label get() = "управление звонком $value"
+    }
+
+    data class SetVolumeSwipeSpeed(val speed: VolumeSwipeSpeed) : AapCommand {
+        override val bytes get() = control(ControlId.VOLUME_SWIPE_SPEED, speed.code)
+        override val label get() = "скорость жеста громкости $speed"
+    }
+
+    /** Эти нажатия наушники перестанут выполнять сами и будут присылать телефону. Пустой набор — всё как обычно. */
+    data class SetStemConfig(val presses: Set<StemPress>) : AapCommand {
+        override val bytes get() = control(ControlId.STEM_CONFIG, StemPress.mask(presses))
+        override val label get() = "нажатия для телефона ${presses.ifEmpty { "нет" }}"
+    }
+
     /** Новое имя наушников. Android может показывать старое до переподключения. */
     data class Rename(val name: String) : AapCommand {
         override val bytes get() = Aap.rename(name)
@@ -254,6 +334,16 @@ val AapDeviceState.holdDuration: HoldDuration?
 
 val AapDeviceState.toneVolume: Int?
     get() = controls[ControlId.TONE_VOLUME]?.firstOrNull()?.takeIf { it in 0..100 }
+
+val AapDeviceState.callControl: CallControl?
+    get() = controls[ControlId.CALL_CONTROL]?.getOrNull(1)?.let(CallControl::of)
+
+val AapDeviceState.volumeSwipeSpeed: VolumeSwipeSpeed?
+    get() = controls[ControlId.VOLUME_SWIPE_SPEED]?.firstOrNull()?.let(VolumeSwipeSpeed::of)
+
+/** Маска нажатий, которые сейчас уходят телефону; 0 — наушники всё делают сами. */
+val AapDeviceState.stemConfigMask: Int
+    get() = controls[ControlId.STEM_CONFIG]?.firstOrNull() ?: 0
 
 val AapDeviceState.crownDirection: CrownDirection?
     get() = controls[ControlId.CROWN_ROTATION]?.firstOrNull()?.let(CrownDirection::of)
