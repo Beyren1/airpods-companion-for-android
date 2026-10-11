@@ -16,6 +16,7 @@
     <string name="widget_right">Правый</string>
     <string name="widget_case">Кейс</string>
     <string name="widget_battery">Заряд</string>
+    <string name="widget_charging">Заряжается</string>
 
     <!-- Плитка в шторке -->
     <string name="tile_label">Наушники</string>
