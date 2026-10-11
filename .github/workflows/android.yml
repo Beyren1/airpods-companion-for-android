@@ -39,3 +39,25 @@ jobs:
             RELEASE_KEY_ALIAS=ci RELEASE_KEY_PASSWORD=cipass123 ./gradlew --stacktrace assembleRelease
           apksigner=$(ls -d "$ANDROID_HOME"/build-tools/*/apksigner | sort -V | tail -n 1)
           "$apksigner" verify app/build/outputs/apk/release/app-release.apk
+      # Размер итоговой сборки по частям: код (dex), ресурсы, профиль запуска. Видно в сводке запуска CI.
+      - name: APK size report
+        run: |
+          for apk in app/build/outputs/apk/fast/*.apk app/build/outputs/apk/release/app-release.apk; do
+            {
+              echo "### $(basename "$apk"): $(( $(stat -c%s "$apk") / 1024 )) KB"
+              echo '```'
+              unzip -lv "$apk" | awk 'NR>3 && $8!="" && $8!~/\/$/ && $1~/^[0-9]+$/ {
+                name=$8; part="other"
+                if (name ~ /\.dex$/) part="dex"
+                else if (name=="resources.arsc") part="resources.arsc"
+                else if (name ~ /^res\//) part="res/"
+                else if (name ~ /^lib\//) part="lib/"
+                else if (name ~ /^META-INF\//) part="META-INF/"
+                else if (name ~ /^assets\/dexopt\//) part=name
+                else if (name ~ /^kotlin\//) part="kotlin/"
+                packed[part]+=$3
+              } END { for (p in packed) printf "%-32s %8.1f KB packed\n", p, packed[p]/1024 }' | sort
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          done
+          cat "$GITHUB_STEP_SUMMARY"

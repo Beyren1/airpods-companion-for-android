@@ -1,10 +1,12 @@
 package dev.podscompanion.bluetooth.aap
 
 import android.annotation.SuppressLint
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothSocket
 import android.os.Build
 import android.os.ParcelUuid
+import dev.podscompanion.protocol.aap.Aap
 import org.lsposed.hiddenapibypass.HiddenApiBypass
 import timber.log.Timber
 
@@ -17,7 +19,7 @@ class L2capUnavailableException(cause: Throwable?) :
  * (createL2capChannel), поэтому вызываем скрытые методы Android. HiddenApiBypass снимает
  * ограничение на скрытые API для нашего процесса; root для этого не нужен.
  *
- * Пробуем по очереди несколько способов: их набор отличается между версиями Android.
+ * Пробуем по очереди несколько способов: их набор отличается между версиями Android и прошивками.
  */
 internal object L2capSockets {
     private const val TYPE_L2CAP = 3
@@ -33,29 +35,49 @@ internal object L2capSockets {
     @SuppressLint("PrivateApi", "DiscouragedPrivateApi")
     fun create(device: BluetoothDevice, psm: Int): BluetoothSocket {
         exemptHiddenApis()
+        val uuid = ParcelUuid.fromString(Aap.SERVICE_UUID)
+        val int = Int::class.javaPrimitiveType!!
+        val bool = Boolean::class.javaPrimitiveType!!
+        // Сначала защищённый сокет (auth + encrypt) с UUID сервиса AAP: так подключается LibrePods,
+        // и так работает на Samsung A56, где незащищённый connect() висел без ответа.
+        // Набор конструкторов меняется между версиями Android, поэтому пробуем все известные.
         val attempts = listOf<Pair<String, () -> BluetoothSocket>>(
-            "createInsecureL2capSocket" to {
-                BluetoothDevice::class.java.getMethod("createInsecureL2capSocket", Int::class.javaPrimitiveType)
-                    .invoke(device, psm) as BluetoothSocket
-            },
-            "createL2capSocket" to {
-                BluetoothDevice::class.java.getMethod("createL2capSocket", Int::class.javaPrimitiveType)
-                    .invoke(device, psm) as BluetoothSocket
+            // Android 16 QPR3: BluetoothSocket(adapter, device, type, auth, encrypt, port, uuid)
+            "secure(adapter, device, …)" to {
+                @Suppress("DEPRECATION")
+                val adapter = BluetoothAdapter.getDefaultAdapter()
+                constructor(BluetoothAdapter::class.java, BluetoothDevice::class.java, int, bool, bool, int, ParcelUuid::class.java)
+                    .newInstance(adapter, device, TYPE_L2CAP, true, true, psm, uuid)
             },
             // Android 14+: BluetoothSocket(device, type, auth, encrypt, port, uuid)
-            "BluetoothSocket(device, …)" to {
-                constructor(
-                    BluetoothDevice::class.java, Int::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!,
-                    Boolean::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, ParcelUuid::class.java,
-                ).newInstance(device, TYPE_L2CAP, false, false, psm, null)
+            "secure(device, …)" to {
+                constructor(BluetoothDevice::class.java, int, bool, bool, int, ParcelUuid::class.java)
+                    .newInstance(device, TYPE_L2CAP, true, true, psm, uuid)
+            },
+            // Вариант с fd после типа (встречается в прошивках производителей).
+            "secure(device, type, fd, …)" to {
+                constructor(BluetoothDevice::class.java, int, int, bool, bool, int, ParcelUuid::class.java)
+                    .newInstance(device, TYPE_L2CAP, -1, true, true, psm, uuid)
             },
             // Android 10–13: BluetoothSocket(type, fd, auth, encrypt, device, port, uuid)
-            "BluetoothSocket(type, fd, …)" to {
-                constructor(
-                    Int::class.javaPrimitiveType!!, Int::class.javaPrimitiveType!!, Boolean::class.javaPrimitiveType!!,
-                    Boolean::class.javaPrimitiveType!!, BluetoothDevice::class.java, Int::class.javaPrimitiveType!!,
-                    ParcelUuid::class.java,
-                ).newInstance(TYPE_L2CAP, -1, false, false, device, psm, null)
+            "secure(type, fd, …)" to {
+                constructor(int, int, bool, bool, BluetoothDevice::class.java, int, ParcelUuid::class.java)
+                    .newInstance(TYPE_L2CAP, -1, true, true, device, psm, uuid)
+            },
+            "createL2capSocket" to {
+                BluetoothDevice::class.java.getMethod("createL2capSocket", int).invoke(device, psm) as BluetoothSocket
+            },
+            // Незащищённые: работали на Pixel до перехода на защищённые, оставлены запасными.
+            "createInsecureL2capSocket" to {
+                BluetoothDevice::class.java.getMethod("createInsecureL2capSocket", int).invoke(device, psm) as BluetoothSocket
+            },
+            "insecure(device, …)" to {
+                constructor(BluetoothDevice::class.java, int, bool, bool, int, ParcelUuid::class.java)
+                    .newInstance(device, TYPE_L2CAP, false, false, psm, null)
+            },
+            "insecure(type, fd, …)" to {
+                constructor(int, int, bool, bool, BluetoothDevice::class.java, int, ParcelUuid::class.java)
+                    .newInstance(TYPE_L2CAP, -1, false, false, device, psm, null)
             },
         )
         var lastError: Throwable? = null
