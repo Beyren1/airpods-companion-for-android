@@ -106,9 +106,7 @@ class PodsRepository @Inject constructor(
         }
 
         launch {
-            // Наушники считаем подключёнными, как только есть связь Bluetooth: звук подключается
-            // на секунду-две позже, а карточка и прямое подключение могут появиться уже сейчас.
-            connectedAudio.linked().collect { devices ->
+            connectedAudio.devices().collect { devices ->
                 connectedNames = devices?.map { it.name }
                 connectedBatteries = devices?.mapNotNull { it.batteryPercent }.orEmpty()
                 connectedAddresses = devices?.map { it.device.address }.orEmpty().toSet()
@@ -155,11 +153,9 @@ class PodsRepository @Inject constructor(
         sessions: AapSessions,
         scanningForMs: Long,
     ): NearbyPods {
-        if (primary != null) return this
+        if (primary != null || scanningForMs < FALLBACK_AFTER_MS) return this
         val device = connected.firstOrNull() ?: return this
         val session = sessions.sessions.firstOrNull { it.address == device.device.address } as? AapSessionState.Connected
-        // С прямым подключением данные уже точные, ждать рекламу незачем: показываем карточку сразу.
-        if (session == null && scanningForMs < FALLBACK_AFTER_MS) return this
         return copy(primary = ConnectedFallback.status(device.name, device.batteryPercent, session?.device, SystemClock.elapsedRealtime()))
     }
 

@@ -42,7 +42,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.merge
-import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -67,10 +66,6 @@ class AapRepository @Inject constructor(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val retryRequests = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
 
-    /** Адреса наушников, у которых подключён звук, — при прошлом списке (см. [state]). */
-    @Volatile
-    private var lastAudio: Set<String>? = null
-
     /**
      * Всё, что относится к одним наушникам и переживает переподключение: очередь команд
      * и выбранный, но ещё не подтверждённый режим шумоподавления.
@@ -92,20 +87,8 @@ class AapRepository @Inject constructor(
      * с другими не рвётся. Раньше любое изменение списка (в том числе другой порядок адресов)
      * переподключало все наушники, и выбор режима в эти секунды терялся.
      */
-    val state: StateFlow<AapSessions> = connectedAudio.linked()
+    val state: StateFlow<AapSessions> = connectedAudio.devices()
         .map { devices -> devices?.filter(::isApple) }
-        // Подключение начинаем по связи Bluetooth, не дожидаясь звука. Если первая попытка была
-        // слишком ранней и ждёт повтора, подключение звука — повод попробовать сразу.
-        .onEach { devices ->
-            val audio = devices?.filter { it.audioConnected }?.map { it.device.address }?.toSet()
-            if (audio != lastAudio) {
-                // В журнале видно, сколько прошло от связи Bluetooth до звука и до прямого подключения.
-                devices.orEmpty().filter { it.device.address in audio.orEmpty() && it.device.address !in lastAudio.orEmpty() }
-                    .forEach { log.add("${it.name}: звук подключён") }
-                if (lastAudio != null && !audio.isNullOrEmpty()) retryNow()
-                lastAudio = audio
-            }
-        }
         // Заряд по HFP меняется часто, а переподключаться из-за этого не нужно: сравниваем набор адресов.
         .distinctUntilChanged { a, b -> a?.map { it.device.address }?.toSet() == b?.map { it.device.address }?.toSet() }
         .let(::sessionsFor)
@@ -131,7 +114,6 @@ class AapRepository @Inject constructor(
             list?.forEach { target ->
                 val address = target.device.address
                 if (address !in jobs) {
-                    if (!target.audioConnected) log.add("${target.name}: связь Bluetooth есть, звук ещё подключается")
                     jobs[address] = launch { session(target).collect { s -> byAddress.update { it + (address to s) } } }
                 }
             }
@@ -351,7 +333,7 @@ class AapRepository @Inject constructor(
             val details = (failure?.cause ?: failure)?.let { "${it::class.simpleName}: ${it.message}" } ?: "соединение закрыто"
             log.add("${target.name}: ошибка: $details")
             // Оборвалось рабочее соединение — сразу пробуем снова: обычно наушники просто на миг пропали.
-            val delayMs = if (connected) RECONNECT_AFTER_DROP_MS else BACKOFF_MS[(attempt - 1).coerceIn(0, BACKOFF_MS.lastIndex)]
+            val delayMs = if (connected) RECONNECT_AFTER_DROP_MS else BACKOFF_SEC[(attempt - 1).coerceIn(0, BACKOFF_SEC.lastIndex)] * 1_000L
             send(AapSessionState.Failed(target.name, address, reason, details, ((delayMs + 999) / 1_000).toInt()))
             withTimeoutOrNull(delayMs) { retryRequests.first() }
         }
@@ -376,9 +358,7 @@ class AapRepository @Inject constructor(
     private companion object {
         const val MODE_TICK_MS = 200L
         const val RECONNECT_AFTER_DROP_MS = 300L
-        // Первые повторы частые: сразу после подключения наушники иногда ещё не принимают AAP,
-        // и раньше карточка ждала лишние 3 с. Дальше — реже, чтобы не тратить батарею.
-        val BACKOFF_MS = longArrayOf(500, 1_000, 2_000, 5_000, 10_000, 30_000, 60_000)
+        val BACKOFF_SEC = intArrayOf(3, 10, 30, 60)
         const val BLOCKED_AFTER_TIMEOUTS = 3
         const val MOTION_LOG_EVERY = 100
         const val STREAM_DATA_MIN = 32

@@ -26,7 +26,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.shareIn
 
 /**
@@ -39,14 +38,12 @@ import kotlinx.coroutines.flow.shareIn
 /**
  * Подключённые наушники: имя и заряд, который Android получил от них по HFP (null — неизвестно).
  * [supportsAap] — в SDP-записи есть сервис AAP, значит это AirPods/Beats и к ним можно подключиться напрямую.
- * [audioConnected] — звук (A2DP) уже подключён; false — есть только связь Bluetooth (см. [ConnectedAudioDevices.linked]).
  */
 data class ConnectedAudioDevice(
     val name: String,
     val batteryPercent: Int?,
     val device: BluetoothDevice,
     val supportsAap: Boolean,
-    val audioConnected: Boolean = true,
 )
 
 @Singleton
@@ -61,65 +58,42 @@ class ConnectedAudioDevices @Inject constructor(
      * изменение заряда список устройств (с reflection и SDP-записями) собирался пять раз.
      * Без подписчиков источник засыпает через 5 с; новый подписчик сразу получает последний список.
      */
-    private val shared: Flow<Snapshot> by lazy {
+    private val shared: Flow<List<ConnectedAudioDevice>?> by lazy {
         observe().shareIn(scope, SharingStarted.WhileSubscribed(5_000), replay = 1)
     }
 
-    /** Наушники, подключённые для звука (A2DP). null — нет разрешения. */
-    fun devices(): Flow<List<ConnectedAudioDevice>?> = shared.map { it.audio }.distinctUntilChanged()
-
-    /**
-     * То же, что [devices], плюс наушники Apple, с которыми связь Bluetooth уже есть, а звук ещё
-     * подключается. Между этими событиями проходит секунда-две, а прямое подключение (AAP) можно
-     * открыть сразу: так карточка и режимы появляются, пока Android ещё подключает звук.
-     * Для музыки и статистики не годится — звук туда ещё не идёт.
-     */
-    fun linked(): Flow<List<ConnectedAudioDevice>?> = shared.map { snapshot ->
-        val audio = snapshot.audio ?: return@map null
-        val audioAddresses = audio.map { it.device.address }.toSet()
-        audio + snapshot.linkOnly.filter { it.device.address !in audioAddresses }
-    }.distinctUntilChanged()
-
-    private data class Snapshot(val audio: List<ConnectedAudioDevice>?, val linkOnly: List<ConnectedAudioDevice>)
+    fun devices(): Flow<List<ConnectedAudioDevice>?> = shared
 
     @SuppressLint("MissingPermission")
-    private fun observe(): Flow<Snapshot> = callbackFlow<Snapshot> {
+    private fun observe(): Flow<List<ConnectedAudioDevice>?> = callbackFlow<List<ConnectedAudioDevice>?> {
         val adapter = context.getSystemService(BluetoothManager::class.java)?.adapter
         if (adapter == null) {
-            trySend(Snapshot(null, emptyList()))
+            trySend(null)
             awaitClose { }
             return@callbackFlow
         }
         // Источник общий и живёт долго: разрешение могут выдать, пока он работает, — дождёмся его.
         if (!hasConnectPermission()) {
-            trySend(Snapshot(null, emptyList()))
+            trySend(null)
             while (!hasConnectPermission()) delay(PERMISSION_POLL_MS)
         }
 
         var proxy: BluetoothA2dp? = null
         // Заряд из системной рассылки BATTERY_LEVEL_CHANGED, по адресу устройства.
         val batteryByAddress = mutableMapOf<String, Int>()
-        // Наушники Apple, с которыми есть связь Bluetooth (ACL), по адресу. Рассылки приходят в главном
-        // потоке, refresh() — тоже, поэтому обычной карты достаточно.
-        val linkedApple = mutableMapOf<String, BluetoothDevice>()
-        fun BluetoothDevice.toConnected(audio: Boolean): ConnectedAudioDevice? {
-            val name = displayName() ?: return null
-            return ConnectedAudioDevice(
-                name,
-                batteryByAddress[address] ?: batteryLevelOrNull(),
-                this,
-                supportsAap = supportsAap(),
-                audioConnected = audio,
-            )
-        }
         fun refresh() {
             val devices = runCatching {
-                proxy?.connectedDevices.orEmpty().mapNotNull { it.toConnected(audio = true) }
+                proxy?.connectedDevices.orEmpty().mapNotNull { device ->
+                    val name = device.displayName() ?: return@mapNotNull null
+                    ConnectedAudioDevice(
+                        name,
+                        batteryByAddress[device.address] ?: device.batteryLevelOrNull(),
+                        device,
+                        supportsAap = device.uuids.orEmpty().any { it.uuid.toString().equals(Aap.SERVICE_UUID, ignoreCase = true) },
+                    )
+                }
             }.getOrDefault(emptyList())
-            val linkOnly = runCatching {
-                linkedApple.values.mapNotNull { it.toConnected(audio = false) }
-            }.getOrDefault(emptyList())
-            trySend(Snapshot(devices, linkOnly))
+            trySend(devices)
         }
 
         val listener = object : BluetoothProfile.ServiceListener {
@@ -137,17 +111,12 @@ class ConnectedAudioDevices @Inject constructor(
 
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
-                val device = intent.bluetoothDevice()
-                when (intent.action) {
-                    ACTION_BATTERY_LEVEL_CHANGED -> {
-                        val level = intent.getIntExtra(EXTRA_BATTERY_LEVEL, -1)
-                        if (device != null) {
-                            if (level in 0..100) batteryByAddress[device.address] = level else batteryByAddress.remove(device.address)
-                        }
+                if (intent.action == ACTION_BATTERY_LEVEL_CHANGED) {
+                    val device = intent.bluetoothDevice()
+                    val level = intent.getIntExtra(EXTRA_BATTERY_LEVEL, -1)
+                    if (device != null) {
+                        if (level in 0..100) batteryByAddress[device.address] = level else batteryByAddress.remove(device.address)
                     }
-                    BluetoothDevice.ACTION_ACL_CONNECTED ->
-                        if (device != null && runCatching { device.supportsAap() }.getOrDefault(false)) linkedApple[device.address] = device
-                    BluetoothDevice.ACTION_ACL_DISCONNECTED -> if (device != null) linkedApple.remove(device.address)
                 }
                 refresh()
             }
@@ -156,9 +125,6 @@ class ConnectedAudioDevices @Inject constructor(
             addAction(BluetoothA2dp.ACTION_CONNECTION_STATE_CHANGED)
             addAction(BluetoothDevice.ACTION_ALIAS_CHANGED)
             addAction(ACTION_BATTERY_LEVEL_CHANGED)
-            // Связь Bluetooth появляется на секунду-две раньше звука: по ней начинаем прямое подключение.
-            addAction(BluetoothDevice.ACTION_ACL_CONNECTED)
-            addAction(BluetoothDevice.ACTION_ACL_DISCONNECTED)
         }
         // Рассылки шлёт система (Bluetooth-процесс), поэтому приёмник должен быть EXPORTED.
         ContextCompat.registerReceiver(context, receiver, filter, ContextCompat.RECEIVER_EXPORTED)
@@ -168,11 +134,6 @@ class ConnectedAudioDevices @Inject constructor(
             proxy?.let { runCatching { adapter.closeProfileProxy(BluetoothProfile.A2DP, it) } }
         }
     }.distinctUntilChanged()
-
-    /** В SDP-записи есть сервис AAP: это AirPods или Beats. */
-    @SuppressLint("MissingPermission")
-    private fun BluetoothDevice.supportsAap(): Boolean =
-        uuids.orEmpty().any { it.uuid.toString().equals(Aap.SERVICE_UUID, ignoreCase = true) }
 
     /**
      * Заряд, который наушники сообщают телефону (у AirPods это стандартное расширение HFP).
