@@ -91,6 +91,9 @@ object Opcode {
     const val CONTROL = 0x0009
     const val REQUEST_NOTIFICATIONS = 0x000F
     const val HEAD_TRACKING = 0x0017
+
+    /** Нажатие ножки для телефона: 04 00 04 00 19 00 <?> <нажатие 05..08> <наушник 01 левый, 02 правый>. */
+    const val STEM_PRESS = 0x0019
     const val RENAME = 0x001A
     const val DEVICE_INFO = 0x001D
     const val PROXIMITY_KEYS_REQUEST = 0x0030
@@ -174,6 +177,9 @@ sealed interface AapEvent {
         override fun toString() = "ProximityKeys(irk=${irk != null}, encryptionKey=${encryptionKey != null})"
     }
 
+    /** Нажатие ножки, которое наушники отдали телефону; [left] — null, если наушник не указан. */
+    data class StemPressed(val press: StemPress, val left: Boolean?) : AapEvent
+
     /** Паспорт наушников: номер модели, серийные номера, прошивка. */
     data class DeviceInfo(val info: AapDeviceInfo) : AapEvent
 
@@ -195,6 +201,9 @@ object AapParser {
                 Opcode.EAR_DETECTION -> AapEvent.EarDetection(EarState.of(data.u8(6)), EarState.of(data.u8(7)))
                 Opcode.CONTROL -> parseControl(data)
                 Opcode.HEAD_TRACKING -> parseHeadMotion(data)
+                Opcode.STEM_PRESS -> StemPress.of(data.u8(6))?.let { press ->
+                    AapEvent.StemPressed(press, when (data.u8(7)) { 0x01 -> true; 0x02 -> false; else -> null })
+                }
                 Opcode.PROXIMITY_KEYS -> parseProximityKeys(data)
                 Opcode.DEVICE_INFO -> AapDeviceInfo.parse(data)?.let(AapEvent::DeviceInfo)
                 else -> null

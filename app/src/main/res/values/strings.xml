@@ -37,4 +37,6 @@
     <string name="player_channel_name">Player start</string>
     <string name="player_open_title">Headphones connected: open %1$s</string>
     <string name="player_open_text">Tap to open the player and start the music</string>
+    <string name="camera_service_label">Pods Companion: camera shutter</string>
+    <string name="camera_service_description">Lets a press on the AirPods stem take a photo. The app only checks whether the camera is open and presses its shutter button; it does not read other apps.</string>
 </resources>

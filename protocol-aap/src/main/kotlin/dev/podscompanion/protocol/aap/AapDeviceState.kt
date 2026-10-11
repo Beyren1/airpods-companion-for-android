@@ -57,7 +57,7 @@ data class AapDeviceState(
         )
         is AapEvent.ControlChanged -> copy(controls = controls + (event.id to event.value))
         is AapEvent.DeviceInfo -> copy(info = event.info)
-        is AapEvent.HeadMotion, is AapEvent.ProximityKeys, is AapEvent.Unknown -> this
+        is AapEvent.HeadMotion, is AapEvent.ProximityKeys, is AapEvent.StemPressed, is AapEvent.Unknown -> this
     }
 
     private fun ListeningMode.code() = when (this) {

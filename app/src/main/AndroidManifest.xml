@@ -31,6 +31,16 @@
     <!-- Окно с зарядом при открытии кейса: открыть его из фона можно только с этим разрешением. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
+    <!-- Затвор камеры: узнать, какие приложения на телефоне — камеры. -->
+    <queries>
+        <intent>
+            <action android:name="android.media.action.STILL_IMAGE_CAMERA" />
+        </intent>
+        <intent>
+            <action android:name="android.media.action.IMAGE_CAPTURE" />
+        </intent>
+    </queries>
+
     <uses-feature android:name="android.hardware.bluetooth" android:required="true" />
     <uses-feature android:name="android.hardware.bluetooth_le" android:required="true" />
     <!-- Связь с наушниками через Companion Device Manager: без неё Android не даёт сменить имя. -->
@@ -93,6 +103,20 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/pods_widget_info" />
         </receiver>
+
+        <!-- Затвор камеры нажатием ножки: служба специальных возможностей, её включают в настройках Android. -->
+        <service
+            android:name=".camera.CameraShutterService"
+            android:exported="false"
+            android:label="@string/camera_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/camera_shutter_service" />
+        </service>
 
         <!-- Плитка в шторке быстрых настроек. -->
         <service

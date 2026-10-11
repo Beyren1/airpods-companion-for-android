@@ -37,4 +37,6 @@
     <string name="player_channel_name">Запуск плеера</string>
     <string name="player_open_title">Наушники подключены: открыть %1$s</string>
     <string name="player_open_text">Нажмите, чтобы открыть плеер и включить музыку</string>
+    <string name="camera_service_label">Pods Companion: затвор камеры</string>
+    <string name="camera_service_description">Позволяет делать снимок нажатием на ножку AirPods. Приложение только проверяет, открыта ли камера, и нажимает в ней кнопку съёмки; другие приложения оно не читает.</string>
 </resources>

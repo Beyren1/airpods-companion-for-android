@@ -16,6 +16,8 @@ import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.settings.AppSettings
 import dev.podscompanion.data.settings.SettingsRepository
+import dev.podscompanion.data.settings.StemAction
+import dev.podscompanion.protocol.aap.StemPress
 import dev.podscompanion.data.settings.ThemeMode
 import javax.inject.Inject
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -108,6 +110,15 @@ class BatteryViewModel @Inject constructor(
 
     fun setHeadGestures(value: Boolean) {
         viewModelScope.launch { settingsRepository.setHeadGestures(value) }
+    }
+
+    /** [action] null — пусть наушники делают своё обычное. */
+    fun setStemAction(press: StemPress, action: StemAction?) {
+        viewModelScope.launch { settingsRepository.setStemAction(press, action) }
+    }
+
+    fun setCameraShutter(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setCameraShutter(value) }
     }
 
     private val _calibration = MutableStateFlow<CalibrationState>(CalibrationState.Idle)
