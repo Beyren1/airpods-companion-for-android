@@ -320,6 +320,7 @@ class AapRepository @Inject constructor(
                 null
             } catch (e: CancellationException) {
                 // Наушники отключили или подписчиков нет: выходим, а не переподключаемся.
+                log.add("${target.name}: прямое подключение закрыто")
                 throw e
             } catch (e: Throwable) {
                 e

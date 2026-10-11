@@ -29,6 +29,7 @@ import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.data.aap.AapRepository
+import dev.podscompanion.data.aap.BluetoothLinkLog
 import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.media.MediaRepository
 import dev.podscompanion.data.battery.LowBatteryWatcher
@@ -82,6 +83,7 @@ class PodsService : LifecycleService() {
     @Inject lateinit var aapRepository: AapRepository
     @Inject lateinit var connectedAudio: ConnectedAudioDevices
     @Inject lateinit var usageStore: UsageStatsStore
+    @Inject lateinit var linkLog: BluetoothLinkLog
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -141,6 +143,7 @@ class PodsService : LifecycleService() {
         }
 
         registerWakeReceiver()
+        linkLog.start(applicationContext)
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
 
         lifecycleScope.launch {
@@ -170,6 +173,7 @@ class PodsService : LifecycleService() {
             refreshSurfaces(context)
         }
         runCatching { unregisterReceiver(wakeReceiver) }
+        linkLog.stop()
         runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
         super.onDestroy()
     }
