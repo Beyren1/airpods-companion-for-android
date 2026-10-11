@@ -111,6 +111,7 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
     implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
     // Ставит профиль запуска (src/main/baseline-prof.txt) при установке APK не из Google Play.
     implementation(libs.androidx.profileinstaller)
 

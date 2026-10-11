@@ -17,6 +17,7 @@
     <string name="widget_right">Right</string>
     <string name="widget_case">Case</string>
     <string name="widget_battery">Battery</string>
+    <string name="widget_charging">Charging</string>
 
     <string name="tile_label">Headphones</string>
     <string name="tile_no_data">No data</string>
