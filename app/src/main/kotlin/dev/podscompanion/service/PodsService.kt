@@ -257,7 +257,8 @@ class PodsService : LifecycleService() {
         checkLowBattery(status)
         if (!settings.autoPause) return
 
-        val worn = status?.let(::isWorn)
+        // Без рекламы и без уха из AAP флаги «в ухе» пустые: по ним музыку не трогаем.
+        val worn = status?.takeIf { it.earKnown }?.let(::isWorn)
         val name = status?.model?.displayName
         if (worn != lastWorn || name != lastLoggedName) {
             lastWorn = worn
