@@ -18,6 +18,9 @@ android {
         // versionName — то, что видит человек.
         versionCode = 1
         versionName = "1.0.0"
+        // Только языки самого приложения: библиотеки AndroidX приносят переводы своих строк на
+        // десятки языков, которые в нашем интерфейсе всё равно не видны.
+        resourceConfigurations += listOf("en", "ru", "fr")
     }
 
     // Ключ подписи выпуска. Его файл и пароли никогда не лежат в репозитории: GitHub Actions берёт их
@@ -64,6 +67,26 @@ android {
         buildConfig = true
     }
 
+    packaging {
+        resources {
+            // Лицензии и служебные файлы Kotlin и AndroidX: приложению при работе не нужны.
+            excludes += listOf(
+                "/META-INF/{AL2.0,LGPL2.1}",
+                "/META-INF/*.version",
+                "/META-INF/*.kotlin_module",
+                "/kotlin/**",
+                "DebugProbesKt.bin",
+                "kotlin-tooling-metadata.json",
+            )
+        }
+    }
+
+    // Зашифрованный список библиотек для Google Play. Приложение выходит на GitHub, там он не нужен.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -88,6 +111,8 @@ dependencies {
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.material3)
     implementation(libs.androidx.glance.appwidget)
+    // Ставит профиль запуска (src/main/baseline-prof.txt) при установке APK не из Google Play.
+    implementation(libs.androidx.profileinstaller)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)
