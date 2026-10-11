@@ -61,10 +61,3 @@ jobs:
             } >> "$GITHUB_STEP_SUMMARY"
           done
           cat "$GITHUB_STEP_SUMMARY"
-      - name: Startup profile diagnostics (temporary)
-        run: |
-          find app/build -iname '*prof*' -type f | grep -iv '\.class$' | while read f; do
-            echo "== $f $(stat -c%s "$f") bytes, lines: $(wc -l < "$f" 2>/dev/null)"
-            grep -a -c 'podscompanion' "$f" || true
-            grep -a 'podscompanion' "$f" | head -5 || true
-          done
