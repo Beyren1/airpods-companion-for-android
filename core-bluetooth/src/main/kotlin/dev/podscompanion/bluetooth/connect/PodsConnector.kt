@@ -56,16 +56,16 @@ class PodsConnector @Inject constructor(
         exemptHiddenApis()
         val methods = listOf<Pair<String, suspend () -> Unit>>(
             // Системные вызовы: сработают, только если прошивка не проверяет разрешение BLUETOOTH_PRIVILEGED.
-            "BluetoothDevice.connect" to {
+            "BluetoothDevice.connect" to suspend {
                 // Возвращает код BluetoothStatusCodes: 0 — принято, остальное — отказ.
                 val code = BluetoothDevice::class.java.getMethod("connect").invoke(device)
                 if (code is Int && code != 0) error("код $code")
             },
-            "A2DP.connect" to { profileConnect(BluetoothProfile.A2DP, device) },
-            "HFP.connect" to { profileConnect(BluetoothProfile.HEADSET, device) },
+            "A2DP.connect" to suspend { profileConnect(BluetoothProfile.A2DP, device) },
+            "HFP.connect" to suspend { profileConnect(BluetoothProfile.HEADSET, device) },
             // Прямое соединение AAP: телефон открывает канал к наушникам, и они сами могут
             // подключить звук к тому, кто к ним обратился.
-            AAP_METHOD to { aapPing(device) },
+            AAP_METHOD to suspend { aapPing(device) },
         )
         for ((name, method) in methods) {
             val error = runCatching { method() }.exceptionOrNull()
@@ -127,7 +127,7 @@ class PodsConnector @Inject constructor(
     private suspend fun profileConnect(profile: Int, device: BluetoothDevice) {
         val adapter = adapter() ?: error("нет Bluetooth")
         val proxy = withTimeoutOrNull(PROXY_TIMEOUT_MS) {
-            suspendCancellableCoroutine { cont ->
+            suspendCancellableCoroutine<BluetoothProfile> { cont ->
                 adapter.getProfileProxy(context, object : BluetoothProfile.ServiceListener {
                     override fun onServiceConnected(p: Int, proxy: BluetoothProfile) {
                         if (cont.isActive) cont.resume(proxy)

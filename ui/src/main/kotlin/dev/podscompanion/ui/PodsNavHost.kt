@@ -48,7 +48,7 @@ fun PodsNavHost() {
             val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             val aapSessions by viewModel.aapSessions.collectAsStateWithLifecycle()
-            val takeOver by viewModel.takeOver.collectAsStateWithLifecycle()
+            val takeOver by viewModel.takeOverState.collectAsStateWithLifecycle()
             val nav = rememberNavController()
 
             val nearby = (state as? BatteryUiState.Found)?.nearby

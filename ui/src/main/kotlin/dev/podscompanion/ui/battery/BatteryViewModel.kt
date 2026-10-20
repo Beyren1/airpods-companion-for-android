@@ -96,7 +96,7 @@ class BatteryViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val _takeOver = MutableStateFlow<TakeOverState>(TakeOverState.Idle)
-    val takeOver: StateFlow<TakeOverState> = _takeOver.asStateFlow()
+    val takeOverState: StateFlow<TakeOverState> = _takeOver.asStateFlow()
 
     /**
      * Забрать наушники [pods] на телефон. Свои наушники узнаём по ключу из рекламы ([PodsStatus.owner]),
@@ -107,7 +107,7 @@ class BatteryViewModel @Inject constructor(
         viewModelScope.launch {
             _takeOver.value = TakeOverState.Working
             val device = pods.owner?.let(connector::device)
-                ?: connector.bondedPods().singleOrNull { pods.model in ConnectedNameMatcher.modelsForName(connector.nameOf(it)) }
+                ?: connector.bondedPods().singleOrNull { device -> pods.model?.let { it in ConnectedNameMatcher.modelsForName(connector.nameOf(device)) } == true }
             aapLogger.add("забрать: ${pods.model?.displayName ?: "?"} → ${device?.address ?: "не нашёл среди сопряжённых"}")
             val result = device?.let { connector.takeOver(it, aapLogger::add) } ?: TakeOverResult.Failed
             if (result is TakeOverResult.Connected) {
