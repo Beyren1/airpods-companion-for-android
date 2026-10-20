@@ -41,6 +41,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -106,6 +107,8 @@ fun HomeScreen(
     onOpenAppSettings: (() -> Unit)? = null,
     nowPlaying: NowPlaying? = null,
     onMediaButton: (MediaButton) -> Unit = {},
+    takeOver: TakeOverState = TakeOverState.Idle,
+    onTakeOver: (PodsStatus) -> Unit = {},
 ) {
     val main = (state as? BatteryUiState.Found)?.nearby?.primary
     val session = if (main?.connected == true) aapSessions.forModel(main.model) else null
@@ -148,6 +151,8 @@ fun HomeScreen(
                             val mode = (session as? AapSessionState.Connected)?.device?.listeningMode
                                 ?.takeIf { it in availableModes(main.model) }
                             HeroCard(main, mode)
+                            // Рядом, но подключены к другому устройству (ПК): можно забрать на телефон.
+                            if (!main.connected && main.advertised) TakeOverButton(takeOver) { onTakeOver(main) }
                         } else {
                             NotConnectedCard()
                         }
@@ -552,6 +557,25 @@ private fun shortBattery(status: PodsStatus): String {
     val case = status.caseBattery?.displayText()
     return stringResource(R.string.battery_pair, left, right) +
         (case?.let { stringResource(R.string.battery_case_suffix, it) } ?: "")
+}
+
+/** «Подключить к телефону» для наушников, которые рядом, но подключены не к телефону. */
+@Composable
+private fun TakeOverButton(state: TakeOverState, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        FilledTonalButton(onClick = onClick, enabled = state != TakeOverState.Working, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(if (state == TakeOverState.Working) R.string.take_over_working else R.string.take_over))
+        }
+        if (state == TakeOverState.Failed) {
+            Text(
+                stringResource(R.string.take_over_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
 }
 
 // ---------- Пустые состояния ----------

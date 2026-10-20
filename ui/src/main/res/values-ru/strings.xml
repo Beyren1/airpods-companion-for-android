@@ -235,4 +235,7 @@
     <string name="stats_clear_title">Сбросить статистику?</string>
     <string name="stats_clear_text">Время для всех наушников будет удалено.</string>
     <string name="stats_clear_confirm">Сбросить</string>
+    <string name="take_over">Подключить к телефону</string>
+    <string name="take_over_working">Подключаю…</string>
+    <string name="take_over_failed">Сам подключить не смог. Выбери наушники в открывшемся окне.</string>
 </resources>

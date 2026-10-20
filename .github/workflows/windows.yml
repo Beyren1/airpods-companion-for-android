@@ -1,0 +1,31 @@
+name: Windows CI
+
+on:
+  push:
+    branches: [main]
+    paths: ['windows/**', '.github/workflows/windows.yml']
+  pull_request:
+    paths: ['windows/**', '.github/workflows/windows.yml']
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+      - name: Unit tests
+        run: dotnet test windows/tests/PodsCompanion.Core.Tests
+      # Один exe со всем нужным внутри: ставить .NET на ПК не нужно.
+      - name: Build app
+        run: >
+          dotnet publish windows/src/PodsCompanion.App -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -o windows/out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PodsCompanion-windows
+          path: windows/out/PodsCompanion.exe

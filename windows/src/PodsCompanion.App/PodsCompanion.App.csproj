@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Окно и значок в трее. Вся логика — в PodsCompanion.Core. -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <UseWPF>true</UseWPF>
+    <!-- Только ради значка в трее (NotifyIcon): в WPF своего нет. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <!-- WPF и WinForms оба приносят свои using; пишем их явно, чтобы имена не путались. -->
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>PodsCompanion</AssemblyName>
+    <RootNamespace>PodsCompanion.App</RootNamespace>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <Version>0.1.0</Version>
+    <Product>Pods Companion</Product>
+    <!-- Тема Fluent (как в Windows 11) в WPF пока помечена экспериментальной. -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\PodsCompanion.Core\PodsCompanion.Core.csproj" />
+  </ItemGroup>
+
+</Project>

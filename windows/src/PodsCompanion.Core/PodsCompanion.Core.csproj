@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Логика без интерфейса: реклама AirPods, Bluetooth, медиа, автопереключение. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.19041.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>12</LangVersion>
+    <!-- Позволяет проверять сборку и тесты не только на Windows (в CI основная сборка всё равно на Windows). -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <RootNamespace>PodsCompanion.Core</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PodsCompanion.Core.Tests" />
+  </ItemGroup>
+
+</Project>
