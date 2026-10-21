@@ -155,6 +155,10 @@ fun HomeScreen(
                             if (!main.connected && main.advertised) TakeOverButton(takeOver) { onTakeOver(main) }
                         } else {
                             NotConnectedCard()
+                            // К телефону ничего не подключено (наушники у ПК): предлагаем забрать свои,
+                            // а если ключа ещё нет — ближайшие.
+                            val target = state.nearby.others.firstOrNull { it.owner != null } ?: state.nearby.others.firstOrNull()
+                            if (target != null) TakeOverButton(takeOver) { onTakeOver(target) }
                         }
                         if (main?.connected == true) AapStatusCard(session, aapSessions.noPermission, onAapCheck)
                         if (session is AapSessionState.Connected) {
