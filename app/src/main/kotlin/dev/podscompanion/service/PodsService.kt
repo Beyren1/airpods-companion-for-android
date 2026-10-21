@@ -103,6 +103,7 @@ class PodsService : LifecycleService() {
     private lateinit var music: MusicAutomation
     private lateinit var usage: UsageTracking
     private var autoSwitch: AutoSwitch? = null
+    private var pcLink: PcLink? = null
 
     /** Все наушники из последнего скана: статистике нужна модель каждой подключённой пары. */
     @Volatile private var latestNearby: List<PodsStatus> = emptyList()
@@ -168,7 +169,7 @@ class PodsService : LifecycleService() {
         usage.run(lifecycleScope)
         autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, ::isWorn, ::startScan)
             .also { it.run(lifecycleScope) }
-        PcLink(connectedAudio, pcSignalScanner, podsConnector, podsTakeOver, aapLog).run(lifecycleScope)
+        pcLink = PcLink(this, connectedAudio, pcSignalScanner, podsConnector, podsTakeOver, aapLog).also { it.run(lifecycleScope) }
         startScan()
     }
 
@@ -184,6 +185,7 @@ class PodsService : LifecycleService() {
         runCatching { unregisterReceiver(wakeReceiver) }
         runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
         autoSwitch?.stop()
+        pcLink?.stop()
         super.onDestroy()
     }
 

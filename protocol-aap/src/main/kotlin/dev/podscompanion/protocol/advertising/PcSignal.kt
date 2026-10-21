@@ -3,10 +3,10 @@ package dev.podscompanion.protocol.advertising
 import java.security.MessageDigest
 
 /**
- * Сигнал от программы на ПК по Bluetooth: «забери наушники». Кнопка «Отдать телефону» на ПК
- * несколько секунд рассылает такую BLE-рекламу (PhoneSignal.cs), телефон её слышит.
+ * Сигнал от программы на ПК: «забери наушники». Кнопка «Отдать телефону» на ПК несколько секунд
+ * рассылает его как BLE-рекламу и как UDP-пакет на порт [UDP_PORT] в локальной сети (PhoneSignal.cs).
  *
- * Данные производителя [COMPANY_ID]: «PCSW», версия, команда, 4 байта SHA-256 от адреса наушников
+ * Данные производителя [COMPANY_ID] (или весь UDP-пакет): «PCSW», версия, команда, 4 байта SHA-256 от адреса наушников
  * в виде «70:F9:4A:9D:33:92», 2 байта номера нажатия (чтобы не выполнить одно нажатие дважды).
  */
 data class PcSignal(val addressHash: List<Byte>, val nonce: Int) {
@@ -17,6 +17,7 @@ data class PcSignal(val addressHash: List<Byte>, val nonce: Int) {
         /** 0xFFFF зарезервирован Bluetooth SIG для тестов: ничьих устройств с ним нет. */
         const val COMPANY_ID = 0xFFFF
         const val LENGTH = 12
+        const val UDP_PORT = 47_820
         val MAGIC = byteArrayOf('P'.code.toByte(), 'C'.code.toByte(), 'S'.code.toByte(), 'W'.code.toByte())
         private const val VERSION: Byte = 1
         private const val COMMAND_TAKE: Byte = 1
