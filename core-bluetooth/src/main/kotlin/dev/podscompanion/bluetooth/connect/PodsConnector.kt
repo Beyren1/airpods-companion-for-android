@@ -55,17 +55,17 @@ class PodsConnector @Inject constructor(
         if (isConnected(device)) return TakeOverResult.Connected("уже подключены")
         exemptHiddenApis()
         val methods = listOf<Pair<String, suspend () -> Unit>>(
-            // Прямое соединение AAP первым: телефон открывает канал к наушникам, и они сами подключают
-            // звук к тому, кто к ним обратился. Так AirPods Max и уходили с ПК обратно на телефон.
-            AAP_METHOD to suspend { aapPing(device) },
-            // Системные вызовы: сработают, только если прошивка не проверяет разрешение BLUETOOTH_PRIVILEGED.
+            // Скрытый connect у прокси A2DP первым: на Pixel 9 без root он подключает звук примерно за 4 с.
+            "A2DP.connect" to suspend { profileConnect(BluetoothProfile.A2DP, device) },
+            "HFP.connect" to suspend { profileConnect(BluetoothProfile.HEADSET, device) },
+            // Требует связи с наушниками через CompanionDeviceManager, без неё сразу SecurityException.
             "BluetoothDevice.connect" to suspend {
                 // Возвращает код BluetoothStatusCodes: 0 — принято, остальное — отказ.
                 val code = BluetoothDevice::class.java.getMethod("connect").invoke(device)
                 if (code is Int && code != 0) error("код $code")
             },
-            "A2DP.connect" to suspend { profileConnect(BluetoothProfile.A2DP, device) },
-            "HFP.connect" to suspend { profileConnect(BluetoothProfile.HEADSET, device) },
+            // Прямое соединение AAP последним: звук им подключить не вышло, а ждать его дольше всех.
+            AAP_METHOD to suspend { aapPing(device) },
         )
         for ((name, method) in methods) {
             val error = runCatching { method() }.exceptionOrNull()
