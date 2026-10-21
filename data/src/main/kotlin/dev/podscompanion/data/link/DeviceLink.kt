@@ -252,7 +252,7 @@ class DeviceLink @Inject constructor(
         val BROADCAST: InetAddress = InetAddress.getByName("255.255.255.255")
         const val PEER_TIMEOUT_MS = 150_000L
         const val CLEANUP_MS = 30_000L
-        const val RELEASE_WAIT_MS = 3_000L
+        const val RELEASE_WAIT_MS = 5_000L
         const val RETRY_MS = 30_000L
     }
 }
