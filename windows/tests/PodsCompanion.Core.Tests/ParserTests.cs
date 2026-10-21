@@ -107,5 +107,16 @@ public class ParserTests
         Assert.True(BluetoothAudioControl.IsFilterOf(path, "AC90856D3A8E"));
         Assert.False(BluetoothAudioControl.IsFilterOf(path, "AC90856D3A8F"));
         Assert.False(BluetoothAudioControl.IsFilterOf(@"\\?\HDAUDIO#FUNC_01", "AC90856D3A8E"));
+        Assert.True(BluetoothAudioControl.IsBluetoothFilter(@"{2}.\\?\bthhfenum#{0000111e-0000-1000-8000-00805f9b34fb}_vid&0001004c"));
+    }
+
+    [Theory]
+    [InlineData("Наушники (AirPods Max)", "AirPods Max", true)]
+    [InlineData("Headset (AirPods Max Hands-Free)", "AirPods Max", true)]
+    [InlineData("Наушники (AirPods Max 2)", "AirPods Max", false)]
+    [InlineData("Динамики (Realtek(R) Audio)", "AirPods Max", false)]
+    public void EndpointName_MatchesPodsName(string endpoint, string pods, bool expected)
+    {
+        Assert.Equal(expected, BluetoothAudioControl.NameMatches(endpoint, pods));
     }
 }

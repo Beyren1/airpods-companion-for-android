@@ -10,59 +10,89 @@ namespace PodsCompanion.Core.Bluetooth;
 /// </summary>
 public static class BluetoothAudioControl
 {
-    /// <summary>Подключить звук наушников с адресом <paramref name="addressHex"/>. Возвращает число фильтров, которым отправлена команда.</summary>
-    public static int Connect(string addressHex, Action<string>? log = null) => Send(addressHex, KsPropertyOneshotReconnect, log);
+    /// <summary>Подключить звук наушников. Возвращает число фильтров, которым отправлена команда.</summary>
+    public static int Connect(string addressHex, string name, Action<string>? log = null) =>
+        Send(addressHex, name, KsPropertyOneshotReconnect, log);
 
-    /// <summary>Отключить звук (A2DP и гарнитуру) наушников с адресом <paramref name="addressHex"/>.</summary>
-    public static int Disconnect(string addressHex, Action<string>? log = null) => Send(addressHex, KsPropertyOneshotDisconnect, log);
+    /// <summary>Отключить звук (A2DP и гарнитуру) наушников.</summary>
+    public static int Disconnect(string addressHex, string name, Action<string>? log = null) =>
+        Send(addressHex, name, KsPropertyOneshotDisconnect, log);
 
     /// <summary>
     /// Путь фильтра звукового драйвера Bluetooth выглядит так:
-    /// <c>\\?\...BTHENUM#{0000110b-...}_VID&amp;0001004c_PID&amp;2014#8&amp;...&amp;0&amp;AC90856D3A8E_C00000000#{...}</c>.
-    /// Адрес наушников входит в него 12 цифрами без разделителей.
+    /// <c>\\?\...BTHENUM#{0000110b-...}_VID&amp;0001004c_PID&amp;2014#8&amp;...&amp;0&amp;AC90856D3A8E_C00000000#{...}</c>
+    /// (для гарнитуры — BTHHFENUM). Адрес наушников входит в него 12 цифрами без разделителей.
     /// </summary>
     internal static bool IsFilterOf(string filterId, string addressHex) =>
-        filterId.Contains("BTHENUM", StringComparison.OrdinalIgnoreCase) &&
-        filterId.Contains(addressHex, StringComparison.OrdinalIgnoreCase);
+        IsBluetoothFilter(filterId) && filterId.Contains(addressHex, StringComparison.OrdinalIgnoreCase);
 
-    private static int Send(string addressHex, uint propertyId, Action<string>? log)
+    internal static bool IsBluetoothFilter(string filterId) =>
+        filterId.Contains("BTHENUM", StringComparison.OrdinalIgnoreCase) ||
+        filterId.Contains("BTHHFENUM", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// Звуковое устройство Windows называет по имени наушников: «Наушники (AirPods Max)»,
+    /// гарнитуру — «Головной телефон (AirPods Max Hands-Free)».
+    /// Запасной способ найти их, если адреса в пути фильтра нет.
+    /// </summary>
+    internal static bool NameMatches(string endpointName, string podsName) =>
+        podsName.Length > 0 &&
+        (endpointName.Contains($"({podsName})", StringComparison.OrdinalIgnoreCase) ||
+         endpointName.Contains($"({podsName} Hands-Free)", StringComparison.OrdinalIgnoreCase));
+
+    private static int Send(string addressHex, string podsName, uint propertyId, Action<string>? log)
     {
-        int sent = 0, bluetoothFilters = 0;
+        int sent = 0;
         var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var byName = new List<(IPart Part, string FilterId)>();
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
         try
         {
             // Все устройства, включая отключённые: у сопряжённых, но не подключённых наушников они есть.
             Check(enumerator.EnumAudioEndpoints(EDataFlowAll, DeviceStateMaskAll, out var collection));
             Check(collection.GetCount(out uint count));
+            log?.Invoke($"  звуковых устройств: {count}");
             for (uint i = 0; i < count; i++)
             {
                 if (collection.Item(i, out var endpoint) != 0) continue;
+                string name = FriendlyName(endpoint);
                 try
                 {
-                    if (TryGetBluetoothFilter(endpoint, out var part, out var filterId) &&
-                        filterId.Contains("BTHENUM", StringComparison.OrdinalIgnoreCase))
+                    string? error = TryGetFilter(endpoint, out var part, out var filterId);
+                    bool nameMatch = NameMatches(name, podsName);
+                    if (error != null)
                     {
-                        bluetoothFilters++;
-                        if (IsFilterOf(filterId, addressHex) && done.Add(filterId))
-                        {
-                            int hr = SendProperty(part, propertyId);
-                            log?.Invoke($"  фильтр …{Tail(filterId)}: 0x{hr:X8}");
-                            if (hr == 0) sent++;
-                        }
+                        // Подробности только про похожие устройства, чтобы не засорять журнал колонками и микрофонами.
+                        if (nameMatch) log?.Invoke($"  «{name}»: {error}");
+                        continue;
+                    }
+                    bool bluetooth = IsBluetoothFilter(filterId);
+                    if (bluetooth || nameMatch) log?.Invoke($"  «{name}»: {filterId}");
+                    if (IsFilterOf(filterId, addressHex))
+                    {
+                        if (done.Add(filterId)) sent += Fire(part, filterId, propertyId, log);
+                    }
+                    else if (nameMatch)
+                    {
+                        byName.Add((part, filterId));
                     }
                 }
-                catch (COMException)
+                catch (Exception e) when (e is COMException or InvalidCastException)
                 {
-                    // У этого звукового устройства нет нужной топологии — пропускаем.
+                    log?.Invoke($"  «{name}»: {e.GetType().Name} 0x{e.HResult:X8}");
                 }
                 finally
                 {
                     Marshal.ReleaseComObject(endpoint);
                 }
             }
+            // По адресу не нашли: берём устройства с именем наушников.
+            if (done.Count == 0)
+            {
+                foreach (var (part, filterId) in byName)
+                    if (done.Add(filterId)) sent += Fire(part, filterId, propertyId, log);
+            }
             Marshal.ReleaseComObject(collection);
-            log?.Invoke($"  звуковых устройств {count}, Bluetooth-фильтров {bluetoothFilters}, этих наушников {done.Count}");
         }
         finally
         {
@@ -71,19 +101,32 @@ public static class BluetoothAudioControl
         return sent;
     }
 
-    private static bool TryGetBluetoothFilter(IMMDevice endpoint, out IPart part, out string filterId)
+    private static int Fire(IPart part, string filterId, uint propertyId, Action<string>? log)
+    {
+        int hr = SendProperty(part, propertyId);
+        log?.Invoke($"  команда → …{Tail(filterId)}: 0x{hr:X8}");
+        return hr == 0 ? 1 : 0;
+    }
+
+    /// <returns>null, если фильтр найден; иначе на каком шаге не вышло.</returns>
+    private static string? TryGetFilter(IMMDevice endpoint, out IPart part, out string filterId)
     {
         part = null!;
         filterId = "";
         var topologyIid = typeof(IDeviceTopology).GUID;
-        if (endpoint.Activate(ref topologyIid, ClsctxAll, IntPtr.Zero, out var topologyObject) != 0) return false;
+        int hr = endpoint.Activate(ref topologyIid, ClsctxAll, IntPtr.Zero, out var topologyObject);
+        if (hr != 0) return $"топология 0x{hr:X8}";
         var topology = (IDeviceTopology)topologyObject;
-        if (topology.GetConnector(0, out var connector) != 0) return false;
+        hr = topology.GetConnector(0, out var connector);
+        if (hr != 0) return $"разъём 0x{hr:X8}";
         // Разъём звукового устройства соединён с разъёмом фильтра драйвера Bluetooth.
-        if (connector.GetConnectedTo(out var other) != 0) return false;
+        hr = connector.GetConnectedTo(out var other);
+        if (hr != 0) return $"соединение разъёма 0x{hr:X8}";
         part = (IPart)other;
-        if (part.GetTopologyObject(out var filterTopology) != 0) return false;
-        return filterTopology.GetDeviceId(out filterId) == 0;
+        hr = part.GetTopologyObject(out var filterTopology);
+        if (hr != 0) return $"топология фильтра 0x{hr:X8}";
+        hr = filterTopology.GetDeviceId(out filterId);
+        return hr != 0 ? $"путь фильтра 0x{hr:X8}" : null;
     }
 
     /// <returns>HRESULT: 0 — команда принята драйвером.</returns>
@@ -99,8 +142,33 @@ public static class BluetoothAudioControl
         return hr;
     }
 
-    /// <summary>Конец пути фильтра для журнала: по нему видно профиль, а адрес целиком не светим.</summary>
-    private static string Tail(string id) => id.Length > 40 ? id[^40..] : id;
+    /// <summary>Имя звукового устройства, как в настройках звука Windows.</summary>
+    private static string FriendlyName(IMMDevice endpoint)
+    {
+        if (endpoint.OpenPropertyStore(StgmRead, out var storePtr) != 0) return "?";
+        var store = (IPropertyStore)Marshal.GetObjectForIUnknown(storePtr);
+        Marshal.Release(storePtr);
+        try
+        {
+            var key = PkeyDeviceFriendlyName;
+            if (store.GetValue(ref key, out var value) != 0) return "?";
+            try
+            {
+                return value.Type == VtLpwstr ? Marshal.PtrToStringUni(value.Pointer) ?? "?" : "?";
+            }
+            finally
+            {
+                PropVariantClear(ref value);
+            }
+        }
+        finally
+        {
+            Marshal.ReleaseComObject(store);
+        }
+    }
+
+    /// <summary>Конец пути фильтра для журнала.</summary>
+    private static string Tail(string id) => id.Length > 60 ? id[^60..] : id;
 
     private static void Check(int hr)
     {
@@ -113,6 +181,46 @@ public static class BluetoothAudioControl
     private const uint DeviceStateMaskAll = 0xF;
     private const uint ClsctxInprocServer = 0x1;
     private const uint ClsctxAll = 0x17;
+    private const uint StgmRead = 0;
+    private const ushort VtLpwstr = 31;
+
+    private static PropertyKey PkeyDeviceFriendlyName = new()
+    {
+        FormatId = new Guid("A45C254E-DF1C-4EFD-8020-67D146A850E0"),
+        PropertyId = 14,
+    };
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PropertyKey
+    {
+        public Guid FormatId;
+        public uint PropertyId;
+    }
+
+    /// <summary>PROPVARIANT: тип, три зарезервированных поля и значение (здесь — указатель на строку).</summary>
+    [StructLayout(LayoutKind.Sequential)]
+    private struct PropVariant
+    {
+        public ushort Type;
+        public ushort Reserved1;
+        public ushort Reserved2;
+        public ushort Reserved3;
+        public IntPtr Pointer;
+        public IntPtr Extra;
+    }
+
+    [DllImport("ole32.dll")]
+    private static extern int PropVariantClear(ref PropVariant value);
+
+    [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    private interface IPropertyStore
+    {
+        [PreserveSig] int GetCount(out uint count);
+        [PreserveSig] int GetAt(uint index, out PropertyKey key);
+        [PreserveSig] int GetValue(ref PropertyKey key, out PropVariant value);
+        [PreserveSig] int SetValue(ref PropertyKey key, ref PropVariant value);
+        [PreserveSig] int Commit();
+    }
 
     private static readonly Guid KsPropSetIdBtAudio = new("7FA06C40-B8F6-4C7E-8556-E8C33A12E54D");
     private const uint KsPropertyOneshotReconnect = 0;

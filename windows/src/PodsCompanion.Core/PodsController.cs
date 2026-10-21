@@ -145,7 +145,7 @@ public sealed class PodsController : IDisposable
         try
         {
             Log($"забрать на ПК ({reason}): {pods.Name}");
-            int sent = await Task.Run(() => BluetoothAudioControl.Connect(pods.AddressHex, Log));
+            int sent = await Task.Run(() => BluetoothAudioControl.Connect(pods.AddressHex, pods.Name, Log));
             Log($"команда подключения отправлена {sent} звуковым устройствам");
             bool ok = sent > 0 && await WaitConnectedAsync(pods.Address, ConnectWait);
             Log(ok ? "наушники подключились к ПК" : "наушники не подключились");
@@ -175,7 +175,7 @@ public sealed class PodsController : IDisposable
         Log($"отпустить: {pods.Name}");
         try
         {
-            int sent = await Task.Run(() => BluetoothAudioControl.Disconnect(pods.AddressHex, Log));
+            int sent = await Task.Run(() => BluetoothAudioControl.Disconnect(pods.AddressHex, pods.Name, Log));
             Log($"команда отключения отправлена {sent} звуковым устройствам");
         }
         catch (Exception e)
