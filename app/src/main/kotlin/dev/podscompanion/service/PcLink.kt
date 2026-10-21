@@ -30,8 +30,8 @@ import kotlinx.coroutines.launch
  * - «Отдать телефону» на ПК: ПК отключает наушники и просит телефон забрать их ([PcSignal]).
  *   Просьба приходит двумя путями сразу, срабатывает первый: BLE-реклама ([PcSignalScanner])
  *   и UDP-пакет в домашней сети ([DeviceLink.takeSignals]). Слушаем, пока наушники не у телефона.
- * - ПК забирает наушники ([DeviceLink.taking]): заранее ставим музыку на паузу, чтобы она
- *   не заиграла из динамика телефона, пока наушники уходят.
+ * - ПК забирает наушники ([DeviceLink.taking], [DeviceLink.releaseRequests]): заранее ставим музыку
+ *   на паузу, чтобы она не заиграла из динамика телефона, и по просьбе отпускаем наушники.
  */
 internal class PcLink(
     context: Context,
@@ -74,13 +74,28 @@ internal class PcLink(
         }
         scope.launch {
             link.taking.collect { hash ->
-                val here = connectedAudio.devices().filterNotNull().first().any { PcSignal.hashHex(it.device.address) == hash }
-                if (!here || !audioManager.isMusicActive) return@collect
+                if (connectedHere(hash) == null || !audioManager.isMusicActive) return@collect
                 log.add("ПК забирает наушники: пауза на телефоне")
-                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
-                audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
+                pause()
             }
         }
+        scope.launch {
+            link.releaseRequests.collect { hash ->
+                val device = connectedHere(hash) ?: return@collect
+                log.add("ПК забирает наушники: отпускаю ${connector.nameOf(device)}")
+                if (audioManager.isMusicActive) pause()
+                connector.release(device, log::add)
+            }
+        }
+    }
+
+    /** Подключённые к телефону наушники с этим хэшем. */
+    private suspend fun connectedHere(hash: String) =
+        connectedAudio.devices().filterNotNull().first().firstOrNull { PcSignal.hashHex(it.device.address) == hash }?.device
+
+    private fun pause() {
+        audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_DOWN, KeyEvent.KEYCODE_MEDIA_PAUSE))
+        audioManager.dispatchMediaKeyEvent(KeyEvent(KeyEvent.ACTION_UP, KeyEvent.KEYCODE_MEDIA_PAUSE))
     }
 
     fun stop() {

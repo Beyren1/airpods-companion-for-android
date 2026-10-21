@@ -143,4 +143,15 @@ public class ParserTests
         Assert.Null(LinkMessage.Parse("PCLINK 1 jump 1 pc - X"));
         Assert.Equal("PCLINK 1 hi 1 phone - Pixel 9", new LinkMessage(LinkType.Hi, "1", LinkKind.Phone, [], "Pixel 9").Encode());
     }
+
+    [Fact]
+    public void LinkMessage_BatteryAndMode()
+    {
+        // Та же строка в LinkMessageTest.carriesBatteryAndMode на телефоне.
+        const string line = "PCLINK 1 hello 1 phone e5d3f516:1:96:anc,0a0b0c0d:0:80/-/60:- Pixel 9";
+        var message = LinkMessage.Parse(line)!;
+        Assert.Equal([new LinkPods("e5d3f516", true, "96", "anc"), new LinkPods("0a0b0c0d", false, "80/-/60", null)], message.Pods);
+        Assert.Equal(line, message.Encode());
+        Assert.Equal(LinkType.Mode, LinkMessage.Parse("PCLINK 1 mode 2 pc e5d3f516:0:-:transparency DESKTOP")!.Type);
+    }
 }

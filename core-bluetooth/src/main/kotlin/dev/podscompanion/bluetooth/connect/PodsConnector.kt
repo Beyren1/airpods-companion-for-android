@@ -86,6 +86,23 @@ class PodsConnector @Inject constructor(
         return TakeOverResult.Failed
     }
 
+    /**
+     * Отпустить наушники, чтобы их забрало другое устройство (ПК попросил по сети).
+     * Тот же скрытый вызов, что и при подключении, только disconnect, у профилей звука и звонков.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun release(device: BluetoothDevice, log: (String) -> Unit): Boolean {
+        exemptHiddenApis()
+        var any = false
+        for ((name, profile) in listOf("A2DP" to BluetoothProfile.A2DP, "HFP" to BluetoothProfile.HEADSET)) {
+            val error = runCatching { profileCall(profile, device, "disconnect") }.exceptionOrNull()
+            val cause = (error as? java.lang.reflect.InvocationTargetException)?.targetException ?: error
+            if (cause == null) any = true
+            log(if (cause == null) "отпустить: $name.disconnect вызван" else "отпустить: $name.disconnect — ошибка ${cause.javaClass.simpleName}: ${cause.message}")
+        }
+        return any
+    }
+
     /** Сопряжённые наушники Apple/Beats: в их SDP-записи есть сервис AAP. */
     @SuppressLint("MissingPermission")
     fun bondedPods(): List<BluetoothDevice> = runCatching {
@@ -123,8 +140,10 @@ class PodsConnector @Inject constructor(
         connectedAudio.devices().filterNotNull().first { list -> list.any { it.device.address == device.address } }
     } != null
 
-    /** Скрытый connect(device) у прокси профиля (A2DP или HFP). */
-    private suspend fun profileConnect(profile: Int, device: BluetoothDevice) {
+    private suspend fun profileConnect(profile: Int, device: BluetoothDevice) = profileCall(profile, device, "connect")
+
+    /** Скрытый connect(device) или disconnect(device) у прокси профиля (A2DP или HFP). */
+    private suspend fun profileCall(profile: Int, device: BluetoothDevice, method: String) {
         val adapter = adapter() ?: error("нет Bluetooth")
         val proxy = withTimeoutOrNull(PROXY_TIMEOUT_MS) {
             suspendCancellableCoroutine<BluetoothProfile> { cont ->
@@ -139,7 +158,7 @@ class PodsConnector @Inject constructor(
         } ?: error("профиль недоступен")
         try {
             val type = if (profile == BluetoothProfile.A2DP) BluetoothA2dp::class.java else BluetoothHeadset::class.java
-            val ok = type.getMethod("connect", BluetoothDevice::class.java).invoke(proxy, device)
+            val ok = type.getMethod(method, BluetoothDevice::class.java).invoke(proxy, device)
             if (ok == false) error("система ответила false")
         } finally {
             runCatching { adapter.closeProfileProxy(profile, proxy) }

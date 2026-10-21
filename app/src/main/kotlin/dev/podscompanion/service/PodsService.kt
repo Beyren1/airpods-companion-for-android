@@ -27,6 +27,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.podscompanion.bluetooth.connect.PodsConnector
 import dev.podscompanion.bluetooth.scan.PcSignalScanner
 import dev.podscompanion.bluetooth.scan.ScanIntensity
+import dev.podscompanion.protocol.advertising.PcSignal
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.PodsTakeOver
@@ -58,6 +59,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -171,8 +173,28 @@ class PodsService : LifecycleService() {
         usage.run(lifecycleScope)
         autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, ::isWorn, ::startScan)
             .also { it.run(lifecycleScope) }
+        lifecycleScope.launch {
+            // Наушники у ПК, а к телефону ничего не подключено: уведомление с кнопкой «Забрать».
+            combine(deviceLink.peers, connectedAudio.devices()) { peers, devices ->
+                peers.firstOrNull { pc -> pc.pods.any { it.here } }?.name?.takeIf { devices.orEmpty().none { it.supportsAap } }
+            }.distinctUntilChanged().collect(notifications::showOnPc)
+        }
         pcLink = PcLink(this, audioManager, connectedAudio, pcSignalScanner, deviceLink, podsConnector, podsTakeOver, aapLog).also { it.run(lifecycleScope) }
         startScan()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        if (intent?.action == ACTION_TAKE_FROM_PC) lifecycleScope.launch { takeFromPc() }
+        return START_STICKY
+    }
+
+    /** Кнопка «Забрать» в уведомлении: наушники, которые сейчас у ПК. */
+    private suspend fun takeFromPc() {
+        val hashes = deviceLink.peers.value.flatMap { pc -> pc.pods.filter { it.here }.map { it.hash } }.toSet()
+        val device = podsConnector.bondedPods().firstOrNull { PcSignal.hashHex(it.address) in hashes } ?: return
+        notifications.showOnPc(null)
+        podsTakeOver.takeOverAddress(device.address, "уведомление")
     }
 
     override fun onDestroy() {
@@ -363,6 +385,7 @@ class PodsService : LifecycleService() {
             runCatching { TileService.requestListeningState(context, ComponentName(context, PodsTileService::class.java)) }
         }
 
+        const val ACTION_TAKE_FROM_PC = "dev.podscompanion.action.TAKE_FROM_PC"
         private const val IDLE_AFTER_MS = 2 * 60_000L
         private const val WATCHDOG_PERIOD_MS = 30_000L
 

@@ -14,7 +14,7 @@
     <AssemblyName>PodsCompanion</AssemblyName>
     <RootNamespace>PodsCompanion.App</RootNamespace>
     <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>0.2.0</Version>
     <Product>Pods Companion</Product>
     <!-- Тема Fluent (как в Windows 11) в WPF пока помечена экспериментальной. -->
     <NoWarn>$(NoWarn);WPF0001</NoWarn>

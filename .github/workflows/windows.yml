@@ -1,11 +1,24 @@
 name: Windows CI
 
+# Программа для ПК. На каждый PR и main — тесты, exe и установщик в артефактах.
+# Ручной запуск (Actions → Windows CI → Run workflow) с галочкой «Create draft release» ещё и создаёт
+# черновик выпуска windows-v<Version из PodsCompanion.App.csproj> с установщиком; после публикации
+# черновика кнопка «Обновить» в программе увидит новую версию.
 on:
+  workflow_dispatch:
+    inputs:
+      draft_release:
+        description: 'Create draft release'
+        type: boolean
+        default: false
   push:
     branches: [main]
     paths: ['windows/**', '.github/workflows/windows.yml']
   pull_request:
     paths: ['windows/**', '.github/workflows/windows.yml']
+
+permissions:
+  contents: write
 
 jobs:
   build:
@@ -19,13 +32,36 @@ jobs:
             10.0.x
       - name: Unit tests
         run: dotnet test windows/tests/PodsCompanion.Core.Tests
+      - name: Version
+        id: version
+        shell: bash
+        run: echo "value=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' windows/src/PodsCompanion.App/PodsCompanion.App.csproj)" >> "$GITHUB_OUTPUT"
       # Один exe со всем нужным внутри: ставить .NET на ПК не нужно.
       - name: Build app
         run: >
           dotnet publish windows/src/PodsCompanion.App -c Release -r win-x64 --self-contained true
           -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
           -p:EnableCompressionInSingleFile=true -o windows/out
+      - name: Build installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress | Out-Null }
+          & $iscc /DAppVersion=${{ steps.version.outputs.value }} windows/installer/PodsCompanion.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - uses: actions/upload-artifact@v4
         with:
           name: PodsCompanion-windows
-          path: windows/out/PodsCompanion.exe
+          path: |
+            windows/out/PodsCompanion.exe
+            windows/out/PodsCompanion-Setup.exe
+      - name: Draft release
+        if: inputs.draft_release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: >
+          gh release create "windows-v${{ steps.version.outputs.value }}" windows/out/PodsCompanion-Setup.exe --draft
+          --target "$GITHUB_SHA"
+          --title "Pods Companion для Windows ${{ steps.version.outputs.value }}"
+          --notes "Программа для ПК. Скачайте PodsCompanion-Setup.exe и запустите."

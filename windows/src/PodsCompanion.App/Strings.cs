@@ -34,6 +34,30 @@ internal static class Strings
         "Phone app not found on the network",
         "Приложение на телефоне не найдено в сети",
         "Application du téléphone introuvable sur le réseau");
+    public static string ConnectedToOtherPc(string pc) => T(
+        $"Connected to PC {pc}", $"Подключены к ПК {pc}", $"Connectés au PC {pc}");
+    public static string Mode(string mode) => mode switch
+    {
+        "off" => T("Off", "Выкл", "Désactivé"),
+        "anc" => T("Noise cancel", "Шумоподавл.", "Réduction"),
+        "transparency" => T("Transparency", "Прозрачность", "Transparence"),
+        "adaptive" => T("Adaptive", "Адаптивный", "Adaptatif"),
+        _ => mode,
+    };
+    public static string ModeViaPhone(string phone) => T(
+        $"Modes are switched through the phone ({phone}).",
+        $"Режимы переключаются через телефон ({phone}).",
+        $"Les modes passent par le téléphone ({phone}).");
+    public static string ModeBusy => T("Switching mode…", "Включаю режим…", "Changement de mode…");
+    public static string HotkeyHint => T(
+        "Ctrl+Alt+P: switch between PC and phone",
+        "Ctrl+Alt+P — перекинуть между ПК и телефоном",
+        "Ctrl+Alt+P : basculer entre PC et téléphone");
+    public static string UpdateTo(string version) => T(
+        $"Update to {version}", $"Обновить до версии {version}", $"Mettre à jour vers {version}");
+    public static string Updating => T("Downloading update…", "Скачиваю обновление…", "Téléchargement…");
+    public static string UpdateFailed => T(
+        "Update failed, try again", "Не вышло обновить, нажмите ещё раз", "Échec, réessayer");
     public static string NotNearby => T("Not nearby", "Не рядом", "Pas à proximité");
     public static string Left => T("Left", "Левый", "Gauche");
     public static string Right => T("Right", "Правый", "Droit");

@@ -3,6 +3,9 @@
     <string name="notif_channel_name">Batterie des écouteurs</string>
     <string name="notif_channel_description">Notification permanente avec la batterie quand le mode arrière-plan est activé</string>
     <string name="notif_text_idle">Aucun écouteur à proximité. Ouvrez le boîtier pour voir la batterie</string>
+    <string name="notif_on_pc_title">Écouteurs sur le PC %1$s</string>
+    <string name="notif_on_pc_text">Touchez Reprendre pour les passer au téléphone</string>
+    <string name="notif_on_pc_take">Reprendre</string>
     <string name="notif_left">G %1$s</string>
     <string name="notif_right">D %1$s</string>
     <string name="notif_case">Boîtier %1$s</string>

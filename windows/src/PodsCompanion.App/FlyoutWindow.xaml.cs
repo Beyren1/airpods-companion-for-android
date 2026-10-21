@@ -8,6 +8,7 @@ using System.Windows.Interop;
 using PodsCompanion.Core;
 using PodsCompanion.Core.Advertising;
 using PodsCompanion.Core.Bluetooth;
+using PodsCompanion.Core.Switching;
 
 namespace PodsCompanion.App;
 
@@ -16,6 +17,10 @@ public partial class FlyoutWindow : Window
 {
     private readonly PodsController controller;
     private bool rendering;
+    private Updater.Update? update;
+
+    /// <summary>false — Ctrl+Alt+P занято другой программой, подсказку не показываем.</summary>
+    public bool HotkeyWorks { get; set; } = true;
 
     /// <summary>Когда окно спряталось: нужно, чтобы щелчок по значку трея не открыл его снова сразу же.</summary>
     public DateTime HiddenAt { get; private set; } = DateTime.MinValue;
@@ -93,10 +98,17 @@ public partial class FlyoutWindow : Window
         TitleText.Text = pods.Name;
         StatusText.Text = pods.Connected ? Strings.ConnectedToPc
             : s.PodsOnPhone ? Strings.ConnectedToPhone(s.Phone!.Name)
+            : s.OtherPc != null ? Strings.ConnectedToOtherPc(s.OtherPc.Name)
             : s.Nearby != null ? Strings.NearbyElsewhere : Strings.NotNearby;
         PhoneText.Text = s.Phone != null ? Strings.PhoneLinked(s.Phone.Name) : Strings.PhoneNotLinked;
 
-        if (s.Nearby is { } nearby)
+        if (s.PhoneBattery != null && PhoneTiles(s.PhoneBattery, s.Nearby?.Message.Model?.Kind ?? PodsKind.Buds) is { } tiles)
+        {
+            // Наушники у телефона: он знает заряд точно, по AAP, а реклама даёт его с шагом 10 %.
+            foreach (var tile in tiles) BatteryGrid.Children.Add(tile);
+            EarText.Text = "";
+        }
+        else if (s.Nearby is { } nearby)
         {
             var m = nearby.Message;
             if (m.Model?.Kind == PodsKind.Single)
@@ -119,9 +131,58 @@ public partial class FlyoutWindow : Window
             EarText.Text = "";
         }
 
+        RenderModes(s);
+        HotkeyHint.Text = HotkeyWorks ? Strings.HotkeyHint : "";
         ConnectButton.Visibility = Visibility.Visible;
         ConnectButton.IsEnabled = !s.Busy;
         ConnectButton.Content = s.Busy ? Strings.Connecting : pods.Connected ? Strings.Disconnect : Strings.ConnectToPc;
+    }
+
+    /// <summary>Заряд от телефона: «96» у Max, «80/85/60» у вкладышей (левый/правый/кейс).</summary>
+    private static UIElement[]? PhoneTiles(string battery, PodsKind kind)
+    {
+        static int? Percent(string part) => int.TryParse(part, out var p) ? p : null;
+        var parts = battery.Split('/');
+        if (parts.Length == 1) return [BatteryTile(Strings.Headphones, Percent(parts[0]), false)];
+        if (parts.Length != 3 || kind == PodsKind.Single) return null;
+        return
+        [
+            BatteryTile(Strings.Left, Percent(parts[0]), false),
+            BatteryTile(Strings.Right, Percent(parts[1]), false),
+            BatteryTile(Strings.Case, Percent(parts[2]), false),
+        ];
+    }
+
+    private void RenderModes(PodsSnapshot s)
+    {
+        // Режимы включает телефон: без него на связи или когда наушники не у ПК и не у телефона — прячем.
+        bool available = s.Phone != null && (s.Pods!.Connected || s.PodsOnPhone);
+        ModeSection.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        if (!available) return;
+        // «Адаптивный» есть у вкладышей с шумоподавлением, у Max его нет.
+        var modes = s.Nearby?.Message.Model?.Kind == PodsKind.Single ? LinkPods.Modes.Take(3) : LinkPods.Modes;
+        var wanted = modes.ToList();
+        if (ModeGrid.Children.Count != wanted.Count)
+        {
+            ModeGrid.Children.Clear();
+            foreach (var mode in wanted)
+            {
+                var button = new System.Windows.Controls.Primitives.ToggleButton { Content = Strings.Mode(mode), Tag = mode, Margin = new Thickness(0, 0, 6, 0), Padding = new Thickness(6, 6, 6, 6) };
+                button.Click += OnModeClick;
+                ModeGrid.Children.Add(button);
+            }
+        }
+        foreach (var button in ModeGrid.Children.OfType<System.Windows.Controls.Primitives.ToggleButton>())
+        {
+            button.IsChecked = (string)button.Tag == s.Mode;
+            button.IsEnabled = !s.ModeBusy;
+        }
+        ModeHint.Text = s.ModeBusy ? Strings.ModeBusy : Strings.ModeViaPhone(s.Phone!.Name);
+    }
+
+    private async void OnModeClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string mode }) await controller.SetModeAsync(mode);
     }
 
     private static UIElement BatteryTile(string label, int? percent, bool charging)
@@ -165,6 +226,34 @@ public partial class FlyoutWindow : Window
         if (pods == null) return;
         if (pods.Connected) await controller.ReleaseAsync();
         else await controller.TakeOverAsync("кнопка");
+    }
+
+    /// <summary>Показать кнопку обновления: на GitHub есть версия новее.</summary>
+    public void ShowUpdate(Updater.Update found)
+    {
+        update = found;
+        UpdateButton.Content = Strings.UpdateTo(found.Version.ToString());
+        UpdateButton.IsEnabled = true;
+        UpdateButton.Visibility = Visibility.Visible;
+    }
+
+    private async void OnUpdateClick(object sender, RoutedEventArgs e)
+    {
+        if (update == null) return;
+        UpdateButton.IsEnabled = false;
+        UpdateButton.Content = Strings.Updating;
+        try
+        {
+            await Updater.InstallAsync(update);
+            // Установщик заменит файлы и сам запустит новую версию.
+            ((App)Application.Current).Quit();
+        }
+        catch (Exception ex)
+        {
+            controller.Log($"обновление: {ex.Message}");
+            UpdateButton.Content = Strings.UpdateFailed;
+            UpdateButton.IsEnabled = true;
+        }
     }
 
     private void OnPodsPicked(object sender, SelectionChangedEventArgs e)

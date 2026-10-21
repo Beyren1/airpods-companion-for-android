@@ -20,6 +20,8 @@ public partial class App : Application
     private PodsController? controller;
     private Forms.NotifyIcon? tray;
     private FlyoutWindow? flyout;
+    private Hotkey? hotkey;
+    private readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromHours(12) };
     private readonly DispatcherTimer uiTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private volatile bool dirty = true;
 
@@ -47,8 +49,34 @@ public partial class App : Application
         uiTimer.Tick += (_, _) => Refresh();
         uiTimer.Start();
 
+        hotkey = new Hotkey(OnHotkey);
+        flyout.HotkeyWorks = hotkey.Registered;
+        if (!hotkey.Registered) controller.Log("Ctrl+Alt+P занято другой программой");
+
         await controller.StartAsync();
         if (!e.Args.Contains("--background")) ShowFlyout();
+
+        updateTimer.Tick += (_, _) => _ = CheckUpdateAsync();
+        updateTimer.Start();
+        await CheckUpdateAsync();
+    }
+
+    /// <summary>Ctrl+Alt+P: наушники у ПК — отдаём телефону, иначе забираем на ПК.</summary>
+    private void OnHotkey()
+    {
+        var pods = controller?.Snapshot().Pods;
+        if (pods == null) return;
+        if (pods.Connected) _ = controller!.ReleaseAsync();
+        else _ = controller!.TakeOverAsync("горячая клавиша");
+    }
+
+    private async System.Threading.Tasks.Task CheckUpdateAsync()
+    {
+        if (await Updater.CheckAsync() is { } update)
+        {
+            controller?.Log($"есть новая версия {update.Version}");
+            flyout?.ShowUpdate(update);
+        }
     }
 
     private void CreateTray()
@@ -117,6 +145,8 @@ public partial class App : Application
     public void Quit()
     {
         uiTimer.Stop();
+        updateTimer.Stop();
+        hotkey?.Dispose();
         if (tray != null) tray.Visible = false;
         tray?.Dispose();
         controller?.Dispose();

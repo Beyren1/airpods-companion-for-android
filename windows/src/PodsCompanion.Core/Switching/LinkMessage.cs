@@ -1,9 +1,35 @@
 namespace PodsCompanion.Core.Switching;
 
-/// <summary>Наушники в сообщении связи: <see cref="Hash"/> — 8 hex-символов, <see cref="Here"/> — подключены к отправителю.</summary>
-public sealed record LinkPods(string Hash, bool Here);
+/// <summary>
+/// Наушники в сообщении связи: <see cref="Hash"/> — 8 hex-символов, <see cref="Here"/> — подключены к отправителю,
+/// <see cref="Battery"/> — точный заряд от телефона («96» или «80/85/60»), <see cref="Mode"/> — режим
+/// («off», «anc», «transparency», «adaptive»).
+/// </summary>
+public sealed record LinkPods(string Hash, bool Here, string? Battery = null, string? Mode = null)
+{
+    public static readonly string[] Modes = ["off", "anc", "transparency", "adaptive"];
 
-public enum LinkType { Hi, Hello, Release, Taking }
+    public string Encode()
+    {
+        var text = $"{Hash}:{(Here ? 1 : 0)}";
+        return Battery == null && Mode == null ? text : $"{text}:{Battery ?? "-"}:{Mode ?? "-"}";
+    }
+
+    public static LinkPods? Parse(string text)
+    {
+        var parts = text.Split(':');
+        if (parts.Length is not (2 or 4) || parts[1] is not ("0" or "1")) return null;
+        var battery = parts.Length == 4 && parts[2] != "-" ? parts[2] : null;
+        var mode = parts.Length == 4 && Modes.Contains(parts[3]) ? parts[3] : null;
+        return new LinkPods(parts[0].ToLowerInvariant(), parts[1] == "1", battery, mode);
+    }
+}
+
+/// <summary>
+/// hi — «я здесь, ответь»; hello — состояние; release — «отпусти эти наушники»; taking — «забираю эти наушники»;
+/// mode — «включи этим наушникам режим» (ПК просит телефон: у ПК нет доступа к AAP); modedone — ответ на mode.
+/// </summary>
+public enum LinkType { Hi, Hello, Release, Taking, Mode, ModeDone }
 
 public enum LinkKind { Phone, Pc }
 
@@ -21,11 +47,12 @@ public sealed record LinkMessage(LinkType Type, string Id, LinkKind Kind, IReadO
     private static readonly Dictionary<LinkType, string> TypeWire = new()
     {
         [LinkType.Hi] = "hi", [LinkType.Hello] = "hello", [LinkType.Release] = "release", [LinkType.Taking] = "taking",
+        [LinkType.Mode] = "mode", [LinkType.ModeDone] = "modedone",
     };
 
     public string Encode()
     {
-        var pods = Pods.Count == 0 ? "-" : string.Join(',', Pods.Select(p => $"{p.Hash}:{(p.Here ? 1 : 0)}"));
+        var pods = Pods.Count == 0 ? "-" : string.Join(',', Pods.Select(p => p.Encode()));
         var name = Name.Replace('\n', ' ').Replace('\r', ' ').Trim();
         return $"{Magic} {Version} {TypeWire[Type]} {Id} {(Kind == LinkKind.Pc ? "pc" : "phone")} {pods} {(name.Length == 0 ? "?" : name)}";
     }
@@ -45,9 +72,9 @@ public sealed record LinkMessage(LinkType Type, string Id, LinkKind Kind, IReadO
         {
             foreach (var item in parts[5].Split(','))
             {
-                var kv = item.Split(':');
-                if (kv.Length != 2) return null;
-                pods.Add(new LinkPods(kv[0].ToLowerInvariant(), kv[1] == "1"));
+                var parsed = LinkPods.Parse(item);
+                if (parsed == null) return null;
+                pods.Add(parsed);
             }
         }
         return new LinkMessage(type.Key, parts[3], kind, pods, parts[6]);

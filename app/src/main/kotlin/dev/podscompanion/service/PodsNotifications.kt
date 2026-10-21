@@ -85,6 +85,39 @@ internal class PodsNotifications(private val context: Context) {
         return if (charging) "⚡$value" else value
     }
 
+    /**
+     * Наушники подключены к ПК [pcName] (по связи с программой на ПК): отдельное уведомление
+     * с кнопкой «Забрать», чтобы не открывать приложение. null — убрать.
+     */
+    fun showOnPc(pcName: String?) {
+        if (pcName == shownPc) return
+        shownPc = pcName
+        if (pcName == null) {
+            manager.cancel(PC_NOTIFICATION_ID)
+            return
+        }
+        // Сервис уже работает на переднем плане, поэтому запуск из уведомления разрешён и в фоне.
+        val take = PendingIntent.getForegroundService(
+            context,
+            4,
+            Intent(context, PodsService::class.java).setAction(PodsService.ACTION_TAKE_FROM_PC),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_stat_pods)
+            .setContentTitle(context.getString(R.string.notif_on_pc_title, pcName))
+            .setContentText(context.getString(R.string.notif_on_pc_text))
+            .setContentIntent(openApp())
+            .addAction(0, context.getString(R.string.notif_on_pc_take), take)
+            .setOnlyAlertOnce(true)
+            .setSilent(true)
+            .setCategory(NotificationCompat.CATEGORY_STATUS)
+            .build()
+        runCatching { manager.notify(PC_NOTIFICATION_ID, notification) }
+    }
+
+    private var shownPc: String? = null
+
     private fun openApp(): PendingIntent = PendingIntent.getActivity(
         context,
         0,
@@ -95,5 +128,6 @@ internal class PodsNotifications(private val context: Context) {
     companion object {
         const val CHANNEL_ID = "pods_status"
         const val NOTIFICATION_ID = 1
+        const val PC_NOTIFICATION_ID = 5
     }
 }

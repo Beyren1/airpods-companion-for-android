@@ -15,7 +15,15 @@ public sealed record PodsSnapshot(
     /// <summary>Телефон с приложением, который слышно в сети; null — не на связи.</summary>
     LinkPeer? Phone = null,
     /// <summary>Эти наушники сейчас подключены к телефону (по его же сообщению).</summary>
-    bool PodsOnPhone = false);
+    bool PodsOnPhone = false,
+    /// <summary>Другой ПК с этой программой, к которому сейчас подключены наушники.</summary>
+    LinkPeer? OtherPc = null,
+    /// <summary>Точный заряд от телефона («96» или «80/85/60»), пока наушники у него.</summary>
+    string? PhoneBattery = null,
+    /// <summary>Режим шумоподавления: от телефона или последний включённый отсюда; null — не знаем.</summary>
+    string? Mode = null,
+    /// <summary>Режим сейчас включается через телефон.</summary>
+    bool ModeBusy = false);
 
 /// <summary>
 /// Всё приложение без интерфейса: реклама рядом, сопряжённые наушники, пауза по датчику уха
@@ -49,6 +57,9 @@ public sealed class PodsController : IDisposable
     private readonly object gate = new();
     private readonly LinkedList<string> log = new();
     private readonly DeviceLink link;
+    /// <summary>Последний режим, который наушники подтвердили (по хэшу наушников).</summary>
+    private readonly Dictionary<string, string> modes = [];
+    private int modeBusy;
 
     private int busy;
     private bool bluetoothOff;
@@ -120,11 +131,15 @@ public sealed class PodsController : IDisposable
         var pods = Choose(all);
         var nearby = pods == null ? null : scanner.Tracker.Best(pods.Models, DateTime.UtcNow);
         var hash = pods == null ? null : LinkMessage.HashOf(pods.Address);
-        var phones = link.Peers;
+        var peers = link.Peers;
+        var phones = peers.Where(p => p.Kind == LinkKind.Phone).ToList();
         // Телефон, у которого сейчас эти наушники, иначе последний, от кого было слышно.
-        var phone = phones.FirstOrDefault(p => p.Pods.Any(x => x.Hash == hash && x.Here)) ?? phones.MaxBy(p => p.LastSeen);
-        bool onPhone = phone != null && phone.Pods.Any(x => x.Hash == hash && x.Here);
-        return new PodsSnapshot(pods, nearby, all, busy > 0, bluetoothOff, phone, onPhone);
+        var phone = (hash == null ? null : phones.FirstOrDefault(p => p.Holding(hash) != null)) ?? phones.MaxBy(p => p.LastSeen);
+        var onPhone = hash == null ? null : phone?.Holding(hash);
+        var otherPc = hash == null ? null : peers.FirstOrDefault(p => p.Kind == LinkKind.Pc && p.Holding(hash) != null);
+        string? mode = onPhone?.Mode;
+        if (mode == null && hash != null) lock (modes) modes.TryGetValue(hash, out mode);
+        return new PodsSnapshot(pods, nearby, all, busy > 0, bluetoothOff, phone, onPhone != null, otherPc, onPhone?.Battery, mode, modeBusy > 0);
     }
 
     /// <summary>
@@ -165,8 +180,8 @@ public sealed class PodsController : IDisposable
         try
         {
             Log($"забрать на ПК ({reason}): {pods.Name}");
-            // Телефон заранее ставит музыку на паузу, чтобы она не заиграла у него из динамика.
-            await link.SendTakingAsync(pods.Address);
+            // Телефон (или другой ПК) отпускает наушники и заранее ставит музыку на паузу.
+            await link.RequestReleaseAsync(pods.Address);
             int sent = await Task.Run(() => BluetoothAudioControl.Connect(pods.AddressHex, pods.Name, Log));
             Log($"команда подключения отправлена {sent} звуковым устройствам");
             bool ok = sent > 0 && await WaitConnectedAsync(pods.Address, ConnectWait);
@@ -208,6 +223,28 @@ public sealed class PodsController : IDisposable
             Log($"ошибка отключения: {e.Message}");
         }
         await PhoneSignal.SendTakeAsync(pods.Address, Log);
+    }
+
+    /// <summary>Включить режим шумоподавления через телефон (<see cref="LinkPods.Modes"/>).</summary>
+    public async Task SetModeAsync(string mode)
+    {
+        var pods = Snapshot().Pods;
+        if (pods == null || Interlocked.Increment(ref modeBusy) > 1)
+        {
+            Interlocked.Decrement(ref modeBusy);
+            return;
+        }
+        Changed?.Invoke();
+        try
+        {
+            var done = await link.SetModeAsync(pods.Address, mode);
+            if (done != null) lock (modes) modes[LinkMessage.HashOf(pods.Address)] = done;
+        }
+        finally
+        {
+            Interlocked.Decrement(ref modeBusy);
+            Changed?.Invoke();
+        }
     }
 
     /// <summary>Телефон забирает наушники и просит ПК отпустить их: отключаем сразу, без сигнала «забери».</summary>

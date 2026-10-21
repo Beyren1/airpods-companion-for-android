@@ -3,6 +3,9 @@
     <string name="notif_channel_name">Заряд наушников</string>
     <string name="notif_channel_description">Постоянное уведомление с зарядом, пока работает фоновый режим</string>
     <string name="notif_text_idle">Наушников рядом нет. Откройте кейс, чтобы увидеть заряд</string>
+    <string name="notif_on_pc_title">Наушники на ПК %1$s</string>
+    <string name="notif_on_pc_text">Нажмите «Забрать», чтобы перевести их на телефон</string>
+    <string name="notif_on_pc_take">Забрать</string>
     <string name="notif_left">Л %1$s</string>
     <string name="notif_right">П %1$s</string>
     <string name="notif_case">Кейс %1$s</string>

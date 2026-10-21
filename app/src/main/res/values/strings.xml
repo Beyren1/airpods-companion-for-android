@@ -5,6 +5,9 @@
     <string name="notif_channel_description">Ongoing notification with the battery level while background mode is on</string>
     <string name="notif_title_idle" translatable="false">Pods Companion</string>
     <string name="notif_text_idle">No headphones nearby. Open the case to see the battery</string>
+    <string name="notif_on_pc_title">Headphones are on PC %1$s</string>
+    <string name="notif_on_pc_text">Tap Take to switch them to the phone</string>
+    <string name="notif_on_pc_take">Take</string>
     <string name="notif_left">L %1$s</string>
     <string name="notif_right">R %1$s</string>
     <string name="notif_case">Case %1$s</string>

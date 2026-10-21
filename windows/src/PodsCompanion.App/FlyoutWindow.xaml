@@ -21,8 +21,15 @@
 
             <TextBlock x:Name="EarText" Margin="0,12,0,0" Opacity="0.85" />
 
+            <!-- Режимы шумоподавления: включаются через телефон, у Windows нет доступа к ним без драйвера. -->
+            <StackPanel x:Name="ModeSection" Margin="0,14,0,0">
+                <UniformGrid x:Name="ModeGrid" Rows="1" />
+                <TextBlock x:Name="ModeHint" Opacity="0.6" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+
             <Button x:Name="ConnectButton" Click="OnConnectClick" Margin="0,16,0,0"
                     HorizontalAlignment="Stretch" Padding="12,8" />
+            <TextBlock x:Name="HotkeyHint" Opacity="0.5" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center" />
 
             <Separator Margin="0,16,0,10" />
 
@@ -32,6 +39,9 @@
             <CheckBox x:Name="AutoPauseBox" Click="OnSettingClick" Margin="0,2,0,0" />
             <CheckBox x:Name="PauseOnDisconnectBox" Click="OnSettingClick" Margin="0,6,0,0" />
             <CheckBox x:Name="StartWithWindowsBox" Click="OnStartWithWindowsClick" Margin="0,6,0,0" />
+            <!-- Появляется, когда на GitHub вышла новая версия программы для ПК. -->
+            <Button x:Name="UpdateButton" Click="OnUpdateClick" Visibility="Collapsed" Margin="0,12,0,0"
+                    HorizontalAlignment="Stretch" Padding="12,6" />
 
             <DockPanel Margin="0,14,0,0">
                 <Button x:Name="ExitButton" DockPanel.Dock="Right" Click="OnExitClick" Padding="12,4" />

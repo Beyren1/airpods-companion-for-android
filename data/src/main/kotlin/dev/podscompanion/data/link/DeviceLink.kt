@@ -9,6 +9,10 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import dev.podscompanion.bluetooth.connect.PodsConnector
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.data.aap.AapLog
+import dev.podscompanion.data.aap.AapRepository
+import dev.podscompanion.data.aap.AapSessionState
+import dev.podscompanion.protocol.aap.AapDeviceState
+import dev.podscompanion.protocol.aap.ListeningMode
 import dev.podscompanion.protocol.advertising.PcSignal
 import dev.podscompanion.protocol.link.LinkMessage
 import dev.podscompanion.protocol.link.LinkPods
@@ -64,6 +68,8 @@ class DeviceLink @Inject constructor(
     private val connectedAudio: ConnectedAudioDevices,
     private val connector: PodsConnector,
     private val log: AapLog,
+    private val aap: AapRepository,
+    private val remoteMode: RemoteMode,
 ) {
     private val id = "%08x".format(Random.nextInt())
     private val _peers = MutableStateFlow<List<LinkedPc>>(emptyList())
@@ -78,6 +84,11 @@ class DeviceLink @Inject constructor(
 
     /** ПК предупреждает, что забирает наушники с этим хэшем. */
     val taking: SharedFlow<String> = _taking
+
+    private val _releaseRequests = MutableSharedFlow<String>(extraBufferCapacity = 8)
+
+    /** ПК (или другое устройство) забирает наушники с этим хэшем и просит телефон отпустить их. */
+    val releaseRequests: SharedFlow<String> = _releaseRequests
 
     @Volatile private var socket: DatagramSocket? = null
 
@@ -94,6 +105,13 @@ class DeviceLink @Inject constructor(
                     say(if (first) LinkMessage.Type.HI else LinkMessage.Type.HELLO)
                     first = false
                 }
+        }
+        scope.launch {
+            // Точный заряд и режим по AAP: ПК показывает их, пока наушники у телефона.
+            aap.state
+                .map { sessions -> sessions.sessions.filterIsInstance<AapSessionState.Connected>().map { it.address to podsExtras(it.device) } }
+                .distinctUntilChanged()
+                .collect { if (_peers.value.isNotEmpty()) say(LinkMessage.Type.HELLO) }
         }
         scope.launch {
             while (isActive) {
@@ -127,7 +145,20 @@ class DeviceLink @Inject constructor(
     @SuppressLint("MissingPermission")
     private suspend fun ownPods(): List<LinkPods> {
         val connected = connectedAudio.devices().first().orEmpty().map { it.device.address }.toSet()
-        return connector.bondedPods().map { LinkPods(PcSignal.hashHex(it.address), it.address in connected) }
+        val sessions = aap.state.value.sessions.filterIsInstance<AapSessionState.Connected>().associateBy { it.address }
+        return connector.bondedPods().map { device ->
+            val here = device.address in connected
+            val extras = sessions[device.address]?.takeIf { here }?.let { podsExtras(it.device) }
+            LinkPods(PcSignal.hashHex(device.address), here, extras?.first, extras?.second)
+        }
+    }
+
+    /** Заряд («96» у Max, «80/85/60» у вкладышей) и режим по AAP. */
+    private fun podsExtras(device: AapDeviceState): Pair<String?, ListeningMode?> {
+        val battery = device.single?.percent?.toString()
+            ?: listOf(device.left, device.right, device.case).takeIf { parts -> parts.any { it != null } }
+                ?.joinToString("/") { it?.percent?.toString() ?: "-" }
+        return battery to device.listeningMode?.takeIf { it != ListeningMode.UNKNOWN }
     }
 
     /** Широковещательно и каждому известному ПК напрямую. */
@@ -190,13 +221,26 @@ class DeviceLink @Inject constructor(
         val now = SystemClock.elapsedRealtime()
         var isNew = false
         _peers.update { list ->
-            isNew = list.none { it.id == message.id }
-            list.filter { it.id != message.id } + LinkedPc(message.id, message.name, from, message.pods, now)
+            val previous = list.firstOrNull { it.id == message.id }
+            isNew = previous == null
+            // В просьбах (release, mode, taking) только нужные наушники: прежнее состояние ПК сохраняем.
+            val pods = if (message.type == LinkMessage.Type.HI || message.type == LinkMessage.Type.HELLO) message.pods else previous?.pods.orEmpty()
+            list.filter { it.id != message.id } + LinkedPc(message.id, message.name, from, pods, now)
         }
         if (isNew) log.add("ПК на связи: ${message.name}")
         when (message.type) {
             LinkMessage.Type.HI -> scope.launch { send(message(LinkMessage.Type.HELLO, ownPods()), from) }
             LinkMessage.Type.TAKING -> message.pods.forEach { _taking.tryEmit(it.hash) }
+            LinkMessage.Type.RELEASE -> message.pods.forEach { _releaseRequests.tryEmit(it.hash) }
+            LinkMessage.Type.MODE -> message.pods.forEach { pods ->
+                val mode = pods.mode ?: return@forEach
+                scope.launch {
+                    val device = connector.bondedPods().firstOrNull { PcSignal.hashHex(it.address) == pods.hash } ?: return@launch
+                    log.add("ПК ${message.name} просит режим $mode")
+                    val done = remoteMode.set(device, mode)
+                    send(message(LinkMessage.Type.MODE_DONE, listOf(LinkPods(pods.hash, false, null, done))), from)
+                }
+            }
             else -> Unit
         }
     }

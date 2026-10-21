@@ -1,37 +1,48 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 
 namespace PodsCompanion.Core.Switching;
 
-/// <summary>Телефон, который слышно в сети: <see cref="Pods"/> — какие наушники у него подключены.</summary>
-public sealed record LinkPeer(string Id, string Name, IPAddress Address, IReadOnlyList<LinkPods> Pods, DateTime LastSeen);
+/// <summary>Телефон или другой ПК, который слышно в сети: <see cref="Pods"/> — какие наушники у него и в каком состоянии.</summary>
+public sealed record LinkPeer(string Id, LinkKind Kind, string Name, IPAddress Address, IReadOnlyList<LinkPods> Pods, DateTime LastSeen)
+{
+    public LinkPods? Holding(string hash) => Pods.FirstOrDefault(p => p.Hash == hash && p.Here);
+}
 
 /// <summary>
-/// Постоянная связь с приложением на телефоне по домашней сети (UDP, порт 47820).
-/// ПК раз в <see cref="HelloPeriod"/> сообщает, какие наушники у него подключены: широковещательно
-/// и напрямую каждому известному телефону (с выключенным экраном телефон может не слышать широковещание).
-/// Телефон отвечает своим состоянием и может попросить ПК отпустить наушники.
+/// Постоянная связь с приложением на телефоне и с этой же программой на других ПК (UDP, порт 47820).
+/// Раз в <see cref="HelloPeriod"/> и при каждом изменении сообщаем, какие наушники подключены к этому ПК:
+/// широковещательно и напрямую каждому известному устройству (с выключенным экраном телефон может
+/// не слышать широковещание). Кто забирает наушники, сначала просит держателя отпустить их.
 /// </summary>
 public sealed class DeviceLink : IDisposable
 {
     public static readonly TimeSpan HelloPeriod = TimeSpan.FromSeconds(60);
 
-    /// <summary>Сколько телефон считается на связи без новых сообщений.</summary>
+    /// <summary>Сколько устройство считается на связи без новых сообщений.</summary>
     public static readonly TimeSpan PeerTimeout = TimeSpan.FromSeconds(150);
+
+    /// <summary>Сколько ждать, пока держатель отпустит наушники.</summary>
+    public static readonly TimeSpan ReleaseWait = TimeSpan.FromSeconds(3);
+
+    /// <summary>Телефону нужно открыть канал к наушникам и дождаться подтверждения режима.</summary>
+    public static readonly TimeSpan ModeWait = TimeSpan.FromSeconds(15);
 
     private readonly string id = Random.Shared.Next().ToString("x8");
     private readonly Dictionary<string, LinkPeer> peers = [];
+    private readonly ConcurrentDictionary<string, TaskCompletionSource<string?>> modeWaits = new();
     private readonly Func<IReadOnlyList<LinkPods>> ownPods;
     private readonly Action<string> log;
     private UdpClient? udp;
     private CancellationTokenSource? cts;
     private Timer? timer;
 
-    /// <summary>Телефон просит отпустить наушники с этим хэшем.</summary>
+    /// <summary>Телефон или другой ПК просит отпустить наушники с этим хэшем.</summary>
     public event Action<string>? ReleaseRequested;
 
-    /// <summary>Список телефонов или их состояние поменялись.</summary>
+    /// <summary>Список устройств или их состояние поменялись.</summary>
     public event Action? PeersChanged;
 
     public DeviceLink(Func<IReadOnlyList<LinkPods>> ownPods, Action<string> log)
@@ -68,12 +79,47 @@ public sealed class DeviceLink : IDisposable
         timer = new Timer(_ => _ = SayHelloAsync(LinkType.Hi), null, TimeSpan.Zero, HelloPeriod);
     }
 
-    /// <summary>Наше состояние поменялось: сразу сообщаем телефонам.</summary>
+    /// <summary>Наше состояние поменялось: сразу сообщаем остальным.</summary>
     public Task NotifyChangedAsync() => SayHelloAsync(LinkType.Hello);
 
-    /// <summary>Предупредить телефоны, что ПК забирает эти наушники: пусть заранее поставят музыку на паузу.</summary>
-    public Task SendTakingAsync(ulong podsAddress) =>
-        SendToPeersAsync(Message(LinkType.Taking, [new LinkPods(LinkMessage.HashOf(podsAddress), false)]));
+    /// <summary>
+    /// Перед тем как забрать наушники: если они у телефона или другого ПК, просим отпустить
+    /// и ждём не дольше <see cref="ReleaseWait"/>. Так ПК не перетягивает их, а телефон заранее ставит музыку на паузу.
+    /// </summary>
+    public async Task RequestReleaseAsync(ulong podsAddress)
+    {
+        var hash = LinkMessage.HashOf(podsAddress);
+        var holders = Peers.Where(p => p.Holding(hash) != null).ToList();
+        if (holders.Count == 0) return;
+        var message = Message(LinkType.Release, [new LinkPods(hash, false)]);
+        foreach (var holder in holders)
+        {
+            log($"прошу {holder.Name} отпустить наушники");
+            await SendAsync(message, new IPEndPoint(holder.Address, LinkMessage.Port));
+        }
+        var until = DateTime.UtcNow + ReleaseWait;
+        while (DateTime.UtcNow < until && Peers.Any(p => p.Holding(hash) != null)) await Task.Delay(100);
+        log(Peers.Any(p => p.Holding(hash) != null) ? "не отпустили, забираю сам" : "наушники отпустили");
+    }
+
+    /// <summary>
+    /// Включить наушникам режим через телефон: у Windows нет доступа к каналу AAP без драйвера.
+    /// Возвращает режим, который наушники подтвердили, или null.
+    /// </summary>
+    public async Task<string?> SetModeAsync(ulong podsAddress, string mode)
+    {
+        var hash = LinkMessage.HashOf(podsAddress);
+        var phone = Peers.Where(p => p.Kind == LinkKind.Phone).MaxBy(p => p.LastSeen);
+        if (phone == null) return null;
+        var wait = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        modeWaits[hash] = wait;
+        log($"режим {mode} через телефон {phone.Name}");
+        await SendAsync(Message(LinkType.Mode, [new LinkPods(hash, false, null, mode)]), new IPEndPoint(phone.Address, LinkMessage.Port));
+        var done = await Task.WhenAny(wait.Task, Task.Delay(ModeWait)) == wait.Task ? wait.Task.Result : null;
+        modeWaits.TryRemove(hash, out _);
+        log(done != null ? $"режим включён: {done}" : "режим не включился");
+        return done;
+    }
 
     private LinkMessage Message(LinkType type, IReadOnlyList<LinkPods> pods) =>
         new(type, id, LinkKind.Pc, pods, Environment.MachineName);
@@ -82,13 +128,8 @@ public sealed class DeviceLink : IDisposable
     {
         var message = Message(type, ownPods());
         await SendAsync(message, new IPEndPoint(IPAddress.Broadcast, LinkMessage.Port));
-        await SendToPeersAsync(message);
-        PeersChanged?.Invoke(); // кто-то мог пропасть по таймауту
-    }
-
-    private async Task SendToPeersAsync(LinkMessage message)
-    {
         foreach (var peer in Peers) await SendAsync(message, new IPEndPoint(peer.Address, LinkMessage.Port));
+        PeersChanged?.Invoke(); // кто-то мог пропасть по таймауту
     }
 
     private async Task SendAsync(LinkMessage message, IPEndPoint to)
@@ -128,20 +169,29 @@ public sealed class DeviceLink : IDisposable
             }
             // Сигнал «забери наушники» (PCSW) идёт на тот же порт, но он для телефона.
             var message = LinkMessage.Parse(Encoding.UTF8.GetString(result.Buffer));
-            if (message == null || message.Id == id || message.Kind != LinkKind.Phone) continue;
+            if (message == null || message.Id == id) continue;
             OnMessage(message, result.RemoteEndPoint.Address);
         }
     }
 
     private void OnMessage(LinkMessage message, IPAddress from)
     {
+        // Ответ на просьбу о режиме не меняет, что подключено к телефону: список наушников не трогаем.
+        if (message.Type == LinkType.ModeDone)
+        {
+            foreach (var pods in message.Pods)
+                if (modeWaits.TryGetValue(pods.Hash, out var wait)) wait.TrySetResult(pods.Mode);
+            return;
+        }
         bool isNew;
         lock (peers)
         {
             isNew = !peers.TryGetValue(message.Id, out var old) || DateTime.UtcNow - old.LastSeen >= PeerTimeout;
-            peers[message.Id] = new LinkPeer(message.Id, message.Name, from, message.Pods, DateTime.UtcNow);
+            // В просьбах (release, mode) только нужные наушники: прежнее состояние устройства сохраняем.
+            var pods = message.Type is LinkType.Hi or LinkType.Hello ? message.Pods : old?.Pods ?? [];
+            peers[message.Id] = new LinkPeer(message.Id, message.Kind, message.Name, from, pods, DateTime.UtcNow);
         }
-        if (isNew) log($"телефон на связи: {message.Name} ({from})");
+        if (isNew) log($"{(message.Kind == LinkKind.Phone ? "телефон" : "ПК")} на связи: {message.Name} ({from})");
         switch (message.Type)
         {
             case LinkType.Hi:
