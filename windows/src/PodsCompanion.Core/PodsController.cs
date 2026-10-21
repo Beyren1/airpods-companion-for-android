@@ -35,6 +35,12 @@ public sealed class PodsController : IDisposable
     /// <summary>После ручного «Отключить» не забираем наушники обратно сразу же.</summary>
     private static readonly TimeSpan ManualReleaseQuiet = TimeSpan.FromSeconds(10);
 
+    /// <summary>
+    /// Наушники ушли от ПК (их забрал телефон): наша пауза плееров и сами плееры ещё несколько секунд
+    /// сообщают о начале звука. Не принимаем это за «включили звук на ПК», иначе забираем наушники обратно.
+    /// </summary>
+    private static readonly TimeSpan LeftQuiet = TimeSpan.FromSeconds(20);
+
     private readonly AdvertisementScanner scanner = new();
     private readonly PairedHeadphones paired = new();
     private readonly MediaControl media = new();
@@ -264,6 +270,8 @@ public sealed class PodsController : IDisposable
         if (!pods.Connected)
         {
             earPolicy.Reset();
+            var quiet = DateTime.UtcNow + LeftQuiet;
+            if (quiet > autoQuietUntil) autoQuietUntil = quiet;
             // Наушники ушли (к телефону или выключились): не даём музыке заиграть из колонок.
             if (Settings.PauseOnDisconnect && media.AnyPlaying)
             {
