@@ -26,6 +26,14 @@ internal static class Strings
         "Nearby, connected to another device or in the case",
         "Рядом, подключены к другому устройству или в кейсе",
         "À proximité, connectés à un autre appareil ou dans le boîtier");
+    public static string ConnectedToPhone(string phone) => T(
+        $"Connected to the phone ({phone})", $"Подключены к телефону ({phone})", $"Connectés au téléphone ({phone})");
+    public static string PhoneLinked(string phone) => T(
+        $"Phone: {phone}, linked", $"Телефон: {phone}, на связи", $"Téléphone : {phone}, connecté");
+    public static string PhoneNotLinked => T(
+        "Phone app not found on the network",
+        "Приложение на телефоне не найдено в сети",
+        "Application du téléphone introuvable sur le réseau");
     public static string NotNearby => T("Not nearby", "Не рядом", "Pas à proximité");
     public static string Left => T("Left", "Левый", "Gauche");
     public static string Right => T("Right", "Правый", "Droit");

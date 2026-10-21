@@ -11,7 +11,11 @@ public sealed record PodsSnapshot(
     NearbyPods? Nearby,
     IReadOnlyList<PairedPods> AllPaired,
     bool Busy,
-    bool BluetoothOff);
+    bool BluetoothOff,
+    /// <summary>Телефон с приложением, который слышно в сети; null — не на связи.</summary>
+    LinkPeer? Phone = null,
+    /// <summary>Эти наушники сейчас подключены к телефону (по его же сообщению).</summary>
+    bool PodsOnPhone = false);
 
 /// <summary>
 /// Всё приложение без интерфейса: реклама рядом, сопряжённые наушники, пауза по датчику уха
@@ -38,6 +42,7 @@ public sealed class PodsController : IDisposable
     private readonly Timer refreshTimer;
     private readonly object gate = new();
     private readonly LinkedList<string> log = new();
+    private readonly DeviceLink link;
 
     private int busy;
     private bool bluetoothOff;
@@ -62,6 +67,9 @@ public sealed class PodsController : IDisposable
         };
         paired.ConnectionChanged += OnConnectionChanged;
         media.PlaybackStarted += OnPlaybackStarted;
+        link = new DeviceLink(OwnPods, Log);
+        link.ReleaseRequested += hash => _ = OnReleaseRequestedAsync(hash);
+        link.PeersChanged += () => Changed?.Invoke();
         // Список сопряжённых перечитываем время от времени: пользователь мог сопрячь новые наушники,
         // а скан перезапускаем, если Bluetooth включили обратно.
         refreshTimer = new Timer(_ => _ = RefreshAsync(), null, Timeout.Infinite, Timeout.Infinite);
@@ -70,6 +78,7 @@ public sealed class PodsController : IDisposable
     public async Task StartAsync()
     {
         await RefreshAsync();
+        link.Start();
         try
         {
             await media.StartAsync();
@@ -104,7 +113,12 @@ public sealed class PodsController : IDisposable
         var all = paired.Current;
         var pods = Choose(all);
         var nearby = pods == null ? null : scanner.Tracker.Best(pods.Models, DateTime.UtcNow);
-        return new PodsSnapshot(pods, nearby, all, busy > 0, bluetoothOff);
+        var hash = pods == null ? null : LinkMessage.HashOf(pods.Address);
+        var phones = link.Peers;
+        // Телефон, у которого сейчас эти наушники, иначе последний, от кого было слышно.
+        var phone = phones.FirstOrDefault(p => p.Pods.Any(x => x.Hash == hash && x.Here)) ?? phones.MaxBy(p => p.LastSeen);
+        bool onPhone = phone != null && phone.Pods.Any(x => x.Hash == hash && x.Here);
+        return new PodsSnapshot(pods, nearby, all, busy > 0, bluetoothOff, phone, onPhone);
     }
 
     /// <summary>
@@ -145,6 +159,8 @@ public sealed class PodsController : IDisposable
         try
         {
             Log($"забрать на ПК ({reason}): {pods.Name}");
+            // Телефон заранее ставит музыку на паузу, чтобы она не заиграла у него из динамика.
+            await link.SendTakingAsync(pods.Address);
             int sent = await Task.Run(() => BluetoothAudioControl.Connect(pods.AddressHex, pods.Name, Log));
             Log($"команда подключения отправлена {sent} звуковым устройствам");
             bool ok = sent > 0 && await WaitConnectedAsync(pods.Address, ConnectWait);
@@ -188,6 +204,27 @@ public sealed class PodsController : IDisposable
         await PhoneSignal.SendTakeAsync(pods.Address, Log);
     }
 
+    /// <summary>Телефон забирает наушники и просит ПК отпустить их: отключаем сразу, без сигнала «забери».</summary>
+    private async Task OnReleaseRequestedAsync(string hash)
+    {
+        var pods = paired.Current.FirstOrDefault(p => p.Connected && LinkMessage.HashOf(p.Address) == hash);
+        if (pods == null) return;
+        releasedAt = DateTime.UtcNow;
+        Log($"телефон забирает наушники: {pods.Name}");
+        try
+        {
+            int sent = await Task.Run(() => BluetoothAudioControl.Disconnect(pods.AddressHex, pods.Name, Log));
+            Log($"команда отключения отправлена {sent} звуковым устройствам");
+        }
+        catch (Exception e)
+        {
+            Log($"ошибка отключения: {e.Message}");
+        }
+    }
+
+    private IReadOnlyList<LinkPods> OwnPods() =>
+        paired.Current.Select(p => new LinkPods(LinkMessage.HashOf(p.Address), p.Connected)).ToList();
+
     private async Task<bool> WaitConnectedAsync(ulong address, TimeSpan timeout)
     {
         var until = DateTime.UtcNow + timeout;
@@ -223,6 +260,7 @@ public sealed class PodsController : IDisposable
         }
         if (was == pods.Connected) return;
         Log(pods.Connected ? $"{pods.Name} подключены к ПК" : $"{pods.Name} отключены от ПК");
+        _ = link.NotifyChangedAsync();
         if (!pods.Connected)
         {
             earPolicy.Reset();
@@ -280,6 +318,7 @@ public sealed class PodsController : IDisposable
     public void Dispose()
     {
         refreshTimer.Dispose();
+        link.Dispose();
         scanner.Dispose();
         paired.Dispose();
     }

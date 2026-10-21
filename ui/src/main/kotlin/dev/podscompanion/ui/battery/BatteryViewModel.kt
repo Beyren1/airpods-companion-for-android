@@ -7,6 +7,8 @@ import dev.podscompanion.bluetooth.scan.BluetoothUnavailableException
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.bluetooth.connect.TakeOverResult
 import dev.podscompanion.data.PodsTakeOver
+import dev.podscompanion.data.link.DeviceLink
+import dev.podscompanion.data.link.LinkedPc
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.NearbyPods
@@ -92,7 +94,13 @@ class BatteryViewModel @Inject constructor(
     private val aapRepository: AapRepository,
     private val aapLogger: AapLog,
     private val connector: PodsTakeOver,
+    deviceLink: DeviceLink,
 ) : ViewModel() {
+
+    /** ПК с программой Pods Companion на связи (последний, от кого было слышно); null — нет. */
+    val linkedPc: StateFlow<LinkedPc?> = deviceLink.peers
+        .map { peers -> peers.firstOrNull { pc -> pc.pods.any { it.here } } ?: peers.maxByOrNull { it.lastSeenMs } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
 
     private val _takeOver = MutableStateFlow<TakeOverState>(TakeOverState.Idle)
     val takeOverState: StateFlow<TakeOverState> = _takeOver.asStateFlow()

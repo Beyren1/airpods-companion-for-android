@@ -85,12 +85,16 @@ public partial class FlyoutWindow : Window
             TitleText.Text = s.BluetoothOff ? Strings.BluetoothOff : Strings.NoPods;
             StatusText.Text = s.BluetoothOff ? "" : Strings.NoPodsHint;
             EarText.Text = "";
+            PhoneText.Text = "";
             ConnectButton.Visibility = Visibility.Collapsed;
             return;
         }
         var pods = s.Pods;
         TitleText.Text = pods.Name;
-        StatusText.Text = pods.Connected ? Strings.ConnectedToPc : s.Nearby != null ? Strings.NearbyElsewhere : Strings.NotNearby;
+        StatusText.Text = pods.Connected ? Strings.ConnectedToPc
+            : s.PodsOnPhone ? Strings.ConnectedToPhone(s.Phone!.Name)
+            : s.Nearby != null ? Strings.NearbyElsewhere : Strings.NotNearby;
+        PhoneText.Text = s.Phone != null ? Strings.PhoneLinked(s.Phone.Name) : Strings.PhoneNotLinked;
 
         if (s.Nearby is { } nearby)
         {

@@ -29,6 +29,9 @@ data class PcSignal(val addressHash: List<Byte>, val nonce: Int) {
             return PcSignal(data.copyOfRange(6, 10).toList(), nonce)
         }
 
+        /** [hash] как 8 hex-символов, для [dev.podscompanion.protocol.link.LinkMessage]. */
+        fun hashHex(address: String): String = hash(address).joinToString("") { "%02x".format(it) }
+
         fun hash(address: String): List<Byte> =
             MessageDigest.getInstance("SHA-256").digest(address.uppercase().toByteArray(Charsets.US_ASCII)).copyOfRange(0, 4).toList()
     }

@@ -33,6 +33,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BluetoothDisabled
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Settings
@@ -74,6 +75,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.link.LinkedPc
 import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.data.aap.AapSessions
 import dev.podscompanion.data.displayText
@@ -109,6 +111,7 @@ fun HomeScreen(
     onMediaButton: (MediaButton) -> Unit = {},
     takeOver: TakeOverState = TakeOverState.Idle,
     onTakeOver: (PodsStatus) -> Unit = {},
+    linkedPc: LinkedPc? = null,
 ) {
     val main = (state as? BatteryUiState.Found)?.nearby?.primary
     val session = if (main?.connected == true) aapSessions.forModel(main.model) else null
@@ -160,6 +163,7 @@ fun HomeScreen(
                             val target = state.nearby.others.firstOrNull { it.owner != null } ?: state.nearby.others.firstOrNull()
                             if (target != null) TakeOverButton(takeOver) { onTakeOver(target) }
                         }
+                        linkedPc?.let { PcLinkLine(it) }
                         if (main?.connected == true) AapStatusCard(session, aapSessions.noPermission, onAapCheck)
                         if (session is AapSessionState.Connected) {
                             Controls(session, main?.model, onCommand, onOpenHeadphoneSettings)
@@ -579,6 +583,21 @@ private fun TakeOverButton(state: TakeOverState, onClick: () -> Unit) {
                 modifier = Modifier.padding(top = 6.dp),
             )
         }
+    }
+}
+
+/** Связь с программой на ПК: имя компьютера и где наушники. */
+@Composable
+private fun PcLinkLine(pc: LinkedPc) {
+    val podsOnPc = pc.pods.any { it.here }
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Icon(Icons.Filled.Computer, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        Text(
+            stringResource(if (podsOnPc) R.string.pc_link_has_pods else R.string.pc_link_online, pc.name),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 8.dp),
+        )
     }
 }
 

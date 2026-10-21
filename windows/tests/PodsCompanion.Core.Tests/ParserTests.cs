@@ -127,4 +127,20 @@ public class ParserTests
         Assert.Equal("70:F9:4A:9D:33:92", PhoneSignal.AndroidAddress(0x70F94A9D3392));
         Assert.Equal("5043535701 01 E5D3F516 1234".Replace(" ", ""), Convert.ToHexString(PhoneSignal.Payload(0x70F94A9D3392, 0x1234)));
     }
+
+    [Fact]
+    public void LinkMessage_SameTextAsPhone()
+    {
+        // Та же строка в LinkMessageTest.kt на телефоне.
+        const string text = "PCLINK 1 hello 3f9a12c0 pc e5d3f516:1,0a0b0c0d:0 DESKTOP ASUS";
+        var message = LinkMessage.Parse(text)!;
+        Assert.Equal(LinkType.Hello, message.Type);
+        Assert.Equal(LinkKind.Pc, message.Kind);
+        Assert.Equal([new LinkPods("e5d3f516", true), new LinkPods("0a0b0c0d", false)], message.Pods);
+        Assert.Equal("DESKTOP ASUS", message.Name);
+        Assert.Equal(text, message.Encode());
+        Assert.Equal("e5d3f516", LinkMessage.HashOf(0x70F94A9D3392));
+        Assert.Null(LinkMessage.Parse("PCLINK 1 jump 1 pc - X"));
+        Assert.Equal("PCLINK 1 hi 1 phone - Pixel 9", new LinkMessage(LinkType.Hi, "1", LinkKind.Phone, [], "Pixel 9").Encode());
+    }
 }

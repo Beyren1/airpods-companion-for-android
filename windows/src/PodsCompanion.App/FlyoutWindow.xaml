@@ -13,6 +13,8 @@
         <StackPanel>
             <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
             <TextBlock x:Name="StatusText" Opacity="0.7" Margin="0,2,0,0" TextWrapping="Wrap" />
+            <!-- Связь с приложением на телефоне по домашней сети. -->
+            <TextBlock x:Name="PhoneText" Opacity="0.6" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
 
             <!-- Заряд: левый, правый, кейс (у Max одно значение). -->
             <UniformGrid x:Name="BatteryGrid" Rows="1" Margin="0,16,0,0" />

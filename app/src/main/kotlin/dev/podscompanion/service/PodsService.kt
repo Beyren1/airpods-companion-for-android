@@ -31,6 +31,7 @@ import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.PodsTakeOver
 import dev.podscompanion.data.aap.AapLog
+import dev.podscompanion.data.link.DeviceLink
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.autopause.AutoPauseLog
@@ -90,6 +91,7 @@ class PodsService : LifecycleService() {
     @Inject lateinit var aapLog: AapLog
     @Inject lateinit var pcSignalScanner: PcSignalScanner
     @Inject lateinit var podsConnector: PodsConnector
+    @Inject lateinit var deviceLink: DeviceLink
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -169,7 +171,7 @@ class PodsService : LifecycleService() {
         usage.run(lifecycleScope)
         autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, ::isWorn, ::startScan)
             .also { it.run(lifecycleScope) }
-        pcLink = PcLink(this, connectedAudio, pcSignalScanner, podsConnector, podsTakeOver, aapLog).also { it.run(lifecycleScope) }
+        pcLink = PcLink(this, audioManager, connectedAudio, pcSignalScanner, deviceLink, podsConnector, podsTakeOver, aapLog).also { it.run(lifecycleScope) }
         startScan()
     }
 

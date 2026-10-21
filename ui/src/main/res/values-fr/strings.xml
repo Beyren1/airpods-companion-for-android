@@ -235,6 +235,8 @@
     <string name="stats_clear_title">Réinitialiser les statistiques ?</string>
     <string name="stats_clear_text">Le temps de tous les écouteurs sera supprimé.</string>
     <string name="stats_clear_confirm">Réinitialiser</string>
+    <string name="pc_link_online">PC %1$s connecté</string>
+    <string name="pc_link_has_pods">Écouteurs connectés au PC %1$s</string>
     <string name="take_over">Connecter au téléphone</string>
     <string name="take_over_working">Connexion…</string>
     <string name="take_over_failed">Connexion automatique impossible. Choisissez les écouteurs dans la fenêtre ouverte.</string>
