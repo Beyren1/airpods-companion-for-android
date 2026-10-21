@@ -44,14 +44,12 @@ public static class BluetoothAudioControl
     {
         int sent = 0;
         var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var byName = new List<(IPart Part, string FilterId)>();
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
         try
         {
             // Все устройства, включая отключённые: у сопряжённых, но не подключённых наушников они есть.
             Check(enumerator.EnumAudioEndpoints(EDataFlowAll, DeviceStateMaskAll, out var collection));
             Check(collection.GetCount(out uint count));
-            log?.Invoke($"  звуковых устройств: {count}");
             for (uint i = 0; i < count; i++)
             {
                 if (collection.Item(i, out var endpoint) != 0) continue;
@@ -66,16 +64,9 @@ public static class BluetoothAudioControl
                         if (nameMatch) log?.Invoke($"  «{name}»: {error}");
                         continue;
                     }
-                    bool bluetooth = IsBluetoothFilter(filterId);
-                    if (bluetooth || nameMatch) log?.Invoke($"  «{name}»: {filterId}");
-                    if (IsFilterOf(filterId, addressHex))
-                    {
-                        if (done.Add(filterId)) sent += Fire(part, filterId, propertyId, log);
-                    }
-                    else if (nameMatch)
-                    {
-                        byName.Add((part, filterId));
-                    }
+                    // У гарнитуры (BTHHFENUM) адреса в пути нет, её находим по имени устройства.
+                    if ((IsFilterOf(filterId, addressHex) || nameMatch && IsBluetoothFilter(filterId)) && done.Add(filterId))
+                        sent += Fire(enumerator, part, filterId, propertyId, log);
                 }
                 catch (Exception e) when (e is COMException or InvalidCastException)
                 {
@@ -86,13 +77,8 @@ public static class BluetoothAudioControl
                     Marshal.ReleaseComObject(endpoint);
                 }
             }
-            // По адресу не нашли: берём устройства с именем наушников.
-            if (done.Count == 0)
-            {
-                foreach (var (part, filterId) in byName)
-                    if (done.Add(filterId)) sent += Fire(part, filterId, propertyId, log);
-            }
             Marshal.ReleaseComObject(collection);
+            if (done.Count == 0) log?.Invoke($"  среди {count} звуковых устройств этих наушников нет");
         }
         finally
         {
@@ -101,10 +87,10 @@ public static class BluetoothAudioControl
         return sent;
     }
 
-    private static int Fire(IPart part, string filterId, uint propertyId, Action<string>? log)
+    private static int Fire(IMMDeviceEnumerator enumerator, IPart part, string filterId, uint propertyId, Action<string>? log)
     {
-        int hr = SendProperty(part, propertyId);
-        log?.Invoke($"  команда → …{Tail(filterId)}: 0x{hr:X8}");
+        int hr = SendProperty(enumerator, part, filterId, propertyId);
+        log?.Invoke($"  {(filterId.Contains("bthhfenum", StringComparison.OrdinalIgnoreCase) ? "гарнитура" : "стерео")}: 0x{hr:X8}");
         return hr == 0 ? 1 : 0;
     }
 
@@ -129,15 +115,30 @@ public static class BluetoothAudioControl
         return hr != 0 ? $"путь фильтра 0x{hr:X8}" : null;
     }
 
+    /// <summary>
+    /// Отправляет команду фильтру драйвера. IKsControl фильтра достаём через само устройство фильтра
+    /// (GetDevice по его пути): у части разъёма (IPart) Windows 11 этот интерфейс не отдаёт (E_NOINTERFACE).
+    /// </summary>
     /// <returns>HRESULT: 0 — команда принята драйвером.</returns>
-    private static int SendProperty(IPart part, uint propertyId)
+    private static int SendProperty(IMMDeviceEnumerator enumerator, IPart part, string filterId, uint propertyId)
     {
         var ksControlIid = typeof(IKsControl).GUID;
-        int hr = part.Activate(ClsctxInprocServer, ref ksControlIid, out var ksObject);
-        if (hr != 0) return hr;
+        int hr = enumerator.GetDevice(filterId, out var filterDevice);
+        if (hr == 0)
+        {
+            hr = filterDevice.Activate(ref ksControlIid, ClsctxAll, IntPtr.Zero, out var fromDevice);
+            Marshal.ReleaseComObject(filterDevice);
+            if (hr == 0) return SendKs(fromDevice, propertyId);
+        }
+        int partHr = part.Activate(ClsctxInprocServer, ref ksControlIid, out var fromPart);
+        return partHr == 0 ? SendKs(fromPart, propertyId) : hr;
+    }
+
+    private static int SendKs(object ksObject, uint propertyId)
+    {
         var ks = (IKsControl)ksObject;
         var property = new KsProperty { Set = KsPropSetIdBtAudio, Id = propertyId, Flags = KsPropertyTypeGet };
-        hr = ks.KsProperty(ref property, (uint)Marshal.SizeOf<KsProperty>(), IntPtr.Zero, 0, out _);
+        int hr = ks.KsProperty(ref property, (uint)Marshal.SizeOf<KsProperty>(), IntPtr.Zero, 0, out _);
         Marshal.ReleaseComObject(ks);
         return hr;
     }
@@ -166,9 +167,6 @@ public static class BluetoothAudioControl
             Marshal.ReleaseComObject(store);
         }
     }
-
-    /// <summary>Конец пути фильтра для журнала.</summary>
-    private static string Tail(string id) => id.Length > 60 ? id[^60..] : id;
 
     private static void Check(int hr)
     {
