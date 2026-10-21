@@ -49,17 +49,32 @@ public static class PhoneSignal
         var publisher = new BluetoothLEAdvertisementPublisher();
         publisher.Advertisement.ManufacturerData.Add(
             new BluetoothLEManufacturerData(CompanyId, Payload(address, (ushort)Random.Shared.Next(1, 0x10000)).AsBuffer()));
+        var started = new TaskCompletionSource();
+        // Сразу после отключения наушников радио ещё занято: Windows ставит рассылку в очередь (Waiting)
+        // и начинает её сама. Прерывает (Aborted) — если адаптер рассылать рекламу не умеет.
+        publisher.StatusChanged += (_, e) =>
+        {
+            if (e.Status == BluetoothLEAdvertisementPublisherStatus.Started)
+            {
+                log("сигнал телефону: забрать наушники");
+                started.TrySetResult();
+            }
+            else if (e.Status == BluetoothLEAdvertisementPublisherStatus.Aborted)
+            {
+                log($"сигнал телефону не отправлен: {e.Error}");
+                started.TrySetResult();
+            }
+        };
         try
         {
             publisher.Start();
-            await Task.Delay(TimeSpan.FromMilliseconds(500));
-            // Не все адаптеры умеют рассылать рекламу: тогда Windows сразу прерывает рассылку.
+            // Ждём начала не дольше самой рассылки, потом рассылаем положенные секунды.
+            await Task.WhenAny(started.Task, Task.Delay(Duration));
             if (publisher.Status != BluetoothLEAdvertisementPublisherStatus.Started)
             {
-                log($"сигнал телефону не отправлен: {publisher.Status}");
+                log($"сигнал телефону не начался: {publisher.Status}");
                 return;
             }
-            log("сигнал телефону: забрать наушники");
             await Task.Delay(Duration);
         }
         catch (Exception e)
@@ -68,7 +83,8 @@ public static class PhoneSignal
         }
         finally
         {
-            if (publisher.Status == BluetoothLEAdvertisementPublisherStatus.Started) publisher.Stop();
+            if (publisher.Status is BluetoothLEAdvertisementPublisherStatus.Started or BluetoothLEAdvertisementPublisherStatus.Waiting)
+                publisher.Stop();
         }
     }
 }
