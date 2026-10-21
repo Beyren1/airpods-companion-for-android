@@ -229,7 +229,7 @@ public partial class FlyoutWindow : Window
     }
 
     /// <summary>Показать кнопку обновления: на GitHub есть версия новее.</summary>
-    public void ShowUpdate(Updater.Update found)
+    internal void ShowUpdate(Updater.Update found)
     {
         update = found;
         UpdateButton.Content = Strings.UpdateTo(found.Version.ToString());
