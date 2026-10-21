@@ -27,6 +27,8 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.PodsTakeOver
+import dev.podscompanion.data.aap.AapLog
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.autopause.AutoPauseLog
@@ -82,6 +84,8 @@ class PodsService : LifecycleService() {
     @Inject lateinit var aapRepository: AapRepository
     @Inject lateinit var connectedAudio: ConnectedAudioDevices
     @Inject lateinit var usageStore: UsageStatsStore
+    @Inject lateinit var podsTakeOver: PodsTakeOver
+    @Inject lateinit var aapLog: AapLog
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -94,6 +98,7 @@ class PodsService : LifecycleService() {
     private lateinit var audioManager: AudioManager
     private lateinit var music: MusicAutomation
     private lateinit var usage: UsageTracking
+    private var autoSwitch: AutoSwitch? = null
 
     /** Все наушники из последнего скана: статистике нужна модель каждой подключённой пары. */
     @Volatile private var latestNearby: List<PodsStatus> = emptyList()
@@ -157,6 +162,8 @@ class PodsService : LifecycleService() {
         music.run(lifecycleScope, settingsRepository.settings)
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
+        autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, ::isWorn, ::startScan)
+            .also { it.run(lifecycleScope) }
         startScan()
     }
 
@@ -171,6 +178,7 @@ class PodsService : LifecycleService() {
         }
         runCatching { unregisterReceiver(wakeReceiver) }
         runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
+        autoSwitch?.stop()
         super.onDestroy()
     }
 
@@ -203,7 +211,12 @@ class PodsService : LifecycleService() {
         Timber.d("scan start %s", intensity)
         scanJob = lifecycleScope.launch {
             repository.observeNearby(intensity)
-                .onEach { latestNearby = listOfNotNull(it.primary) + it.others }
+                .onEach {
+                    latestNearby = listOfNotNull(it.primary) + it.others
+                    // Свои наушники рядом, но подключены к другому устройству (ПК): скан не усыпляем,
+                    // иначе автопереключение на телефон их не увидит.
+                    if (it.others.any { pods -> pods.owner != null }) lastActivityMs = SystemClock.elapsedRealtime()
+                }
                 .map { it.primary }
                 .catch { e ->
                     Timber.w(e, "scan stopped")

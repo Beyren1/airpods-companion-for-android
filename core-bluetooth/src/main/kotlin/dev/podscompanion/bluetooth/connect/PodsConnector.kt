@@ -55,6 +55,9 @@ class PodsConnector @Inject constructor(
         if (isConnected(device)) return TakeOverResult.Connected("уже подключены")
         exemptHiddenApis()
         val methods = listOf<Pair<String, suspend () -> Unit>>(
+            // Прямое соединение AAP первым: телефон открывает канал к наушникам, и они сами подключают
+            // звук к тому, кто к ним обратился. Так AirPods Max и уходили с ПК обратно на телефон.
+            AAP_METHOD to suspend { aapPing(device) },
             // Системные вызовы: сработают, только если прошивка не проверяет разрешение BLUETOOTH_PRIVILEGED.
             "BluetoothDevice.connect" to suspend {
                 // Возвращает код BluetoothStatusCodes: 0 — принято, остальное — отказ.
@@ -63,9 +66,6 @@ class PodsConnector @Inject constructor(
             },
             "A2DP.connect" to suspend { profileConnect(BluetoothProfile.A2DP, device) },
             "HFP.connect" to suspend { profileConnect(BluetoothProfile.HEADSET, device) },
-            // Прямое соединение AAP: телефон открывает канал к наушникам, и они сами могут
-            // подключить звук к тому, кто к ним обратился.
-            AAP_METHOD to suspend { aapPing(device) },
         )
         for ((name, method) in methods) {
             val error = runCatching { method() }.exceptionOrNull()

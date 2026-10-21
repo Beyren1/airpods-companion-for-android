@@ -206,6 +206,8 @@
     <string name="music_autolaunch_description">Наушники подключились — музыка включается в выбранном плеере. Если плеер не запускается в фоне, приложение откроет его (нужно разрешение «Поверх других приложений») или покажет уведомление.</string>
     <string name="music_player_title">Плеер</string>
     <string name="music_player_none">Не выбран</string>
+    <string name="music_switch_title">Переключать на телефон само</string>
+    <string name="music_switch_description">Включили звук на телефоне, а надетые наушники подключены к другому устройству (например, к ПК) — телефон забирает их. В обратную сторону то же делает программа на ПК.</string>
     <string name="music_resume_title">Умное продолжение</string>
     <string name="music_resume_description">Если сняли наушники больше чем на 2 минуты, при надевании трек отматывается на 5 секунд назад. Работает вместе с автопаузой.</string>
     <string name="music_modes_section">Шумоподавление под приложение</string>

@@ -204,6 +204,8 @@
     <string name="music_autolaunch_description">When your AirPods connect, music starts in the chosen player. If the player cannot start in the background, the app opens it (needs “Display over other apps”) or shows a notification.</string>
     <string name="music_player_title">Player</string>
     <string name="music_player_none">Not chosen</string>
+    <string name="music_switch_title">Switch to phone automatically</string>
+    <string name="music_switch_description">When you start playing on the phone and the headphones you are wearing are connected to another device (for example, a PC), the phone takes them. The PC app does the same in the other direction.</string>
     <string name="music_resume_title">Smart resume</string>
     <string name="music_resume_description">If you took the headphones off for more than 2 minutes, the track goes back 5 seconds when you put them on. Works with auto-pause.</string>
     <string name="music_modes_section">Noise control per app</string>

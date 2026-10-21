@@ -204,6 +204,8 @@
     <string name="music_autolaunch_description">Quand vos AirPods se connectent, la musique démarre dans le lecteur choisi. Si le lecteur ne démarre pas en arrière-plan, l’appli l’ouvre (autorisation « Superposition ») ou affiche une notification.</string>
     <string name="music_player_title">Lecteur</string>
     <string name="music_player_none">Non choisi</string>
+    <string name="music_switch_title">Basculer vers le téléphone automatiquement</string>
+    <string name="music_switch_description">Quand vous lancez la lecture sur le téléphone et que les écouteurs que vous portez sont connectés à un autre appareil (par exemple un PC), le téléphone les reprend. L\'application PC fait de même dans l\'autre sens.</string>
     <string name="music_resume_title">Reprise intelligente</string>
     <string name="music_resume_description">Si vous avez retiré les écouteurs plus de 2 minutes, le titre recule de 5 secondes quand vous les remettez. Fonctionne avec la pause automatique.</string>
     <string name="music_modes_section">Contrôle du bruit par appli</string>

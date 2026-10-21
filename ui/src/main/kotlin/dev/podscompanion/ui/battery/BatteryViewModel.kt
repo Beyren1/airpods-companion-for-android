@@ -5,9 +5,8 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.podscompanion.bluetooth.scan.BluetoothUnavailableException
 import dev.podscompanion.bluetooth.scan.ScanIntensity
-import dev.podscompanion.bluetooth.connect.PodsConnector
 import dev.podscompanion.bluetooth.connect.TakeOverResult
-import dev.podscompanion.data.ConnectedNameMatcher
+import dev.podscompanion.data.PodsTakeOver
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.NearbyPods
@@ -92,7 +91,7 @@ class BatteryViewModel @Inject constructor(
     autoPauseLog: AutoPauseLog,
     private val aapRepository: AapRepository,
     private val aapLogger: AapLog,
-    private val connector: PodsConnector,
+    private val connector: PodsTakeOver,
 ) : ViewModel() {
 
     private val _takeOver = MutableStateFlow<TakeOverState>(TakeOverState.Idle)
@@ -106,10 +105,7 @@ class BatteryViewModel @Inject constructor(
         if (_takeOver.value == TakeOverState.Working) return
         viewModelScope.launch {
             _takeOver.value = TakeOverState.Working
-            val device = pods.owner?.let(connector::device)
-                ?: connector.bondedPods().singleOrNull { device -> pods.model?.let { it in ConnectedNameMatcher.modelsForName(connector.nameOf(device)) } == true }
-            aapLogger.add("забрать: ${pods.model?.displayName ?: "?"} → ${device?.address ?: "не нашёл среди сопряжённых"}")
-            val result = device?.let { connector.takeOver(it, aapLogger::add) } ?: TakeOverResult.Failed
+            val result = connector.takeOver(pods, "кнопка")
             if (result is TakeOverResult.Connected) {
                 _takeOver.value = TakeOverState.Idle
             } else {
