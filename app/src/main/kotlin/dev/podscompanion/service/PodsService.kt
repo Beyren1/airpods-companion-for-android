@@ -24,6 +24,8 @@ import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
+import dev.podscompanion.bluetooth.connect.PodsConnector
+import dev.podscompanion.bluetooth.scan.PcSignalScanner
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
@@ -86,6 +88,8 @@ class PodsService : LifecycleService() {
     @Inject lateinit var usageStore: UsageStatsStore
     @Inject lateinit var podsTakeOver: PodsTakeOver
     @Inject lateinit var aapLog: AapLog
+    @Inject lateinit var pcSignalScanner: PcSignalScanner
+    @Inject lateinit var podsConnector: PodsConnector
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -164,6 +168,7 @@ class PodsService : LifecycleService() {
         usage.run(lifecycleScope)
         autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, ::isWorn, ::startScan)
             .also { it.run(lifecycleScope) }
+        PcLink(connectedAudio, pcSignalScanner, podsConnector, podsTakeOver, aapLog).run(lifecycleScope)
         startScan()
     }
 

@@ -166,7 +166,10 @@ public sealed class PodsController : IDisposable
         }
     }
 
-    /// <summary>Отключить наушники от ПК, чтобы их забрал телефон.</summary>
+    /// <summary>
+    /// Отдать наушники телефону: отключить от ПК и сказать телефону по Bluetooth, чтобы забрал их.
+    /// Подключить их к телефону может только сам телефон.
+    /// </summary>
     public async Task ReleaseAsync()
     {
         var pods = Snapshot().Pods;
@@ -182,6 +185,7 @@ public sealed class PodsController : IDisposable
         {
             Log($"ошибка отключения: {e.Message}");
         }
+        await PhoneSignal.SendTakeAsync(pods.Address, Log);
     }
 
     private async Task<bool> WaitConnectedAsync(ulong address, TimeSpan timeout)

@@ -26,5 +26,12 @@ class PodsTakeOver @Inject constructor(
         return device?.let { connector.takeOver(it, log::add) } ?: TakeOverResult.Failed
     }
 
+    /** Забрать сопряжённые наушники по адресу Bluetooth (его присылает программа на ПК). */
+    suspend fun takeOverAddress(address: String, reason: String): TakeOverResult {
+        val device = connector.bondedPods().firstOrNull { it.address.equals(address, ignoreCase = true) }
+        log.add("забрать ($reason): ${device?.let(connector::nameOf) ?: "нет среди сопряжённых наушников"}")
+        return device?.let { connector.takeOver(it, log::add) } ?: TakeOverResult.Failed
+    }
+
     fun openOutputSwitcher() = connector.openOutputSwitcher()
 }

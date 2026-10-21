@@ -119,4 +119,12 @@ public class ParserTests
     {
         Assert.Equal(expected, BluetoothAudioControl.NameMatches(endpoint, pods));
     }
+
+    [Fact]
+    public void PhoneSignal_SameBytesAsPhone()
+    {
+        // Тот же пример в PcSignalTest.kt на телефоне.
+        Assert.Equal("70:F9:4A:9D:33:92", PhoneSignal.AndroidAddress(0x70F94A9D3392));
+        Assert.Equal("5043535701 01 E5D3F516 1234".Replace(" ", ""), Convert.ToHexString(PhoneSignal.Payload(0x70F94A9D3392, 0x1234)));
+    }
 }

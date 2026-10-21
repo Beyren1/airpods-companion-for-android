@@ -37,7 +37,7 @@ internal static class Strings
     public static string OnHead => T("On head", "На голове", "Sur la tête");
     public static string NotWorn => T("Not worn", "Не надеты", "Non portés");
     public static string ConnectToPc => T("Connect to PC", "Подключить к ПК", "Connecter au PC");
-    public static string Disconnect => T("Disconnect (give to phone)", "Отключить (отдать телефону)", "Déconnecter (pour le téléphone)");
+    public static string Disconnect => T("Give to phone", "Отдать телефону", "Donner au téléphone");
     public static string Connecting => T("Connecting…", "Подключаю…", "Connexion…");
     public static string AutoTakeOver => T(
         "Switch to PC when sound starts here",
