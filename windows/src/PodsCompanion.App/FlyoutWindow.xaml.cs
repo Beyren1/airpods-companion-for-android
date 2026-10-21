@@ -155,8 +155,9 @@ public partial class FlyoutWindow : Window
 
     private void RenderModes(PodsSnapshot s)
     {
-        // Режимы включает телефон: без него на связи или когда наушники не у ПК и не у телефона — прячем.
-        bool available = s.Phone != null && (s.Pods!.Connected || s.PodsOnPhone);
+        // Режимы включает телефон, и только пока наушники у него: если телефон обратится к наушникам,
+        // подключённым к ПК, они уходят с ПК. Когда наушники у ПК, режим меняют на самих наушниках.
+        bool available = s.Phone != null && s.PodsOnPhone;
         ModeSection.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         if (!available) return;
         // «Адаптивный» есть у вкладышей с шумоподавлением, у Max его нет.
