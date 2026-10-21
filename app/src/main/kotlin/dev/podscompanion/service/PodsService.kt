@@ -26,6 +26,7 @@ import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
 import dev.podscompanion.bluetooth.connect.PodsConnector
 import dev.podscompanion.bluetooth.scan.PcSignalScanner
+import dev.podscompanion.data.ConnectedNameMatcher
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.protocol.advertising.PcSignal
 import dev.podscompanion.data.PodsRepository
@@ -171,7 +172,9 @@ class PodsService : LifecycleService() {
         music.run(lifecycleScope, settingsRepository.settings)
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
-        autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, ::isWorn, ::startScan)
+        autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, ::isWorn, ::startScan) {
+            deviceLink.peers.value.firstOrNull { pc -> pc.pods.any { it.here && it.inCall } }?.name
+        }
             .also { it.run(lifecycleScope) }
         lifecycleScope.launch {
             // Наушники у ПК, а к телефону ничего не подключено: уведомление с кнопкой «Забрать».
@@ -185,7 +188,10 @@ class PodsService : LifecycleService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
-        if (intent?.action == ACTION_TAKE_FROM_PC) lifecycleScope.launch { takeFromPc() }
+        when (intent?.action) {
+            ACTION_TAKE_FROM_PC -> lifecycleScope.launch { takeFromPc() }
+            ACTION_SWITCH -> lifecycleScope.launch { switchPods() }
+        }
         return START_STICKY
     }
 
@@ -195,6 +201,18 @@ class PodsService : LifecycleService() {
         val device = podsConnector.bondedPods().firstOrNull { PcSignal.hashHex(it.address) in hashes } ?: return
         notifications.showOnPc(null)
         podsTakeOver.takeOverAddress(device.address, "уведомление")
+    }
+
+    /** Кнопка в виджете: наушники у телефона — отдаём ПК, иначе забираем с ПК. */
+    private suspend fun switchPods() {
+        val here = connectedAudio.devices().first().orEmpty()
+            .firstOrNull { it.supportsAap || ConnectedNameMatcher.knownModels(listOf(it.name)).isNotEmpty() }
+        if (here == null) {
+            aapLog.add("перекинуть (виджет): забираю с ПК")
+            takeFromPc()
+        } else if (deviceLink.give(here.device.address) == null) {
+            aapLog.add("перекинуть (виджет): программа на ПК не на связи")
+        }
     }
 
     override fun onDestroy() {
@@ -386,6 +404,7 @@ class PodsService : LifecycleService() {
         }
 
         const val ACTION_TAKE_FROM_PC = "dev.podscompanion.action.TAKE_FROM_PC"
+        const val ACTION_SWITCH = "dev.podscompanion.action.SWITCH"
         private const val IDLE_AFTER_MS = 2 * 60_000L
         private const val WATCHDOG_PERIOD_MS = 30_000L
 

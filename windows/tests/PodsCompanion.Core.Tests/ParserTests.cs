@@ -154,4 +154,14 @@ public class ParserTests
         Assert.Equal(line, message.Encode());
         Assert.Equal(LinkType.Mode, LinkMessage.Parse("PCLINK 1 mode 2 pc e5d3f516:0:-:transparency DESKTOP")!.Type);
     }
+
+    [Fact]
+    public void LinkMessage_CallOnPc()
+    {
+        // Та же строка в LinkMessageTest.carriesCallOnPc на телефоне.
+        const string line = "PCLINK 1 hello 3f9a12c0 pc e5d3f516:2 DESKTOP";
+        var message = LinkMessage.Parse(line)!;
+        Assert.Equal(new LinkPods("e5d3f516", true, InCall: true), message.Pods.Single());
+        Assert.Equal(line, message.Encode());
+    }
 }

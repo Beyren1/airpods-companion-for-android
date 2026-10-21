@@ -48,6 +48,10 @@ internal static class Strings
         $"Modes are switched through the phone ({phone}).",
         $"Режимы переключаются через телефон ({phone}).",
         $"Les modes passent par le téléphone ({phone}).");
+    public static string CallOnPc => T(
+        "Microphone in use: the phone won't take the headphones by itself",
+        "Микрофон занят: телефон не заберёт наушники сам",
+        "Micro utilisé : le téléphone ne prendra pas le casque tout seul");
     public static string ModeBusy => T("Switching mode…", "Включаю режим…", "Changement de mode…");
     public static string HotkeyHint => T(
         "Ctrl+Alt+P: switch between PC and phone",

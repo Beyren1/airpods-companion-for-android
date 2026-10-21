@@ -101,6 +101,7 @@ public partial class FlyoutWindow : Window
             : s.OtherPc != null ? Strings.ConnectedToOtherPc(s.OtherPc.Name)
             : s.Nearby != null ? Strings.NearbyElsewhere : Strings.NotNearby;
         PhoneText.Text = s.Phone != null ? Strings.PhoneLinked(s.Phone.Name) : Strings.PhoneNotLinked;
+        if (s.MicInUse && pods.Connected) PhoneText.Text += "\n" + Strings.CallOnPc;
 
         if (s.PhoneBattery != null && PhoneTiles(s.PhoneBattery, s.Nearby?.Message.Model?.Kind ?? PodsKind.Buds) is { } tiles)
         {

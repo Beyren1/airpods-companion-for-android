@@ -21,6 +21,9 @@ public partial class App : Application
     private Forms.NotifyIcon? tray;
     private FlyoutWindow? flyout;
     private Hotkey? hotkey;
+    private System.Drawing.Icon? appIcon;
+    private System.Drawing.Icon? batteryIcon;
+    private int? shownPercent;
     private readonly DispatcherTimer updateTimer = new() { Interval = TimeSpan.FromHours(12) };
     private readonly DispatcherTimer uiTimer = new() { Interval = TimeSpan.FromMilliseconds(300) };
     private volatile bool dirty = true;
@@ -88,9 +91,10 @@ public partial class App : Application
         menu.Items.Add(new Forms.ToolStripSeparator());
         menu.Items.Add(Strings.Exit, null, (_, _) => Quit());
 
+        appIcon = new System.Drawing.Icon(GetResourceStream(new Uri("pack://application:,,,/Assets/app.ico")).Stream);
         tray = new Forms.NotifyIcon
         {
-            Icon = new System.Drawing.Icon(GetResourceStream(new Uri("pack://application:,,,/Assets/app.ico")).Stream),
+            Icon = appIcon,
             Text = Strings.AppName,
             ContextMenuStrip = menu,
             Visible = true,
@@ -123,7 +127,21 @@ public partial class App : Application
         dirty = false;
         var snapshot = controller.Snapshot();
         flyout?.Render(snapshot);
-        if (tray != null) tray.Text = TrayText(snapshot);
+        if (tray != null)
+        {
+            tray.Text = TrayText(snapshot);
+            UpdateTrayIcon(TrayIcon.Percent(snapshot));
+        }
+    }
+
+    private void UpdateTrayIcon(int? percent)
+    {
+        if (tray == null || percent == shownPercent) return;
+        shownPercent = percent;
+        var old = batteryIcon;
+        batteryIcon = percent is { } p ? TrayIcon.Draw(p) : null;
+        tray.Icon = batteryIcon ?? appIcon;
+        old?.Dispose();
     }
 
     private static string TrayText(PodsSnapshot s)

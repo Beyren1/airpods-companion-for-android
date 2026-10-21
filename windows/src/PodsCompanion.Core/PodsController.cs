@@ -23,7 +23,8 @@ public sealed record PodsSnapshot(
     /// <summary>Режим шумоподавления: от телефона или последний включённый отсюда; null — не знаем.</summary>
     string? Mode = null,
     /// <summary>Режим сейчас включается через телефон.</summary>
-    bool ModeBusy = false);
+    bool ModeBusy = false,
+    bool MicInUse = false);
 
 /// <summary>
 /// Всё приложение без интерфейса: реклама рядом, сопряжённые наушники, пауза по датчику уха
@@ -54,6 +55,9 @@ public sealed class PodsController : IDisposable
     private readonly MediaControl media = new();
     private readonly EarPolicy earPolicy = new();
     private readonly Timer refreshTimer;
+    /// <summary>Микрофон на ПК занят (звонок): телефон не забирает наушники сам.</summary>
+    private readonly Timer micTimer;
+    private volatile bool micInUse;
     private readonly object gate = new();
     private readonly LinkedList<string> log = new();
     private readonly DeviceLink link;
@@ -86,10 +90,22 @@ public sealed class PodsController : IDisposable
         media.PlaybackStarted += OnPlaybackStarted;
         link = new DeviceLink(OwnPods, Log);
         link.ReleaseRequested += hash => _ = OnReleaseRequestedAsync(hash);
+        link.GiveRequested += hash => _ = OnGiveRequestedAsync(hash);
         link.PeersChanged += () => Changed?.Invoke();
         // Список сопряжённых перечитываем время от времени: пользователь мог сопрячь новые наушники,
         // а скан перезапускаем, если Bluetooth включили обратно.
         refreshTimer = new Timer(_ => _ = RefreshAsync(), null, Timeout.Infinite, Timeout.Infinite);
+        micTimer = new Timer(_ => CheckMicrophone(), null, Timeout.Infinite, Timeout.Infinite);
+    }
+
+    private void CheckMicrophone()
+    {
+        bool now = MicrophoneUse.InUse();
+        if (now == micInUse) return;
+        micInUse = now;
+        Log(now ? "микрофон на ПК занят (звонок): телефон не будет забирать наушники сам" : "микрофон на ПК свободен");
+        _ = link.NotifyChangedAsync();
+        Changed?.Invoke();
     }
 
     public async Task StartAsync()
@@ -105,6 +121,7 @@ public sealed class PodsController : IDisposable
             Log($"медиа недоступны: {e.Message}");
         }
         refreshTimer.Change(TimeSpan.FromSeconds(15), TimeSpan.FromSeconds(15));
+        micTimer.Change(TimeSpan.Zero, TimeSpan.FromSeconds(2));
     }
 
     private async Task RefreshAsync()
@@ -139,7 +156,7 @@ public sealed class PodsController : IDisposable
         var otherPc = hash == null ? null : peers.FirstOrDefault(p => p.Kind == LinkKind.Pc && p.Holding(hash) != null);
         string? mode = onPhone?.Mode;
         if (mode == null && hash != null) lock (modes) modes.TryGetValue(hash, out mode);
-        return new PodsSnapshot(pods, nearby, all, busy > 0, bluetoothOff, phone, onPhone != null, otherPc, onPhone?.Battery, mode, modeBusy > 0);
+        return new PodsSnapshot(pods, nearby, all, busy > 0, bluetoothOff, phone, onPhone != null, otherPc, onPhone?.Battery, mode, modeBusy > 0, micInUse);
     }
 
     /// <summary>
@@ -265,8 +282,17 @@ public sealed class PodsController : IDisposable
         }
     }
 
+    /// <summary>Телефон отдаёт наушники (кнопка в виджете): забираем, как по кнопке «Подключить к ПК».</summary>
+    private async Task OnGiveRequestedAsync(string hash)
+    {
+        // Забираем те наушники, что выбраны в окне: обычно это и есть единственная пара.
+        var pods = Snapshot().Pods;
+        if (pods == null || pods.Connected || LinkMessage.HashOf(pods.Address) != hash) return;
+        await TakeOverAsync("телефон отдал");
+    }
+
     private IReadOnlyList<LinkPods> OwnPods() =>
-        paired.Current.Select(p => new LinkPods(LinkMessage.HashOf(p.Address), p.Connected)).ToList();
+        paired.Current.Select(p => new LinkPods(LinkMessage.HashOf(p.Address), p.Connected, InCall: p.Connected && micInUse)).ToList();
 
     private async Task<bool> WaitConnectedAsync(ulong address, TimeSpan timeout)
     {
@@ -363,6 +389,7 @@ public sealed class PodsController : IDisposable
     public void Dispose()
     {
         refreshTimer.Dispose();
+        micTimer.Dispose();
         link.Dispose();
         scanner.Dispose();
         paired.Dispose();

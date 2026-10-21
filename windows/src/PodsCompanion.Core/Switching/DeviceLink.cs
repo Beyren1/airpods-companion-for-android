@@ -41,6 +41,8 @@ public sealed class DeviceLink : IDisposable
 
     /// <summary>Телефон или другой ПК просит отпустить наушники с этим хэшем.</summary>
     public event Action<string>? ReleaseRequested;
+    /// <summary>Телефон отдаёт наушники ПК (кнопка в виджете): хэш наушников.</summary>
+    public event Action<string>? GiveRequested;
 
     /// <summary>Список устройств или их состояние поменялись.</summary>
     public event Action? PeersChanged;
@@ -199,6 +201,9 @@ public sealed class DeviceLink : IDisposable
                 break;
             case LinkType.Release:
                 foreach (var pods in message.Pods) ReleaseRequested?.Invoke(pods.Hash);
+                break;
+            case LinkType.Give:
+                foreach (var pods in message.Pods) GiveRequested?.Invoke(pods.Hash);
                 break;
         }
         PeersChanged?.Invoke();

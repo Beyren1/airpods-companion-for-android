@@ -36,6 +36,8 @@ data class LinkMessage(
         MODE("mode"),
         /** Ответ на [MODE]: режим, который наушники подтвердили; без режима — не получилось. */
         MODE_DONE("modedone"),
+        /** «Забери эти наушники себе»: телефон отдаёт наушники ПК (кнопка в виджете). */
+        GIVE("give"),
     }
 
     enum class Kind(val wire: String) { PHONE("phone"), PC("pc") }
@@ -65,16 +67,19 @@ data class LinkMessage(
 
 /**
  * Наушники в сообщении связи: [hash] — 8 hex-символов, [here] — подключены к отправителю,
- * [battery] — точный заряд по AAP («96» или «80/85/60»), [mode] — режим шумоподавления.
+ * [battery] — точный заряд по AAP («96» или «80/85/60»), [mode] — режим шумоподавления,
+ * [inCall] — на ПК идёт звонок (занят микрофон): телефону нельзя забирать наушники сам. На проводе
+ * это «2» вместо «1».
  */
 data class LinkPods(
     val hash: String,
     val here: Boolean,
     val battery: String? = null,
     val mode: ListeningMode? = null,
+    val inCall: Boolean = false,
 ) {
     fun encode(): String {
-        val base = "$hash:${if (here) 1 else 0}"
+        val base = "$hash:${if (here && inCall) 2 else if (here) 1 else 0}"
         if (battery == null && mode == null) return base
         return "$base:${battery ?: "-"}:${mode?.let(MODE_WIRE::get) ?: "-"}"
     }
@@ -90,10 +95,10 @@ data class LinkPods(
         fun parse(text: String): LinkPods? {
             val parts = text.split(':')
             if (parts.size != 2 && parts.size != 4) return null
-            if (parts[1] != "0" && parts[1] != "1") return null
+            if (parts[1] !in setOf("0", "1", "2")) return null
             val battery = parts.getOrNull(2)?.takeIf { it != "-" }
             val mode = parts.getOrNull(3)?.let { wire -> MODE_WIRE.entries.firstOrNull { it.value == wire }?.key }
-            return LinkPods(parts[0].lowercase(), parts[1] == "1", battery, mode)
+            return LinkPods(parts[0].lowercase(), parts[1] != "0", battery, mode, inCall = parts[1] == "2")
         }
     }
 }

@@ -42,6 +42,15 @@ class LinkMessageTest {
     }
 
     @Test
+    fun carriesCallOnPc() {
+        // Та же строка в тесте LinkMessage_CallOnPc программы для Windows.
+        val line = "PCLINK 1 hello 3f9a12c0 pc e5d3f516:2 DESKTOP"
+        val pods = LinkMessage.parse(line)!!.pods.single()
+        assertThat(pods).isEqualTo(LinkPods("e5d3f516", here = true, inCall = true))
+        assertThat(LinkMessage.parse(line)!!.encode()).isEqualTo(line)
+    }
+
+    @Test
     fun ignoresOtherText() {
         assertThat(LinkMessage.parse("PCSW")).isNull()
         assertThat(LinkMessage.parse("PCLINK 2 hello 1 pc - X")).isNull()

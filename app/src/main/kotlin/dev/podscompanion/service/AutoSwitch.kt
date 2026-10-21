@@ -38,6 +38,8 @@ internal class AutoSwitch(
     private val isWorn: (PodsStatus) -> Boolean,
     /** Разбудить скан рекламы, если он уснул. */
     private val wakeScan: () -> Unit,
+    /** Имя ПК, у которого наушники и идёт звонок (занят микрофон), или null. */
+    private val pcInCall: () -> String?,
 ) {
     private var scope: CoroutineScope? = null
     private var mediaPlaying = false
@@ -95,6 +97,10 @@ internal class AutoSwitch(
                 } ?: return@launch
                 val connected = connectedAudio.devices().filterNotNull().first()
                 if (connected.any(::isApple)) return@launch
+                pcInCall()?.let { pc ->
+                    log.add("звук на телефоне, но на ПК $pc звонок — наушники не забираю")
+                    return@launch
+                }
                 log.add("звук на телефоне, наушники надеты, но не у телефона")
                 // Пока подключаемся, звук шёл бы из динамика: ставим на паузу и продолжаем уже в наушниках.
                 quietUntilMs = SystemClock.elapsedRealtime() + OWN_KEYS_QUIET_MS

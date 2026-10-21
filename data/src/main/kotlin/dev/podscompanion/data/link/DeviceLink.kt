@@ -137,6 +137,14 @@ class DeviceLink @Inject constructor(
         }
     }
 
+    /** Отдать наушники ПК (кнопка в виджете): ПК сам заберёт их, как по своей кнопке. Возвращает имя ПК. */
+    suspend fun give(address: String): String? {
+        val pc = _peers.value.maxByOrNull { it.lastSeenMs } ?: return null
+        log.add("отдаю наушники ПК ${pc.name}")
+        send(message(LinkMessage.Type.GIVE, listOf(LinkPods(PcSignal.hashHex(address), true))), pc.address)
+        return pc.name
+    }
+
     private fun message(type: LinkMessage.Type, pods: List<LinkPods>) =
         LinkMessage(type, id, LinkMessage.Kind.PHONE, pods, deviceName())
 
