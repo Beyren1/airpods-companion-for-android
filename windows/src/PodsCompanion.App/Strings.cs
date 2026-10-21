@@ -48,6 +48,10 @@ internal static class Strings
         $"Modes are switched through the phone ({phone}).",
         $"Режимы переключаются через телефон ({phone}).",
         $"Les modes passent par le téléphone ({phone}).");
+    public static string PhoneDidNotTake => T(
+        "The phone didn't take the headphones. Check that it's on the same Wi-Fi and the app runs in the background.",
+        "Телефон не забрал наушники. Проверьте, что он в той же Wi-Fi сети и приложение работает в фоне.",
+        "Le téléphone n'a pas pris le casque. Vérifiez le même Wi-Fi et que l'appli tourne en arrière-plan.");
     public static string CallOnPc => T(
         "Microphone in use: the phone won't take the headphones by itself",
         "Микрофон занят: телефон не заберёт наушники сам",

@@ -19,6 +19,8 @@
     <string name="widget_case">Boîtier</string>
     <string name="widget_battery">Batterie</string>
     <string name="widget_switch">⇄ PC</string>
+    <string name="switch_take_failed">Impossible de prendre le casque : il n\'est pas visible à proximité.</string>
+    <string name="switch_give_failed">Le PC n\'a pas pris le casque. Vérifiez que Pods Companion tourne sur le PC et le même Wi-Fi.</string>
 
     <string name="tile_label">Écouteurs</string>
     <string name="tile_no_data">Aucune donnée</string>

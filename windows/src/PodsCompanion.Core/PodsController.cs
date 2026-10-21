@@ -74,6 +74,9 @@ public sealed class PodsController : IDisposable
 
     public AppSettings Settings { get; } = AppSettings.Load();
 
+    /// <summary>После «Отдать телефону» телефон так и не забрал наушники: стоит сказать пользователю.</summary>
+    public event Action? PhoneDidNotTake;
+
     /// <summary>Состояние поменялось (вызывается из фонового потока).</summary>
     public event Action? Changed;
 
@@ -202,6 +205,13 @@ public sealed class PodsController : IDisposable
             int sent = await Task.Run(() => BluetoothAudioControl.Connect(pods.AddressHex, pods.Name, Log));
             Log($"команда подключения отправлена {sent} звуковым устройствам");
             bool ok = sent > 0 && await WaitConnectedAsync(pods.Address, ConnectWait);
+            if (!ok && sent > 0)
+            {
+                // Иногда Windows пропускает первую команду (например, наушники ещё отключались от телефона).
+                Log("не подключились — пробую ещё раз");
+                sent = await Task.Run(() => BluetoothAudioControl.Connect(pods.AddressHex, pods.Name, Log));
+                ok = sent > 0 && await WaitConnectedAsync(pods.Address, ConnectWait);
+            }
             Log(ok ? "наушники подключились к ПК" : "наушники не подключились");
             if (ok) earPolicy.Reset();
             autoQuietUntil = DateTime.UtcNow + (ok ? OwnResumeQuiet : FailedQuiet);
@@ -239,7 +249,18 @@ public sealed class PodsController : IDisposable
         {
             Log($"ошибка отключения: {e.Message}");
         }
-        await PhoneSignal.SendTakeAsync(pods.Address, Log);
+        var signal = PhoneSignal.SendTakeAsync(pods.Address, Log);
+        // Телефон обычно забирает наушники за 4–5 с. Если за 15 с не забрал (телефон не в той сети,
+        // приложение не в фоне, Android усыпил его) — говорим об этом, а не оставляем наушники ничьими.
+        var until = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        while (DateTime.UtcNow < until && !link.PhoneHolds(pods.Address)) await Task.Delay(250);
+        if (link.PhoneHolds(pods.Address)) Log("телефон забрал наушники");
+        else
+        {
+            Log("телефон не забрал наушники");
+            PhoneDidNotTake?.Invoke();
+        }
+        await signal;
     }
 
     /// <summary>Включить режим шумоподавления через телефон (<see cref="LinkPods.Modes"/>).</summary>

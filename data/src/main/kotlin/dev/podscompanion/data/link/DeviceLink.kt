@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 
 /** ПК с программой Pods Companion, которого слышно в сети. [pods] — какие наушники у него подключены. */
@@ -113,6 +114,18 @@ class DeviceLink @Inject constructor(
                 .collect { if (_peers.value.isNotEmpty()) say(LinkMessage.Type.HELLO) }
         }
         scope.launch {
+            // Сами напоминаем о себе: широковещание ПК с выключенным экраном телефона иногда не доходит,
+            // а на прямой «hi» ПК отвечает прямым пакетом, который доходит надёжнее.
+            while (isActive) {
+                delay(KEEPALIVE_MS)
+                if (_peers.value.isEmpty()) say(LinkMessage.Type.HI)
+                else {
+                    val message = message(LinkMessage.Type.HI, ownPods())
+                    _peers.value.forEach { send(message, it.address) }
+                }
+            }
+        }
+        scope.launch {
             while (isActive) {
                 delay(CLEANUP_MS)
                 val now = SystemClock.elapsedRealtime()
@@ -133,16 +146,34 @@ class DeviceLink @Inject constructor(
         val message = message(LinkMessage.Type.RELEASE, listOf(LinkPods(hash, false)))
         holders.forEach { pc ->
             log.add("прошу ПК ${pc.name} отпустить наушники")
-            send(message, pc.address)
+            sendRepeated(message, pc.address)
         }
     }
 
     /** Отдать наушники ПК (кнопка в виджете): ПК сам заберёт их, как по своей кнопке. Возвращает имя ПК. */
-    suspend fun give(address: String): String? {
-        val pc = _peers.value.maxByOrNull { it.lastSeenMs } ?: return null
-        log.add("отдаю наушники ПК ${pc.name}")
-        send(message(LinkMessage.Type.GIVE, listOf(LinkPods(PcSignal.hashHex(address), true))), pc.address)
-        return pc.name
+    suspend fun give(address: String): Boolean {
+        val message = message(LinkMessage.Type.GIVE, listOf(LinkPods(PcSignal.hashHex(address), true)))
+        val pc = _peers.value.maxByOrNull { it.lastSeenMs }
+        if (pc != null) {
+            log.add("отдаю наушники ПК ${pc.name}")
+            sendRepeated(message, pc.address)
+        } else {
+            // ПК давно не слышно (мог пропустить его hello): зовём всех в сети, ответит тот, где программа.
+            log.add("отдаю наушники: ПК не слышно, зову всех в сети")
+            sendRepeated(message, BROADCAST)
+        }
+        val hash = PcSignal.hashHex(address)
+        val taken = withTimeoutOrNull(GIVE_WAIT_MS) { _peers.first { list -> list.any { it.has(hash) } } } != null
+        log.add(if (taken) "ПК забрал наушники" else "ПК не забрал наушники")
+        return taken
+    }
+
+    /** Просьбы шлём трижды: в Wi-Fi один пакет иногда теряется. Повтор безопасен. */
+    private suspend fun sendRepeated(message: LinkMessage, to: InetAddress) {
+        for (pause in REPEAT_PAUSES_MS) {
+            delay(pause)
+            send(message, to)
+        }
     }
 
     private fun message(type: LinkMessage.Type, pods: List<LinkPods>) =
@@ -256,6 +287,10 @@ class DeviceLink @Inject constructor(
 
     private companion object {
         val BROADCAST: InetAddress = InetAddress.getByName("255.255.255.255")
+        val REPEAT_PAUSES_MS = longArrayOf(0, 150, 400)
+        const val KEEPALIVE_MS = 30_000L
+        /** ПК подключает наушники 2–5 с, иногда со второй попытки. */
+        const val GIVE_WAIT_MS = 15_000L
         const val PEER_TIMEOUT_MS = 150_000L
         const val CLEANUP_MS = 30_000L
         const val RETRY_MS = 30_000L

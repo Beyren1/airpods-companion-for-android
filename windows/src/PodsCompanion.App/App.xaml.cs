@@ -47,6 +47,8 @@ public partial class App : Application
 
         controller = new PodsController();
         controller.Changed += () => dirty = true;
+        controller.PhoneDidNotTake += () => Dispatcher.BeginInvoke(() =>
+            tray?.ShowBalloonTip(5000, Strings.AppName, Strings.PhoneDidNotTake, Forms.ToolTipIcon.Warning));
         flyout = new FlyoutWindow(controller);
         CreateTray();
         uiTimer.Tick += (_, _) => Refresh();

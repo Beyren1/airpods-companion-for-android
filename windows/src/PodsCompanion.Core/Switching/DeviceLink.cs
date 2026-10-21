@@ -97,7 +97,7 @@ public sealed class DeviceLink : IDisposable
         foreach (var holder in holders)
         {
             log($"прошу {holder.Name} отпустить наушники");
-            await SendAsync(message, new IPEndPoint(holder.Address, LinkMessage.Port));
+            _ = SendRepeatedAsync(message, new IPEndPoint(holder.Address, LinkMessage.Port));
         }
         var until = DateTime.UtcNow + ReleaseWait;
         while (DateTime.UtcNow < until && Peers.Any(p => p.Holding(hash) != null)) await Task.Delay(100);
@@ -132,6 +132,28 @@ public sealed class DeviceLink : IDisposable
         await SendAsync(message, new IPEndPoint(IPAddress.Broadcast, LinkMessage.Port));
         foreach (var peer in Peers) await SendAsync(message, new IPEndPoint(peer.Address, LinkMessage.Port));
         PeersChanged?.Invoke(); // кто-то мог пропасть по таймауту
+    }
+
+    /// <summary>
+    /// Просьбы (release) шлём трижды: в Wi-Fi один пакет иногда теряется, особенно когда экран телефона
+    /// выключен. Повтор безопасен — отпустить уже отпущенные наушники ничего не меняет.
+    /// </summary>
+    private async Task SendRepeatedAsync(LinkMessage message, IPEndPoint to)
+    {
+        foreach (var pause in RepeatPauses)
+        {
+            await Task.Delay(pause);
+            await SendAsync(message, to);
+        }
+    }
+
+    private static readonly int[] RepeatPauses = [0, 150, 400];
+
+    /// <summary>Телефон держит эти наушники (по его последнему hello).</summary>
+    public bool PhoneHolds(ulong podsAddress)
+    {
+        var hash = LinkMessage.HashOf(podsAddress);
+        return Peers.Any(p => p.Kind == LinkKind.Phone && p.Holding(hash) != null);
     }
 
     private async Task SendAsync(LinkMessage message, IPEndPoint to)

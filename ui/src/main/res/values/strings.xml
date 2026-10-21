@@ -236,6 +236,7 @@
     <string name="stats_clear_text">Time for all headphones will be deleted.</string>
     <string name="stats_clear_confirm">Reset</string>
     <string name="pc_link_online">PC %1$s is linked</string>
+    <string name="pc_link_unrestricted">Allow background work so the PC button always reaches the phone</string>
     <string name="pc_link_has_pods">Headphones are on PC %1$s</string>
     <string name="take_over">Connect to phone</string>
     <string name="take_over_working">Connecting…</string>

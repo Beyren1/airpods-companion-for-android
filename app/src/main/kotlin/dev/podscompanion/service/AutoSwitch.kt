@@ -1,6 +1,7 @@
 package dev.podscompanion.service
 
 import android.media.AudioAttributes
+import android.media.AudioDeviceInfo
 import android.media.AudioManager
 import android.media.AudioPlaybackConfiguration
 import android.os.SystemClock
@@ -18,6 +19,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Переключение «как у iPhone и Mac» со стороны телефона: включили музыку на телефоне, а надетые
@@ -107,7 +109,11 @@ internal class AutoSwitch(
                 sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
                 val result = takeOver.takeOver(target, "звук на телефоне")
                 if (result is TakeOverResult.Connected) {
-                    // Даём системе переключить звук на наушники, иначе первые доли секунды сыграют из динамика.
+                    // Ждём, пока звук телефона пойдёт в наушники (обычно сразу), иначе первые доли секунды
+                    // сыграют из динамика. Раньше ждали всегда 1 с.
+                    withTimeoutOrNull(ROUTE_WAIT_MS) {
+                        while (audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).none { it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP }) delay(50)
+                    }
                     delay(ROUTE_SETTLE_MS)
                     quietUntilMs = SystemClock.elapsedRealtime() + OWN_KEYS_QUIET_MS
                 } else {
@@ -140,7 +146,8 @@ internal class AutoSwitch(
 
     private companion object {
         val MEDIA_USAGES = setOf(AudioAttributes.USAGE_MEDIA, AudioAttributes.USAGE_GAME)
-        const val ROUTE_SETTLE_MS = 1_000L
+        const val ROUTE_WAIT_MS = 1_500L
+        const val ROUTE_SETTLE_MS = 300L
         const val SUSTAINED_PLAY_MS = 1_500L
         const val SCAN_WAKE_MS = 3_000L
         const val OWN_KEYS_QUIET_MS = 3_000L

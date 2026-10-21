@@ -21,6 +21,8 @@
     <string name="widget_case">Case</string>
     <string name="widget_battery">Battery</string>
     <string name="widget_switch">⇄ PC</string>
+    <string name="switch_take_failed">Couldn\'t take the headphones: they aren\'t visible nearby.</string>
+    <string name="switch_give_failed">The PC didn\'t take the headphones. Check that Pods Companion runs on the PC and both are on the same Wi-Fi.</string>
 
     <string name="tile_label">Headphones</string>
     <string name="tile_no_data">No data</string>

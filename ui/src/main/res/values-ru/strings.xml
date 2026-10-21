@@ -238,6 +238,7 @@
     <string name="stats_clear_text">Время для всех наушников будет удалено.</string>
     <string name="stats_clear_confirm">Сбросить</string>
     <string name="pc_link_online">ПК %1$s на связи</string>
+    <string name="pc_link_unrestricted">Разрешить работу в фоне, чтобы кнопка на ПК всегда доходила</string>
     <string name="pc_link_has_pods">Наушники подключены к ПК %1$s</string>
     <string name="take_over">Подключить к телефону</string>
     <string name="take_over_working">Подключаю…</string>

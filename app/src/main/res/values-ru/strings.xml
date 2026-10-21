@@ -20,6 +20,8 @@
     <string name="widget_case">Кейс</string>
     <string name="widget_battery">Заряд</string>
     <string name="widget_switch">⇄ ПК</string>
+    <string name="switch_take_failed">Не получилось забрать наушники: их не видно рядом.</string>
+    <string name="switch_give_failed">ПК не забрал наушники. Проверьте, что на ПК запущена Pods Companion и оба в одной Wi-Fi сети.</string>
 
     <!-- Плитка в шторке -->
     <string name="tile_label">Наушники</string>

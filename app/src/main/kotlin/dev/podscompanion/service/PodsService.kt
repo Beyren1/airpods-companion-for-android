@@ -18,13 +18,16 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.service.quicksettings.TileService
 import android.view.KeyEvent
+import android.widget.Toast
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
+import dev.podscompanion.R
 import dev.podscompanion.bluetooth.connect.PodsConnector
+import dev.podscompanion.bluetooth.connect.TakeOverResult
 import dev.podscompanion.bluetooth.scan.PcSignalScanner
 import dev.podscompanion.data.ConnectedNameMatcher
 import dev.podscompanion.bluetooth.scan.ScanIntensity
@@ -189,29 +192,37 @@ class PodsService : LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         super.onStartCommand(intent, flags, startId)
         when (intent?.action) {
-            ACTION_TAKE_FROM_PC -> lifecycleScope.launch { takeFromPc() }
+            ACTION_TAKE_FROM_PC -> lifecycleScope.launch { takeFromPc("уведомление") }
             ACTION_SWITCH -> lifecycleScope.launch { switchPods() }
         }
         return START_STICKY
     }
 
-    /** Кнопка «Забрать» в уведомлении: наушники, которые сейчас у ПК. */
-    private suspend fun takeFromPc() {
+    /**
+     * Забрать наушники, которые сейчас у ПК. Если ПК не слышно, берём свои наушники из рекламы рядом:
+     * кнопка должна срабатывать и без связи с ПК.
+     */
+    private suspend fun takeFromPc(reason: String): Boolean {
         val hashes = deviceLink.peers.value.flatMap { pc -> pc.pods.filter { it.here }.map { it.hash } }.toSet()
-        val device = podsConnector.bondedPods().firstOrNull { PcSignal.hashHex(it.address) in hashes } ?: return
+        val device = podsConnector.bondedPods().firstOrNull { PcSignal.hashHex(it.address) in hashes }
         notifications.showOnPc(null)
-        podsTakeOver.takeOverAddress(device.address, "уведомление")
+        val result = when {
+            device != null -> podsTakeOver.takeOverAddress(device.address, reason)
+            else -> latestNearby.firstOrNull { it.owner != null && !it.connected }
+                ?.let { podsTakeOver.takeOver(it, reason) }
+                ?: TakeOverResult.Failed.also { aapLog.add("забрать ($reason): наушников не видно ни у ПК, ни рядом") }
+        }
+        return result is TakeOverResult.Connected
     }
 
     /** Кнопка в виджете: наушники у телефона — отдаём ПК, иначе забираем с ПК. */
     private suspend fun switchPods() {
         val here = connectedAudio.devices().first().orEmpty()
             .firstOrNull { it.supportsAap || ConnectedNameMatcher.knownModels(listOf(it.name)).isNotEmpty() }
-        if (here == null) {
-            aapLog.add("перекинуть (виджет): забираю с ПК")
-            takeFromPc()
-        } else if (deviceLink.give(here.device.address) == null) {
-            aapLog.add("перекинуть (виджет): программа на ПК не на связи")
+        val ok = if (here == null) takeFromPc("виджет") else deviceLink.give(here.device.address)
+        if (!ok) {
+            val text = if (here == null) R.string.switch_take_failed else R.string.switch_give_failed
+            Toast.makeText(this, text, Toast.LENGTH_LONG).show()
         }
     }
 
