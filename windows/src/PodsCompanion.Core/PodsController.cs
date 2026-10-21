@@ -22,8 +22,11 @@ public sealed class PodsController : IDisposable
     /// <summary>Сколько ждать, пока наушники подключатся к ПК после команды.</summary>
     private static readonly TimeSpan ConnectWait = TimeSpan.FromSeconds(10);
 
-    /// <summary>После подключения Windows ещё переключает звук на наушники: ждём, чтобы начало песни не ушло в колонки.</summary>
-    private static readonly TimeSpan AudioRouteDelay = TimeSpan.FromSeconds(1.5);
+    /// <summary>Наше же «продолжить» плеер сообщает как новое начало звука: его не считаем.</summary>
+    private static readonly TimeSpan OwnResumeQuiet = TimeSpan.FromSeconds(5);
+
+    /// <summary>Не получилось забрать: не пробуем снова на каждое нажатие «играть», иначе плеер встаёт на паузу раз за разом.</summary>
+    private static readonly TimeSpan FailedQuiet = TimeSpan.FromMinutes(2);
 
     /// <summary>После ручного «Отключить» не забираем наушники обратно сразу же.</summary>
     private static readonly TimeSpan ManualReleaseQuiet = TimeSpan.FromSeconds(10);
@@ -39,6 +42,8 @@ public sealed class PodsController : IDisposable
     private int busy;
     private bool bluetoothOff;
     private DateTime releasedAt = DateTime.MinValue;
+    /// <summary>До этого момента не забираем наушники сами: после своей паузы/продолжения или неудачной попытки.</summary>
+    private DateTime autoQuietUntil = DateTime.MinValue;
     private readonly Dictionary<ulong, bool> lastConnected = [];
 
     public AppSettings Settings { get; } = AppSettings.Load();
@@ -122,7 +127,10 @@ public sealed class PodsController : IDisposable
 
     // ---------- Подключение ----------
 
-    /// <summary>Подключить наушники к ПК. Если что-то играло, ставим на паузу и продолжаем, когда звук уже в наушниках.</summary>
+    /// <summary>
+    /// Подключить наушники к ПК. Плееры не трогаем: раньше ставили их на паузу на время подключения,
+    /// и при неудачной попытке это превращалось в паузу на каждое нажатие «играть».
+    /// </summary>
     public async Task<bool> TakeOverAsync(string reason)
     {
         var pods = Snapshot().Pods;
@@ -137,22 +145,18 @@ public sealed class PodsController : IDisposable
         try
         {
             Log($"забрать на ПК ({reason}): {pods.Name}");
-            bool paused = await media.PauseAllAsync();
-            int sent = await Task.Run(() => BluetoothAudioControl.Connect(pods.AddressHex));
+            int sent = await Task.Run(() => BluetoothAudioControl.Connect(pods.AddressHex, Log));
             Log($"команда подключения отправлена {sent} звуковым устройствам");
             bool ok = sent > 0 && await WaitConnectedAsync(pods.Address, ConnectWait);
             Log(ok ? "наушники подключились к ПК" : "наушники не подключились");
-            if (ok)
-            {
-                earPolicy.Reset();
-                await Task.Delay(AudioRouteDelay);
-            }
-            if (paused) await media.ResumeOursAsync();
+            if (ok) earPolicy.Reset();
+            autoQuietUntil = DateTime.UtcNow + (ok ? OwnResumeQuiet : FailedQuiet);
             return ok;
         }
         catch (Exception e)
         {
             Log($"ошибка подключения: {e.Message}");
+            autoQuietUntil = DateTime.UtcNow + FailedQuiet;
             return false;
         }
         finally
@@ -171,7 +175,7 @@ public sealed class PodsController : IDisposable
         Log($"отпустить: {pods.Name}");
         try
         {
-            int sent = await Task.Run(() => BluetoothAudioControl.Disconnect(pods.AddressHex));
+            int sent = await Task.Run(() => BluetoothAudioControl.Disconnect(pods.AddressHex, Log));
             Log($"команда отключения отправлена {sent} звуковым устройствам");
         }
         catch (Exception e)
@@ -196,7 +200,7 @@ public sealed class PodsController : IDisposable
     private void OnPlaybackStarted(string app)
     {
         if (!Settings.AutoTakeOver || busy > 0) return;
-        if (DateTime.UtcNow - releasedAt < ManualReleaseQuiet) return;
+        if (DateTime.UtcNow < autoQuietUntil || DateTime.UtcNow - releasedAt < ManualReleaseQuiet) return;
         var snapshot = Snapshot();
         if (snapshot.Pods is not { Connected: false }) return;
         // Забираем только надетые наушники: лежащие в кейсе или на столе пусть остаются, где были.
@@ -244,6 +248,7 @@ public sealed class PodsController : IDisposable
                     Log("пауза: наушник сняли");
                     break;
                 case EarAction.Resume:
+                    autoQuietUntil = DateTime.UtcNow + OwnResumeQuiet;
                     _ = media.ResumeOursAsync();
                     Log("продолжить: наушники надели");
                     break;

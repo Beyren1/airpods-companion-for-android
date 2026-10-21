@@ -11,10 +11,10 @@ namespace PodsCompanion.Core.Bluetooth;
 public static class BluetoothAudioControl
 {
     /// <summary>Подключить звук наушников с адресом <paramref name="addressHex"/>. Возвращает число фильтров, которым отправлена команда.</summary>
-    public static int Connect(string addressHex) => Send(addressHex, KsPropertyOneshotReconnect);
+    public static int Connect(string addressHex, Action<string>? log = null) => Send(addressHex, KsPropertyOneshotReconnect, log);
 
     /// <summary>Отключить звук (A2DP и гарнитуру) наушников с адресом <paramref name="addressHex"/>.</summary>
-    public static int Disconnect(string addressHex) => Send(addressHex, KsPropertyOneshotDisconnect);
+    public static int Disconnect(string addressHex, Action<string>? log = null) => Send(addressHex, KsPropertyOneshotDisconnect, log);
 
     /// <summary>
     /// Путь фильтра звукового драйвера Bluetooth выглядит так:
@@ -25,9 +25,9 @@ public static class BluetoothAudioControl
         filterId.Contains("BTHENUM", StringComparison.OrdinalIgnoreCase) &&
         filterId.Contains(addressHex, StringComparison.OrdinalIgnoreCase);
 
-    private static int Send(string addressHex, uint propertyId)
+    private static int Send(string addressHex, uint propertyId, Action<string>? log)
     {
-        int sent = 0;
+        int sent = 0, bluetoothFilters = 0;
         var done = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var enumerator = (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
         try
@@ -41,9 +41,15 @@ public static class BluetoothAudioControl
                 try
                 {
                     if (TryGetBluetoothFilter(endpoint, out var part, out var filterId) &&
-                        IsFilterOf(filterId, addressHex) && done.Add(filterId))
+                        filterId.Contains("BTHENUM", StringComparison.OrdinalIgnoreCase))
                     {
-                        if (SendProperty(part, propertyId)) sent++;
+                        bluetoothFilters++;
+                        if (IsFilterOf(filterId, addressHex) && done.Add(filterId))
+                        {
+                            int hr = SendProperty(part, propertyId);
+                            log?.Invoke($"  фильтр …{Tail(filterId)}: 0x{hr:X8}");
+                            if (hr == 0) sent++;
+                        }
                     }
                 }
                 catch (COMException)
@@ -56,6 +62,7 @@ public static class BluetoothAudioControl
                 }
             }
             Marshal.ReleaseComObject(collection);
+            log?.Invoke($"  звуковых устройств {count}, Bluetooth-фильтров {bluetoothFilters}, этих наушников {done.Count}");
         }
         finally
         {
@@ -79,16 +86,21 @@ public static class BluetoothAudioControl
         return filterTopology.GetDeviceId(out filterId) == 0;
     }
 
-    private static bool SendProperty(IPart part, uint propertyId)
+    /// <returns>HRESULT: 0 — команда принята драйвером.</returns>
+    private static int SendProperty(IPart part, uint propertyId)
     {
         var ksControlIid = typeof(IKsControl).GUID;
-        if (part.Activate(ClsctxInprocServer, ref ksControlIid, out var ksObject) != 0) return false;
+        int hr = part.Activate(ClsctxInprocServer, ref ksControlIid, out var ksObject);
+        if (hr != 0) return hr;
         var ks = (IKsControl)ksObject;
         var property = new KsProperty { Set = KsPropSetIdBtAudio, Id = propertyId, Flags = KsPropertyTypeGet };
-        int hr = ks.KsProperty(ref property, (uint)Marshal.SizeOf<KsProperty>(), IntPtr.Zero, 0, out _);
+        hr = ks.KsProperty(ref property, (uint)Marshal.SizeOf<KsProperty>(), IntPtr.Zero, 0, out _);
         Marshal.ReleaseComObject(ks);
-        return hr == 0;
+        return hr;
     }
+
+    /// <summary>Конец пути фильтра для журнала: по нему видно профиль, а адрес целиком не светим.</summary>
+    private static string Tail(string id) => id.Length > 40 ? id[^40..] : id;
 
     private static void Check(int hr)
     {
