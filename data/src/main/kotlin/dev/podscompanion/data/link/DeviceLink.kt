@@ -40,7 +40,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.coroutines.withTimeoutOrNull
 import timber.log.Timber
 
 /** ПК с программой Pods Companion, которого слышно в сети. [pods] — какие наушники у него подключены. */
@@ -123,8 +122,9 @@ class DeviceLink @Inject constructor(
     }
 
     /**
-     * Перед тем как забрать наушники: если они у ПК, просим ПК отпустить их и ждём, пока отпустит
-     * (не дольше [RELEASE_WAIT_MS]). Так телефону не приходится перетягивать их у ПК.
+     * Перед тем как забрать наушники: если они у ПК, просим ПК отпустить их. Не ждём ответа:
+     * ПК отключает наушники ~3 с, а телефон за это время уже подключает их сам — так быстрее.
+     * Просьба нужна, чтобы ПК поставил музыку на паузу и не стал забирать наушники обратно.
      */
     suspend fun askRelease(address: String) {
         val hash = PcSignal.hashHex(address)
@@ -135,8 +135,6 @@ class DeviceLink @Inject constructor(
             log.add("прошу ПК ${pc.name} отпустить наушники")
             send(message, pc.address)
         }
-        val released = withTimeoutOrNull(RELEASE_WAIT_MS) { _peers.first { list -> list.none { it.has(hash) } } } != null
-        log.add(if (released) "ПК отпустил наушники" else "ПК не ответил, забираю сам")
     }
 
     private fun message(type: LinkMessage.Type, pods: List<LinkPods>) =
@@ -252,7 +250,6 @@ class DeviceLink @Inject constructor(
         val BROADCAST: InetAddress = InetAddress.getByName("255.255.255.255")
         const val PEER_TIMEOUT_MS = 150_000L
         const val CLEANUP_MS = 30_000L
-        const val RELEASE_WAIT_MS = 5_000L
         const val RETRY_MS = 30_000L
     }
 }

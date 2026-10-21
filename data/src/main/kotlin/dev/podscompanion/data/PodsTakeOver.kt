@@ -29,7 +29,7 @@ class PodsTakeOver @Inject constructor(
         return device?.let { connect(it) } ?: TakeOverResult.Failed
     }
 
-    /** Если наушники у ПК с нашей программой, сначала просим его отпустить: так быстрее и без перетягивания. */
+    /** Если наушники у ПК с нашей программой, просим его отпустить и сразу подключаем сами. */
     private suspend fun connect(device: BluetoothDevice): TakeOverResult {
         link.askRelease(device.address)
         return connector.takeOver(device, log::add)

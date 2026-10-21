@@ -25,7 +25,7 @@ public sealed class DeviceLink : IDisposable
     public static readonly TimeSpan PeerTimeout = TimeSpan.FromSeconds(150);
 
     /// <summary>Сколько ждать, пока держатель отпустит наушники.</summary>
-    public static readonly TimeSpan ReleaseWait = TimeSpan.FromSeconds(3);
+    public static readonly TimeSpan ReleaseWait = TimeSpan.FromSeconds(1);
 
     /// <summary>Телефону нужно открыть канал к наушникам и дождаться подтверждения режима.</summary>
     public static readonly TimeSpan ModeWait = TimeSpan.FromSeconds(15);
