@@ -73,6 +73,7 @@ class MusicViewModel @Inject constructor(
     fun setAppModes(value: Boolean) = edit { settingsRepository.setAppModes(value) }
     fun setAppModeRule(packageName: String, mode: ListeningMode?) = edit { settingsRepository.setAppModeRule(packageName, mode) }
     fun setSmartResume(value: Boolean) = edit { settingsRepository.setSmartResume(value) }
+    fun setAutoSwitch(value: Boolean) = edit { settingsRepository.setAutoSwitch(value) }
 
     private fun edit(block: suspend () -> Unit) {
         viewModelScope.launch { block() }

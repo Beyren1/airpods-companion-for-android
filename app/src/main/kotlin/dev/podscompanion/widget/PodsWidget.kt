@@ -1,6 +1,7 @@
 package dev.podscompanion.widget
 
 import android.content.Context
+import android.content.Intent
 import android.text.format.DateFormat
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -15,6 +16,7 @@ import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
 import androidx.glance.appwidget.GlanceAppWidgetReceiver
+import androidx.glance.appwidget.action.actionStartService
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.background
@@ -26,6 +28,7 @@ import androidx.glance.layout.fillMaxSize
 import androidx.glance.layout.fillMaxWidth
 import androidx.glance.layout.height
 import androidx.glance.layout.padding
+import androidx.glance.layout.width
 import androidx.glance.text.FontWeight
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
@@ -37,9 +40,11 @@ import dev.podscompanion.MainActivity
 import dev.podscompanion.R
 import dev.podscompanion.data.snapshot.StatusSnapshot
 import dev.podscompanion.data.snapshot.StatusSnapshotStore
+import dev.podscompanion.service.PodsService
 
 /**
- * Виджет на рабочем столе: заряд левого, правого и кейса (у Max — один заряд).
+ * Виджет на рабочем столе: заряд левого, правого и кейса (у Max — один заряд) и кнопка «⇄ ПК»:
+ * перекинуть наушники между телефоном и ПК с программой Pods Companion.
  * Glance — это Compose для виджетов: тот же стиль кода, но рисует система, а не приложение.
  * Данные берёт из [StatusSnapshotStore], который обновляет фоновый сервис.
  */
@@ -78,11 +83,16 @@ private fun WidgetContent(snapshot: StatusSnapshot?) {
             .clickable(actionStartActivity<MainActivity>()),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(
-            snapshot?.name ?: context.getString(R.string.app_name),
-            style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium),
-            maxLines = 1,
-        )
+        Row(GlanceModifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                snapshot?.name ?: context.getString(R.string.app_name),
+                modifier = GlanceModifier.defaultWeight(),
+                style = TextStyle(color = GlanceTheme.colors.onSurface, fontSize = 14.sp, fontWeight = FontWeight.Medium),
+                maxLines = 1,
+            )
+            Spacer(GlanceModifier.width(6.dp))
+            SwitchButton()
+        }
         Spacer(GlanceModifier.height(4.dp))
         when {
             snapshot == null -> Hint(context.getString(R.string.widget_no_data))
@@ -112,6 +122,23 @@ private fun androidx.glance.layout.RowScope.Cell(label: String, percent: Int?, c
             maxLines = 1,
         )
     }
+}
+
+/** Наушники у телефона — отдать ПК, иначе забрать с ПК. Решает сервис: он знает, где они сейчас. */
+@Composable
+private fun SwitchButton() {
+    val context = LocalContext.current
+    val intent = Intent(context, PodsService::class.java).setAction(PodsService.ACTION_SWITCH)
+    Text(
+        context.getString(R.string.widget_switch),
+        modifier = GlanceModifier
+            .background(GlanceTheme.colors.primaryContainer)
+            .cornerRadius(12.dp)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+            .clickable(actionStartService(intent, isForegroundService = true)),
+        style = TextStyle(color = GlanceTheme.colors.onPrimaryContainer, fontSize = 13.sp, fontWeight = FontWeight.Medium),
+        maxLines = 1,
+    )
 }
 
 @Composable

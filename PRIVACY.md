@@ -1,9 +1,11 @@
 # Политика конфиденциальности Pods Companion
 
-*Обновлено: 9 октября 2026 г. English version below.*
+*Обновлено: 21 октября 2026 г. English version below.*
 
 Pods Companion не собирает, не передаёт и не продаёт никаких данных. В приложении нет
-разрешения на доступ к интернету, рекламы, аналитики и сторонних SDK, которые отправляют данные.
+рекламы, аналитики и сторонних SDK, которые отправляют данные. В интернет приложение ничего
+не отправляет: разрешение на сеть нужно только, чтобы слышать программу Pods Companion для ПК
+в вашей домашней сети (см. таблицу ниже).
 
 Всё, что приложение хранит (настройки, имена и ключи ваших наушников, статистика использования),
 лежит только в его личной папке на телефоне. Оно удаляется вместе с приложением и не попадает
@@ -19,6 +21,7 @@ Pods Companion не собирает, не передаёт и не продаё
 | Работа в фоне, запуск после включения телефона | Следить за наушниками, пока приложение закрыто: автопауза, виджет, плитка. |
 | Телефон: состояние звонка и ответ на звонок | Только для жестов головой: узнать, что идёт входящий звонок, и ответить или отклонить его кивком. Номера и журнал звонков приложение не читает. Разрешение просится, только если вы включаете жесты. |
 | Поверх других окон | Показать окно с зарядом при открытии кейса. Просится, только если вы включаете это окно. |
+| Сеть (интернет) и приём широковещательных пакетов Wi-Fi | Только для программы Pods Companion для Windows: её кнопка «Отдать телефону» присылает в домашней сети короткий пакет «забери наушники», и телефон подключает их к себе. Приложение только слушает такие пакеты, пока наушники не подключены к телефону, и ничего не отправляет. В пакете нет адреса наушников, только короткий хэш от него. |
 | Доступ к уведомлениям | Только для функций музыки: без него Android не показывает приложению, какой плеер сейчас играет и какой трек. Сами уведомления приложение не читает вообще. Доступ даётся вручную в настройках Android, только если вы включаете эти функции. |
 
 Статистика (время в ушах, музыка, звонки) считается на телефоне и хранит только длительности
@@ -32,10 +35,12 @@ Pods Companion не собирает, не передаёт и не продаё
 
 # Pods Companion privacy policy
 
-*Updated October 9, 2026.*
+*Updated October 21, 2026.*
 
-Pods Companion does not collect, transmit or sell any data. The app has no internet permission,
-no ads, no analytics and no third-party SDKs that send data anywhere.
+Pods Companion does not collect, transmit or sell any data. The app has no ads, no analytics and
+no third-party SDKs that send data anywhere, and it never sends anything to the internet. The network
+permission is used only to receive a short "take the headphones" packet from the Pods Companion
+Windows app on your home network; the phone only listens while the headphones are not connected to it.
 
 Everything the app stores (settings, your headphones' names and keys, usage statistics) stays in the
 app's private storage on your phone. It is removed with the app and excluded from Android cloud backup.

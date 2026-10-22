@@ -1,0 +1,52 @@
+<Window x:Class="PodsCompanion.App.FlyoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Pods Companion"
+        Width="380"
+        SizeToContent="Height"
+        WindowStyle="None"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        Topmost="True"
+        Deactivated="OnDeactivated">
+    <Border Padding="20,18,20,16">
+        <StackPanel>
+            <TextBlock x:Name="TitleText" FontSize="20" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            <TextBlock x:Name="StatusText" Opacity="0.7" Margin="0,2,0,0" TextWrapping="Wrap" />
+            <!-- Связь с приложением на телефоне по домашней сети. -->
+            <TextBlock x:Name="PhoneText" Opacity="0.6" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
+
+            <!-- Заряд: левый, правый, кейс (у Max одно значение). -->
+            <UniformGrid x:Name="BatteryGrid" Rows="1" Margin="0,16,0,0" />
+
+            <TextBlock x:Name="EarText" Margin="0,12,0,0" Opacity="0.85" />
+
+            <!-- Режимы шумоподавления: включаются через телефон, у Windows нет доступа к ним без драйвера. -->
+            <StackPanel x:Name="ModeSection" Margin="0,14,0,0">
+                <UniformGrid x:Name="ModeGrid" Rows="1" />
+                <TextBlock x:Name="ModeHint" Opacity="0.6" FontSize="12" Margin="0,4,0,0" TextWrapping="Wrap" />
+            </StackPanel>
+
+            <Button x:Name="ConnectButton" Click="OnConnectClick" Margin="0,16,0,0"
+                    HorizontalAlignment="Stretch" Padding="12,8" />
+            <TextBlock x:Name="HotkeyHint" Opacity="0.5" FontSize="12" Margin="0,4,0,0" HorizontalAlignment="Center" />
+
+            <Separator Margin="0,16,0,10" />
+
+            <ComboBox x:Name="PodsPicker" Margin="0,0,0,10" SelectionChanged="OnPodsPicked" />
+            <CheckBox x:Name="AutoTakeOverBox" Click="OnSettingClick" />
+            <TextBlock x:Name="AutoTakeOverHint" Opacity="0.6" FontSize="12" Margin="28,0,0,6" />
+            <CheckBox x:Name="AutoPauseBox" Click="OnSettingClick" Margin="0,2,0,0" />
+            <CheckBox x:Name="PauseOnDisconnectBox" Click="OnSettingClick" Margin="0,6,0,0" />
+            <CheckBox x:Name="StartWithWindowsBox" Click="OnStartWithWindowsClick" Margin="0,6,0,0" />
+            <!-- Появляется, когда на GitHub вышла новая версия программы для ПК. -->
+            <Button x:Name="UpdateButton" Click="OnUpdateClick" Visibility="Collapsed" Margin="0,12,0,0"
+                    HorizontalAlignment="Stretch" Padding="12,6" />
+
+            <DockPanel Margin="0,14,0,0">
+                <Button x:Name="ExitButton" DockPanel.Dock="Right" Click="OnExitClick" Padding="12,4" />
+                <Button x:Name="CopyLogButton" Click="OnCopyLogClick" Padding="12,4" HorizontalAlignment="Left" />
+            </DockPanel>
+        </StackPanel>
+    </Border>
+</Window>

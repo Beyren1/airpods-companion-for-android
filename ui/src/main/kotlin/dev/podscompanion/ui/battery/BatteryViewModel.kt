@@ -5,7 +5,12 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dev.podscompanion.bluetooth.scan.BluetoothUnavailableException
 import dev.podscompanion.bluetooth.scan.ScanIntensity
+import dev.podscompanion.bluetooth.connect.TakeOverResult
+import dev.podscompanion.data.PodsTakeOver
+import dev.podscompanion.data.link.DeviceLink
+import dev.podscompanion.data.link.LinkedPc
 import dev.podscompanion.data.PodsRepository
+import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.aap.AapLog
 import dev.podscompanion.data.aap.AapRepository
@@ -66,6 +71,14 @@ sealed interface CalibrationState {
     data class Failed(val noData: Boolean, val details: String = "") : CalibrationState
 }
 
+/** Кнопка «Подключить к телефону»: забрать наушники с другого устройства (например, с ПК). */
+sealed interface TakeOverState {
+    data object Idle : TakeOverState
+    data object Working : TakeOverState
+    /** Не вышло: открыто системное окно выбора устройства. */
+    data object Failed : TakeOverState
+}
+
 sealed interface BatteryUiState {
     data object Searching : BatteryUiState
     data class Found(val nearby: NearbyPods) : BatteryUiState
@@ -80,7 +93,36 @@ class BatteryViewModel @Inject constructor(
     autoPauseLog: AutoPauseLog,
     private val aapRepository: AapRepository,
     private val aapLogger: AapLog,
+    private val connector: PodsTakeOver,
+    deviceLink: DeviceLink,
 ) : ViewModel() {
+
+    /** ПК с программой Pods Companion на связи (последний, от кого было слышно); null — нет. */
+    val linkedPc: StateFlow<LinkedPc?> = deviceLink.peers
+        .map { peers -> peers.firstOrNull { pc -> pc.pods.any { it.here } } ?: peers.maxByOrNull { it.lastSeenMs } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), null)
+
+    private val _takeOver = MutableStateFlow<TakeOverState>(TakeOverState.Idle)
+    val takeOverState: StateFlow<TakeOverState> = _takeOver.asStateFlow()
+
+    /**
+     * Забрать наушники [pods] на телефон. Свои наушники узнаём по ключу из рекламы ([PodsStatus.owner]),
+     * иначе — по имени среди сопряжённых. Какой способ сработал, пишется в журнал соединения.
+     */
+    fun takeOver(pods: PodsStatus) {
+        if (_takeOver.value == TakeOverState.Working) return
+        viewModelScope.launch {
+            _takeOver.value = TakeOverState.Working
+            val result = connector.takeOver(pods, "кнопка")
+            if (result is TakeOverResult.Connected) {
+                _takeOver.value = TakeOverState.Idle
+            } else {
+                aapLogger.add("забрать: не вышло, открываю окно выбора устройства")
+                connector.openOutputSwitcher()
+                _takeOver.value = TakeOverState.Failed
+            }
+        }
+    }
 
     /** Прямое подключение к наушникам (расширенный режим). */
     val aapSessions: StateFlow<AapSessions> = aapRepository.state

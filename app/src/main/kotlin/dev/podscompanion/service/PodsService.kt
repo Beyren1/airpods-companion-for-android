@@ -18,15 +18,25 @@ import android.os.SystemClock
 import android.provider.Settings
 import android.service.quicksettings.TileService
 import android.view.KeyEvent
+import android.widget.Toast
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.glance.appwidget.updateAll
 import androidx.lifecycle.LifecycleService
 import androidx.lifecycle.lifecycleScope
 import dagger.hilt.android.AndroidEntryPoint
+import dev.podscompanion.R
+import dev.podscompanion.bluetooth.connect.PodsConnector
+import dev.podscompanion.bluetooth.connect.TakeOverResult
+import dev.podscompanion.bluetooth.scan.PcSignalScanner
+import dev.podscompanion.data.ConnectedNameMatcher
 import dev.podscompanion.bluetooth.scan.ScanIntensity
+import dev.podscompanion.protocol.advertising.PcSignal
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.PodsTakeOver
+import dev.podscompanion.data.aap.AapLog
+import dev.podscompanion.data.link.DeviceLink
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.autopause.AutoPauseLog
@@ -53,6 +63,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -82,6 +93,11 @@ class PodsService : LifecycleService() {
     @Inject lateinit var aapRepository: AapRepository
     @Inject lateinit var connectedAudio: ConnectedAudioDevices
     @Inject lateinit var usageStore: UsageStatsStore
+    @Inject lateinit var podsTakeOver: PodsTakeOver
+    @Inject lateinit var aapLog: AapLog
+    @Inject lateinit var pcSignalScanner: PcSignalScanner
+    @Inject lateinit var podsConnector: PodsConnector
+    @Inject lateinit var deviceLink: DeviceLink
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -94,6 +110,8 @@ class PodsService : LifecycleService() {
     private lateinit var audioManager: AudioManager
     private lateinit var music: MusicAutomation
     private lateinit var usage: UsageTracking
+    private var autoSwitch: AutoSwitch? = null
+    private var pcLink: PcLink? = null
 
     /** Все наушники из последнего скана: статистике нужна модель каждой подключённой пары. */
     @Volatile private var latestNearby: List<PodsStatus> = emptyList()
@@ -157,7 +175,55 @@ class PodsService : LifecycleService() {
         music.run(lifecycleScope, settingsRepository.settings)
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
+        autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, ::isWorn, ::startScan) {
+            deviceLink.peers.value.firstOrNull { pc -> pc.pods.any { it.here && it.inCall } }?.name
+        }
+            .also { it.run(lifecycleScope) }
+        lifecycleScope.launch {
+            // Наушники у ПК, а к телефону ничего не подключено: уведомление с кнопкой «Забрать».
+            combine(deviceLink.peers, connectedAudio.devices()) { peers, devices ->
+                peers.firstOrNull { pc -> pc.pods.any { it.here } }?.name?.takeIf { devices.orEmpty().none { it.supportsAap } }
+            }.distinctUntilChanged().collect(notifications::showOnPc)
+        }
+        pcLink = PcLink(this, audioManager, connectedAudio, pcSignalScanner, deviceLink, podsConnector, podsTakeOver, aapLog).also { it.run(lifecycleScope) }
         startScan()
+    }
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        super.onStartCommand(intent, flags, startId)
+        when (intent?.action) {
+            ACTION_TAKE_FROM_PC -> lifecycleScope.launch { takeFromPc("уведомление") }
+            ACTION_SWITCH -> lifecycleScope.launch { switchPods() }
+        }
+        return START_STICKY
+    }
+
+    /**
+     * Забрать наушники, которые сейчас у ПК. Если ПК не слышно, берём свои наушники из рекламы рядом:
+     * кнопка должна срабатывать и без связи с ПК.
+     */
+    private suspend fun takeFromPc(reason: String): Boolean {
+        val hashes = deviceLink.peers.value.flatMap { pc -> pc.pods.filter { it.here }.map { it.hash } }.toSet()
+        val device = podsConnector.bondedPods().firstOrNull { PcSignal.hashHex(it.address) in hashes }
+        notifications.showOnPc(null)
+        val result = when {
+            device != null -> podsTakeOver.takeOverAddress(device.address, reason)
+            else -> latestNearby.firstOrNull { it.owner != null && !it.connected }
+                ?.let { podsTakeOver.takeOver(it, reason) }
+                ?: TakeOverResult.Failed.also { aapLog.add("забрать ($reason): наушников не видно ни у ПК, ни рядом") }
+        }
+        return result is TakeOverResult.Connected
+    }
+
+    /** Кнопка в виджете: наушники у телефона — отдаём ПК, иначе забираем с ПК. */
+    private suspend fun switchPods() {
+        val here = connectedAudio.devices().first().orEmpty()
+            .firstOrNull { it.supportsAap || ConnectedNameMatcher.knownModels(listOf(it.name)).isNotEmpty() }
+        val ok = if (here == null) takeFromPc("виджет") else deviceLink.give(here.device.address)
+        if (!ok) {
+            val text = if (here == null) R.string.switch_take_failed else R.string.switch_give_failed
+            Toast.makeText(this, text, Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onDestroy() {
@@ -171,6 +237,8 @@ class PodsService : LifecycleService() {
         }
         runCatching { unregisterReceiver(wakeReceiver) }
         runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
+        autoSwitch?.stop()
+        pcLink?.stop()
         super.onDestroy()
     }
 
@@ -203,7 +271,12 @@ class PodsService : LifecycleService() {
         Timber.d("scan start %s", intensity)
         scanJob = lifecycleScope.launch {
             repository.observeNearby(intensity)
-                .onEach { latestNearby = listOfNotNull(it.primary) + it.others }
+                .onEach {
+                    latestNearby = listOfNotNull(it.primary) + it.others
+                    // Свои наушники рядом, но подключены к другому устройству (ПК): скан не усыпляем,
+                    // иначе автопереключение на телефон их не увидит.
+                    if (it.others.any { pods -> pods.owner != null }) lastActivityMs = SystemClock.elapsedRealtime()
+                }
                 .map { it.primary }
                 .catch { e ->
                     Timber.w(e, "scan stopped")
@@ -341,6 +414,8 @@ class PodsService : LifecycleService() {
             runCatching { TileService.requestListeningState(context, ComponentName(context, PodsTileService::class.java)) }
         }
 
+        const val ACTION_TAKE_FROM_PC = "dev.podscompanion.action.TAKE_FROM_PC"
+        const val ACTION_SWITCH = "dev.podscompanion.action.SWITCH"
         private const val IDLE_AFTER_MS = 2 * 60_000L
         private const val WATCHDOG_PERIOD_MS = 30_000L
 

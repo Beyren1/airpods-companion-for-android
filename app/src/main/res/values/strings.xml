@@ -5,6 +5,9 @@
     <string name="notif_channel_description">Ongoing notification with the battery level while background mode is on</string>
     <string name="notif_title_idle" translatable="false">Pods Companion</string>
     <string name="notif_text_idle">No headphones nearby. Open the case to see the battery</string>
+    <string name="notif_on_pc_title">Headphones are on PC %1$s</string>
+    <string name="notif_on_pc_text">Tap Take to switch them to the phone</string>
+    <string name="notif_on_pc_take">Take</string>
     <string name="notif_left">L %1$s</string>
     <string name="notif_right">R %1$s</string>
     <string name="notif_case">Case %1$s</string>
@@ -17,6 +20,9 @@
     <string name="widget_right">Right</string>
     <string name="widget_case">Case</string>
     <string name="widget_battery">Battery</string>
+    <string name="widget_switch">⇄ PC</string>
+    <string name="switch_take_failed">Couldn\'t take the headphones: they aren\'t visible nearby.</string>
+    <string name="switch_give_failed">The PC didn\'t take the headphones. Check that Pods Companion runs on the PC and both are on the same Wi-Fi.</string>
 
     <string name="tile_label">Headphones</string>
     <string name="tile_no_data">No data</string>

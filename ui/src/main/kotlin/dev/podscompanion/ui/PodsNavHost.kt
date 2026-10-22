@@ -48,6 +48,8 @@ fun PodsNavHost() {
             val refreshing by viewModel.refreshing.collectAsStateWithLifecycle()
             val settings by viewModel.settings.collectAsStateWithLifecycle()
             val aapSessions by viewModel.aapSessions.collectAsStateWithLifecycle()
+            val takeOver by viewModel.takeOverState.collectAsStateWithLifecycle()
+            val linkedPc by viewModel.linkedPc.collectAsStateWithLifecycle()
             val nav = rememberNavController()
 
             val nearby = (state as? BatteryUiState.Found)?.nearby
@@ -66,6 +68,9 @@ fun PodsNavHost() {
                                 onOpenHeadphoneSettings = { nav.navigate(Routes.HEADPHONES) },
                                 nowPlaying = nowPlaying,
                                 onMediaButton = musicViewModel::onButton,
+                                takeOver = takeOver,
+                                onTakeOver = viewModel::takeOver,
+                                linkedPc = linkedPc,
                             )
                         },
                         music = { MusicSettingsScreen(musicViewModel) },

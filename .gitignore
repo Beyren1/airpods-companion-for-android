@@ -14,3 +14,6 @@ build/
 btsnoop_hci.log
 *.pklg
 sysdiagnose_*
+# Сборка Windows-приложения (.NET)
+windows/**/bin/
+windows/**/obj/

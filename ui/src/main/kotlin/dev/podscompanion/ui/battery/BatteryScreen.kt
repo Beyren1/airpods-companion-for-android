@@ -1,18 +1,20 @@
 package dev.podscompanion.ui.battery
 
 import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
-import androidx.compose.animation.core.Spring
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -31,8 +33,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.BluetoothDisabled
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Computer
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material.icons.filled.Settings
@@ -42,25 +45,30 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
@@ -71,11 +79,14 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import dev.podscompanion.data.NearbyPods
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.aap.AapSessionState
 import dev.podscompanion.data.aap.AapSessions
 import dev.podscompanion.data.displayText
+import dev.podscompanion.data.link.LinkedPc
 import dev.podscompanion.data.media.NowPlaying
 import dev.podscompanion.protocol.aap.AapCommand
 import dev.podscompanion.protocol.aap.AapToggle
@@ -106,6 +117,9 @@ fun HomeScreen(
     onOpenAppSettings: (() -> Unit)? = null,
     nowPlaying: NowPlaying? = null,
     onMediaButton: (MediaButton) -> Unit = {},
+    takeOver: TakeOverState = TakeOverState.Idle,
+    onTakeOver: (PodsStatus) -> Unit = {},
+    linkedPc: LinkedPc? = null,
 ) {
     val main = (state as? BatteryUiState.Found)?.nearby?.primary
     val session = if (main?.connected == true) aapSessions.forModel(main.model) else null
@@ -148,9 +162,16 @@ fun HomeScreen(
                             val mode = (session as? AapSessionState.Connected)?.device?.listeningMode
                                 ?.takeIf { it in availableModes(main.model) }
                             HeroCard(main, mode)
+                            // Рядом, но подключены к другому устройству (ПК): можно забрать на телефон.
+                            if (!main.connected && main.advertised) TakeOverButton(takeOver) { onTakeOver(main) }
                         } else {
                             NotConnectedCard()
+                            // К телефону ничего не подключено (наушники у ПК): предлагаем забрать свои,
+                            // а если ключа ещё нет — ближайшие.
+                            val target = state.nearby.others.firstOrNull { it.owner != null } ?: state.nearby.others.firstOrNull()
+                            if (target != null) TakeOverButton(takeOver) { onTakeOver(target) }
                         }
+                        linkedPc?.let { PcLinkLine(it) }
                         if (main?.connected == true) AapStatusCard(session, aapSessions.noPermission, onAapCheck)
                         if (session is AapSessionState.Connected) {
                             Controls(session, main?.model, onCommand, onOpenHeadphoneSettings)
@@ -552,6 +573,58 @@ private fun shortBattery(status: PodsStatus): String {
     val case = status.caseBattery?.displayText()
     return stringResource(R.string.battery_pair, left, right) +
         (case?.let { stringResource(R.string.battery_case_suffix, it) } ?: "")
+}
+
+/** «Подключить к телефону» для наушников, которые рядом, но подключены не к телефону. */
+@Composable
+private fun TakeOverButton(state: TakeOverState, onClick: () -> Unit) {
+    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+        FilledTonalButton(onClick = onClick, enabled = state != TakeOverState.Working, modifier = Modifier.fillMaxWidth()) {
+            Text(stringResource(if (state == TakeOverState.Working) R.string.take_over_working else R.string.take_over))
+        }
+        if (state == TakeOverState.Failed) {
+            Text(
+                stringResource(R.string.take_over_failed),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 6.dp),
+            )
+        }
+    }
+}
+
+/** Связь с программой на ПК: имя компьютера и где наушники. */
+@Composable
+private fun PcLinkLine(pc: LinkedPc) {
+    val context = LocalContext.current
+    val podsOnPc = pc.pods.any { it.here }
+    // В глубоком сне Android отключает приложениям сеть, и кнопка «Отдать телефону» на ПК не доходит.
+    // Исключение из экономии батареи снимает это; пока его нет — предлагаем включить.
+    var unrestricted by remember { mutableStateOf(true) }
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) {
+        unrestricted = context.getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(context.packageName)
+    }
+    Column(Modifier.fillMaxWidth().padding(horizontal = 8.dp)) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Computer, null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+            Text(
+                stringResource(if (podsOnPc) R.string.pc_link_has_pods else R.string.pc_link_online, pc.name),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 8.dp),
+            )
+        }
+        if (!unrestricted) {
+            TextButton(onClick = {
+                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, Uri.parse("package:${context.packageName}"))
+                runCatching { context.startActivity(intent) }
+                    .onFailure { context.startActivity(Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)) }
+            }) {
+                Text(stringResource(R.string.pc_link_unrestricted))
+            }
+        }
+    }
 }
 
 // ---------- Пустые состояния ----------
