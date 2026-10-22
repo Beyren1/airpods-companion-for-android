@@ -18,6 +18,8 @@ public sealed record PairedPods(string Name, ulong Address, bool Connected, IRea
 public sealed class PairedHeadphones : IDisposable
 {
     private readonly Dictionary<ulong, BluetoothDevice> devices = [];
+    /// <summary>Id устройства Windows → адрес: уже известные устройства не открываем заново.</summary>
+    private readonly Dictionary<string, ulong> knownIds = [];
     private readonly object gate = new();
 
     /// <summary>Наушники подключились к ПК или отключились от него (вызывается из потока Bluetooth).</summary>
@@ -42,6 +44,16 @@ public sealed class PairedHeadphones : IDisposable
         foreach (var info in infos)
         {
             if (!NameMatcher.LooksLikePods(info.Name)) continue;
+            // Открывать BluetoothDevice заново каждые 15 с незачем: на некоторых адаптерах это
+            // дёргает стек Bluetooth, и звук в наушниках прерывается.
+            lock (gate)
+            {
+                if (knownIds.TryGetValue(info.Id, out var known) && devices.ContainsKey(known))
+                {
+                    seen.Add(known);
+                    continue;
+                }
+            }
             BluetoothDevice? device;
             try
             {
@@ -55,6 +67,7 @@ public sealed class PairedHeadphones : IDisposable
             seen.Add(device.BluetoothAddress);
             lock (gate)
             {
+                knownIds[info.Id] = device.BluetoothAddress;
                 if (devices.ContainsKey(device.BluetoothAddress))
                 {
                     device.Dispose();

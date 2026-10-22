@@ -134,7 +134,7 @@ public sealed class PodsController : IDisposable
             await paired.RefreshAsync();
             foreach (var p in paired.Current)
                 lock (gate) lastConnected.TryAdd(p.Address, p.Connected);
-            scanner.Start();
+            scanner.Start(active: !paired.Current.Any(p => p.Connected));
             bluetoothOff = false;
         }
         catch (Exception e)
@@ -349,6 +349,14 @@ public sealed class PodsController : IDisposable
             lastConnected[pods.Address] = pods.Connected;
         }
         if (was == pods.Connected) return;
+        try
+        {
+            scanner.Start(active: !paired.Current.Any(p => p.Connected));
+        }
+        catch (Exception e)
+        {
+            Log($"скан: {e.Message}");
+        }
         Log(pods.Connected ? $"{pods.Name} подключены к ПК" : $"{pods.Name} отключены от ПК");
         _ = link.NotifyChangedAsync();
         if (!pods.Connected)

@@ -11,11 +11,8 @@ namespace PodsCompanion.Core.Bluetooth;
 /// </summary>
 public sealed class AdvertisementScanner : IDisposable
 {
-    private readonly BluetoothLEAdvertisementWatcher watcher = new()
-    {
-        // Активный режим: некоторые адаптеры в пассивном отдают рекламу реже.
-        ScanningMode = BluetoothLEScanningMode.Active,
-    };
+    private BluetoothLEAdvertisementWatcher watcher;
+    private readonly object gate = new();
 
     public NearbyTracker Tracker { get; } = new();
 
@@ -27,14 +24,47 @@ public sealed class AdvertisementScanner : IDisposable
 
     public AdvertisementScanner()
     {
-        watcher.Received += OnReceived;
-        watcher.Stopped += (_, e) => Stopped?.Invoke(e.Error);
+        watcher = Create(BluetoothLEScanningMode.Active);
     }
 
-    public void Start()
+    /// <summary>
+    /// Активный режим — пока наушники не у ПК: некоторые адаптеры в пассивном отдают рекламу реже.
+    /// Пока звук идёт в наушники, сканируем пассивно: активный скан занимает тот же радиомодуль,
+    /// и на части адаптеров звук от этого пропадает на долю секунды. Реклама Apple приходит и так.
+    /// </summary>
+    public void Start(bool active = true)
     {
-        if (watcher.Status != BluetoothLEAdvertisementWatcherStatus.Started) watcher.Start();
+        var mode = active ? BluetoothLEScanningMode.Active : BluetoothLEScanningMode.Passive;
+        lock (gate)
+        {
+            if (watcher.ScanningMode != mode)
+            {
+                // Режим меняется только у остановленного сканера: проще завести новый.
+                var old = watcher;
+                watcher = Create(mode);
+                Release(old);
+            }
+            if (watcher.Status != BluetoothLEAdvertisementWatcherStatus.Started) watcher.Start();
+        }
     }
+
+    private BluetoothLEAdvertisementWatcher Create(BluetoothLEScanningMode mode)
+    {
+        var created = new BluetoothLEAdvertisementWatcher { ScanningMode = mode };
+        created.Received += OnReceived;
+        created.Stopped += OnStopped;
+        return created;
+    }
+
+    private void Release(BluetoothLEAdvertisementWatcher old)
+    {
+        old.Received -= OnReceived;
+        old.Stopped -= OnStopped;
+        if (old.Status == BluetoothLEAdvertisementWatcherStatus.Started) old.Stop();
+    }
+
+    private void OnStopped(BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementWatcherStoppedEventArgs e) =>
+        Stopped?.Invoke(e.Error);
 
     private void OnReceived(BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementReceivedEventArgs args)
     {
@@ -50,7 +80,6 @@ public sealed class AdvertisementScanner : IDisposable
 
     public void Dispose()
     {
-        watcher.Received -= OnReceived;
-        if (watcher.Status == BluetoothLEAdvertisementWatcherStatus.Started) watcher.Stop();
+        lock (gate) Release(watcher);
     }
 }
