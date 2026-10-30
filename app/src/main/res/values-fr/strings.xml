@@ -34,4 +34,8 @@
     <string name="player_channel_name">Lancement du lecteur</string>
     <string name="player_open_title">Écouteurs connectés : ouvrir %1$s</string>
     <string name="player_open_text">Touchez pour ouvrir le lecteur et lancer la musique</string>
+    <string name="car_channel_name">Son en voiture</string>
+    <string name="car_channel_description">Quand le son n’a pas pu passer des écouteurs à la voiture</string>
+    <string name="car_title">Le son ne va pas vers %1$s</string>
+    <string name="car_text">Android a gardé les écouteurs. Touchez pour choisir la voiture</string>
 </resources>

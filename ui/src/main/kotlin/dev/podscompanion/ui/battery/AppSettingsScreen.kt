@@ -74,6 +74,8 @@ fun AppSettingsScreen(
     onLowBatteryChange: (Boolean) -> Unit,
     onLowBatteryThresholdChange: (Int) -> Unit,
     onThemeChange: (ThemeMode) -> Unit,
+    onCarAudioChange: (Boolean) -> Unit,
+    onCarDeviceChange: (CarCandidate, Boolean) -> Unit,
     onOpenDeviceInfo: () -> Unit,
     onBack: (() -> Unit)? = null,
 ) {
@@ -181,6 +183,8 @@ fun AppSettingsScreen(
                     }
                 }
             }
+
+            CarAudioGroup(settings, onCarAudioChange, onCarDeviceChange)
 
             SectionTitle(stringResource(R.string.section_appearance))
             SettingsGroup {

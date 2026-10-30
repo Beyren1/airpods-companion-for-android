@@ -240,4 +240,12 @@
     <string name="calls_no_permission">No permission to manage calls yet. Turn the switch off and on again.</string>
     <string name="calls_setup_failed_title">Android didn’t grant the permission</string>
     <string name="calls_setup_failed_text">The “Manage ongoing calls” permission can be granted from a computer with USB debugging:\n\n%1$s\n\nThen turn the switch on again.</string>
+    <string name="section_car">Car</string>
+    <string name="car_audio_title">Sound to the car</string>
+    <string name="car_audio_description">When the phone is connected to the car and to the headphones, music and calls go to the car. Works in background mode.</string>
+    <string name="car_devices_title">Which devices are a car</string>
+    <string name="car_devices_none">None chosen: tick your car in the list</string>
+    <string name="car_devices_hint">Car stereos usually say they are a car and are ticked already. If yours is not, tick it yourself.</string>
+    <string name="car_devices_empty">No paired audio devices. Pair the phone with the car first.</string>
+    <string name="done">Done</string>
 </resources>

@@ -80,6 +80,8 @@ fun PodsNavHost() {
                                 onLowBatteryChange = viewModel::setLowBatteryAlerts,
                                 onLowBatteryThresholdChange = viewModel::setLowBatteryThreshold,
                                 onThemeChange = viewModel::setTheme,
+                                onCarAudioChange = viewModel::setCarAudio,
+                                onCarDeviceChange = viewModel::setCarDevice,
                                 onOpenDeviceInfo = { nav.navigate(Routes.DEVICE_INFO) },
                             )
                         },
