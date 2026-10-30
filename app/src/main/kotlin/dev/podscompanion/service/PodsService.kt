@@ -28,6 +28,8 @@ import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
+import dev.podscompanion.bluetooth.route.AudioRoute
+import dev.podscompanion.data.aap.AapLog
 import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.media.MediaRepository
@@ -82,6 +84,8 @@ class PodsService : LifecycleService() {
     @Inject lateinit var aapRepository: AapRepository
     @Inject lateinit var connectedAudio: ConnectedAudioDevices
     @Inject lateinit var usageStore: UsageStatsStore
+    @Inject lateinit var audioRoute: AudioRoute
+    @Inject lateinit var aapLog: AapLog
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -157,6 +161,7 @@ class PodsService : LifecycleService() {
         music.run(lifecycleScope, settingsRepository.settings)
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
+        CarAudioPriority(this, connectedAudio, audioRoute, aapLog).run(lifecycleScope, settingsRepository.settings)
         startScan()
     }
 

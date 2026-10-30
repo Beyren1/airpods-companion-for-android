@@ -233,4 +233,12 @@
     <string name="stats_clear_title">Reset statistics?</string>
     <string name="stats_clear_text">Time for all headphones will be deleted.</string>
     <string name="stats_clear_confirm">Reset</string>
+    <string name="section_car">Car</string>
+    <string name="car_audio_title">Sound to the car</string>
+    <string name="car_audio_description">When the phone is connected to the car and to the headphones, music and calls go to the car. Works in background mode.</string>
+    <string name="car_devices_title">Which devices are a car</string>
+    <string name="car_devices_none">None chosen: tick your car in the list</string>
+    <string name="car_devices_hint">Car stereos usually say they are a car and are ticked already. If yours is not, tick it yourself.</string>
+    <string name="car_devices_empty">No paired audio devices. Pair the phone with the car first.</string>
+    <string name="done">Done</string>
 </resources>

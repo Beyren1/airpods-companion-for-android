@@ -235,4 +235,12 @@
     <string name="stats_clear_title">Сбросить статистику?</string>
     <string name="stats_clear_text">Время для всех наушников будет удалено.</string>
     <string name="stats_clear_confirm">Сбросить</string>
+    <string name="section_car">Машина</string>
+    <string name="car_audio_title">Звук в машину</string>
+    <string name="car_audio_description">Когда телефон подключён и к машине, и к наушникам, музыка и звонки идут в машину. Работает в фоновом режиме.</string>
+    <string name="car_devices_title">Какие устройства — машина</string>
+    <string name="car_devices_none">Ничего не выбрано: отметьте свою машину в списке</string>
+    <string name="car_devices_hint">Магнитолы обычно сами сообщают, что они машина, такие уже отмечены. Если вашей нет среди отмеченных, отметьте её сами.</string>
+    <string name="car_devices_empty">Нет сопряжённых аудиоустройств. Сначала подключите телефон к машине.</string>
+    <string name="done">Готово</string>
 </resources>

@@ -233,4 +233,12 @@
     <string name="stats_clear_title">Réinitialiser les statistiques ?</string>
     <string name="stats_clear_text">Le temps de tous les écouteurs sera supprimé.</string>
     <string name="stats_clear_confirm">Réinitialiser</string>
+    <string name="section_car">Voiture</string>
+    <string name="car_audio_title">Son vers la voiture</string>
+    <string name="car_audio_description">Quand le téléphone est connecté à la voiture et aux écouteurs, la musique et les appels passent par la voiture. Fonctionne en mode arrière-plan.</string>
+    <string name="car_devices_title">Quels appareils sont une voiture</string>
+    <string name="car_devices_none">Aucun choisi : cochez votre voiture dans la liste</string>
+    <string name="car_devices_hint">Les autoradios indiquent en général qu’ils sont une voiture et sont déjà cochés. Si le vôtre ne l’est pas, cochez-le vous-même.</string>
+    <string name="car_devices_empty">Aucun appareil audio associé. Associez d’abord le téléphone à la voiture.</string>
+    <string name="done">Terminé</string>
 </resources>
