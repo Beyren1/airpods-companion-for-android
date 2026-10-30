@@ -1,5 +1,7 @@
 package dev.podscompanion.call
 
+import android.annotation.SuppressLint
+import android.bluetooth.BluetoothClass
 import android.os.Build
 import android.os.SystemClock
 import android.telecom.Call
@@ -104,11 +106,16 @@ class CallRouteService : InCallService() {
     }
 
     /** Звук идёт в Bluetooth, но в те ли наушники: в машине это может быть магнитола. */
+    @SuppressLint("MissingPermission") // BLUETOOTH_CONNECT выдано на первом экране
     @Suppress("DEPRECATION")
     private fun isOurDevice(audio: CallAudioState, status: PodsStatus?): Boolean {
         val active = audio.activeBluetoothDevice ?: return true
-        val owner = status?.owner ?: return true
-        return active.address.equals(owner, ignoreCase = true)
+        val owner = status?.owner
+        if (owner != null) return active.address.equals(owner, ignoreCase = true)
+        // Адрес своих наушников ещё не знаем: хотя бы не трогаем машину.
+        val deviceClass = runCatching { active.bluetoothClass?.deviceClass }.getOrNull()
+        return deviceClass != BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO &&
+            deviceClass != BluetoothClass.Device.AUDIO_VIDEO_HANDSFREE
     }
 
     @Suppress("DEPRECATION")
