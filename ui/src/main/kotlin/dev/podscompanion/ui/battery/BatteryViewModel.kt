@@ -101,6 +101,10 @@ class BatteryViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setHeadGestures(value) }
     }
 
+    fun setCallsToPhone(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setCallsToPhone(value) }
+    }
+
     private val _calibration = MutableStateFlow<CalibrationState>(CalibrationState.Idle)
     val calibration: StateFlow<CalibrationState> = _calibration.asStateFlow()
     private var calibrationJob: Job? = null

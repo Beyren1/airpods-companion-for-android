@@ -233,4 +233,11 @@
     <string name="stats_clear_title">Réinitialiser les statistiques ?</string>
     <string name="stats_clear_text">Le temps de tous les écouteurs sera supprimé.</string>
     <string name="stats_clear_confirm">Réinitialiser</string>
+    <string name="section_calls">Appels</string>
+    <string name="calls_to_phone_title">Appels sur le téléphone si le casque est retiré</string>
+    <string name="calls_to_phone_hint">Casque retiré pendant un appel (AirPods Max hors de la tête ou aucun AirPods dans les oreilles) : l’appel passe sur le téléphone ; remis : il revient dans le casque. Android demandera d’associer l’app au casque comme une montre : c’est la seule façon de contrôler le son des appels.</string>
+    <string name="calls_setup_declined">Sans association avec le casque, cette fonction ne peut pas marcher</string>
+    <string name="calls_no_permission">Pas encore d’autorisation de gérer les appels. Désactivez puis réactivez l’option.</string>
+    <string name="calls_setup_failed_title">Android n’a pas accordé l’autorisation</string>
+    <string name="calls_setup_failed_text">L’autorisation « Gérer les appels en cours » peut être accordée depuis un ordinateur avec le débogage USB :\n\n%1$s\n\nPuis réactivez l’option.</string>
 </resources>
