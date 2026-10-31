@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.NotificationsOff
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -134,6 +135,16 @@ fun AppSettingsScreen(
                         description = stringResource(R.string.bg_description),
                     )
                 }
+                if (settings.backgroundEnabled) {
+                    row {
+                        NavRow(
+                            stringResource(R.string.shade_notif_title),
+                            { openServiceChannelSettings(context) },
+                            icon = Icons.Filled.NotificationsOff,
+                            description = stringResource(R.string.shade_notif_description),
+                        )
+                    }
+                }
                 row {
                     SwitchRow(
                         stringResource(R.string.autopause_title), settings.autoPause, onAutoPauseChange,
@@ -222,6 +233,28 @@ fun AppSettingsScreen(
             }
         }
     }
+}
+
+/** Id канала постоянного уведомления сервиса (его создаёт сервис в модуле app). */
+const val SERVICE_NOTIFICATION_CHANNEL_ID = "pods_status_min"
+
+/**
+ * Открывает системные настройки канала постоянного уведомления: там его можно выключить, и оно
+ * пропадёт из шторки, а фоновый режим продолжит работать. Если канала ещё нет (сервис ни разу
+ * не запускался), открываем общие настройки уведомлений приложения.
+ */
+private fun openServiceChannelSettings(context: android.content.Context) {
+    val channel = Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        .putExtra(Settings.EXTRA_CHANNEL_ID, SERVICE_NOTIFICATION_CHANNEL_ID)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val app = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+        .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    val exists = context.getSystemService(android.app.NotificationManager::class.java)
+        ?.getNotificationChannel(SERVICE_NOTIFICATION_CHANNEL_ID) != null
+    runCatching { context.startActivity(if (exists) channel else app) }
+        .onFailure { runCatching { context.startActivity(app) } }
 }
 
 @Composable

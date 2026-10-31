@@ -19,11 +19,17 @@ internal class PodsNotifications(private val context: Context) {
     private val manager = context.getSystemService(NotificationManager::class.java)
 
     fun ensureChannel() {
-        // Важность LOW: без звука и всплывания, просто строка в шторке.
+        // Важность MIN: без значка в строке состояния, свёрнутая строка внизу шторки в «Беззвучных».
+        // Сервис без уведомления Android не запустит, а сам приложение канал выключить не может:
+        // система вернёт его обратно. Выключить совсем может только пользователь, для этого
+        // в настройках приложения есть кнопка, открывающая настройки этого канала.
+        // Важность канала после создания менять нельзя, поэтому старый канал (LOW) удаляем
+        // и заводим новый под другим id.
+        runCatching { manager.deleteNotificationChannel(OLD_CHANNEL_ID) }
         val channel = NotificationChannel(
             CHANNEL_ID,
             context.getString(R.string.notif_channel_name),
-            NotificationManager.IMPORTANCE_LOW,
+            NotificationManager.IMPORTANCE_MIN,
         ).apply {
             description = context.getString(R.string.notif_channel_description)
             setShowBadge(false)
@@ -45,6 +51,7 @@ internal class PodsNotifications(private val context: Context) {
         .setOngoing(true)
         .setOnlyAlertOnce(true)
         .setSilent(true)
+        .setPriority(NotificationCompat.PRIORITY_MIN)
         .setCategory(NotificationCompat.CATEGORY_STATUS)
         .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
         .build()
@@ -93,7 +100,8 @@ internal class PodsNotifications(private val context: Context) {
     )
 
     companion object {
-        const val CHANNEL_ID = "pods_status"
+        const val CHANNEL_ID = dev.podscompanion.ui.battery.SERVICE_NOTIFICATION_CHANNEL_ID
+        private const val OLD_CHANNEL_ID = "pods_status"
         const val NOTIFICATION_ID = 1
     }
 }
