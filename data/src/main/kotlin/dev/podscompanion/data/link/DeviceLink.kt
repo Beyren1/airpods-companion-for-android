@@ -91,6 +91,8 @@ class DeviceLink @Inject constructor(
     val releaseRequests: SharedFlow<String> = _releaseRequests
 
     @Volatile private var socket: DatagramSocket? = null
+    /** Ошибку отправки пишем в журнал один раз подряд, а не на каждый пакет. */
+    private val sendFailureLogged = java.util.concurrent.atomic.AtomicBoolean(false)
 
     fun run(scope: CoroutineScope) {
         scope.launch(Dispatchers.IO) { receiveLoop(scope) }
@@ -215,7 +217,10 @@ class DeviceLink @Inject constructor(
             } else {
                 DatagramSocket().use { it.broadcast = true; it.send(DatagramPacket(bytes, bytes.size, to, LinkMessage.PORT)) }
             }
-        }.onFailure { Timber.d(it, "link send") }
+        }.onFailure {
+            Timber.d(it, "link send")
+            if (sendFailureLogged.compareAndSet(false, true)) log.add("связь с ПК: не могу отправить (${it.javaClass.simpleName}: ${it.message})")
+        }.onSuccess { sendFailureLogged.set(false) }
     }
 
     private suspend fun receiveLoop(scope: CoroutineScope) {
@@ -228,6 +233,7 @@ class DeviceLink @Inject constructor(
                     // receive() отмену не слышит: просыпаемся раз в секунду и проверяем, не пора ли выйти.
                     s.soTimeout = 1_000
                     socket = s
+                    log.add("связь с ПК: слушаю порт ${LinkMessage.PORT}")
                     val buffer = ByteArray(512)
                     while (scope.isActive) {
                         val packet = DatagramPacket(buffer, buffer.size)
@@ -241,6 +247,9 @@ class DeviceLink @Inject constructor(
                 }
             } catch (e: Exception) {
                 Timber.w(e, "link receive")
+                // Чаще всего это выключенное разрешение «Сеть» (GrapheneOS) или нет Wi-Fi: пишем в журнал,
+                // чтобы было видно, почему телефон не слышит ПК. Повторяем не чаще раза в RETRY_MS.
+                log.add("связь с ПК: нет доступа к сети (${e.javaClass.simpleName}: ${e.message}) — проверьте разрешение «Сеть»")
             } finally {
                 socket = null
             }
