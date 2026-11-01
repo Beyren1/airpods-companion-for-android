@@ -85,7 +85,7 @@ internal class AutoSwitch(
         scope.launch {
             try {
                 // Короткие звуки (превью видео, звук уведомления через медиаканал) не повод забирать
-                // наушники с ПК: ждём, что звук играет дольше полутора секунд.
+                // наушники с ПК: ждём, что звук играет дольше секунды.
                 delay(SUSTAINED_PLAY_MS)
                 if (!mediaPlaying) {
                     log.add("звук на телефоне был коротким — наушники не забираю")
@@ -148,7 +148,7 @@ internal class AutoSwitch(
         val MEDIA_USAGES = setOf(AudioAttributes.USAGE_MEDIA, AudioAttributes.USAGE_GAME)
         const val ROUTE_WAIT_MS = 1_500L
         const val ROUTE_SETTLE_MS = 300L
-        const val SUSTAINED_PLAY_MS = 1_500L
+        const val SUSTAINED_PLAY_MS = 1_000L
         const val SCAN_WAKE_MS = 3_000L
         const val OWN_KEYS_QUIET_MS = 3_000L
         const val LEFT_QUIET_MS = 15_000L

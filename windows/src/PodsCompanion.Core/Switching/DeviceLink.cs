@@ -19,13 +19,10 @@ public sealed record LinkPeer(string Id, LinkKind Kind, string Name, IPAddress A
 /// </summary>
 public sealed class DeviceLink : IDisposable
 {
-    public static readonly TimeSpan HelloPeriod = TimeSpan.FromSeconds(60);
+    public static readonly TimeSpan HelloPeriod = TimeSpan.FromSeconds(30);
 
     /// <summary>Сколько устройство считается на связи без новых сообщений.</summary>
-    public static readonly TimeSpan PeerTimeout = TimeSpan.FromSeconds(150);
-
-    /// <summary>Сколько ждать, пока держатель отпустит наушники.</summary>
-    public static readonly TimeSpan ReleaseWait = TimeSpan.FromSeconds(1);
+    public static readonly TimeSpan PeerTimeout = TimeSpan.FromSeconds(90);
 
     /// <summary>Телефону нужно открыть канал к наушникам и дождаться подтверждения режима.</summary>
     public static readonly TimeSpan ModeWait = TimeSpan.FromSeconds(15);
@@ -85,10 +82,11 @@ public sealed class DeviceLink : IDisposable
     public Task NotifyChangedAsync() => SayHelloAsync(LinkType.Hello);
 
     /// <summary>
-    /// Перед тем как забрать наушники: если они у телефона или другого ПК, просим отпустить
-    /// и ждём не дольше <see cref="ReleaseWait"/>. Так ПК не перетягивает их, а телефон заранее ставит музыку на паузу.
+    /// Перед тем как забрать наушники: если они у телефона или другого ПК, просим отпустить их и сразу
+    /// подключаем сами, не дожидаясь ответа: так быстрее. Просьба нужна, чтобы телефон поставил музыку
+    /// на паузу и не забирал наушники обратно.
     /// </summary>
-    public async Task RequestReleaseAsync(ulong podsAddress)
+    public void RequestRelease(ulong podsAddress)
     {
         var hash = LinkMessage.HashOf(podsAddress);
         var holders = Peers.Where(p => p.Holding(hash) != null).ToList();
@@ -99,9 +97,6 @@ public sealed class DeviceLink : IDisposable
             log($"прошу {holder.Name} отпустить наушники");
             _ = SendRepeatedAsync(message, new IPEndPoint(holder.Address, LinkMessage.Port));
         }
-        var until = DateTime.UtcNow + ReleaseWait;
-        while (DateTime.UtcNow < until && Peers.Any(p => p.Holding(hash) != null)) await Task.Delay(100);
-        log(Peers.Any(p => p.Holding(hash) != null) ? "не отпустили, забираю сам" : "наушники отпустили");
     }
 
     /// <summary>

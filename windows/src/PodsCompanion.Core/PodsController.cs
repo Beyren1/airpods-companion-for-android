@@ -201,7 +201,7 @@ public sealed class PodsController : IDisposable
         {
             Log($"забрать на ПК ({reason}): {pods.Name}");
             // Телефон (или другой ПК) отпускает наушники и заранее ставит музыку на паузу.
-            await link.RequestReleaseAsync(pods.Address);
+            link.RequestRelease(pods.Address);
             int sent = await Task.Run(() => BluetoothAudioControl.Connect(pods.AddressHex, pods.Name, Log));
             Log($"команда подключения отправлена {sent} звуковым устройствам");
             bool ok = sent > 0 && await WaitConnectedAsync(pods.Address, ConnectWait);

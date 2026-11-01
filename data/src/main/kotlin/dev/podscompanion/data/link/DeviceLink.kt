@@ -291,7 +291,7 @@ class DeviceLink @Inject constructor(
         const val KEEPALIVE_MS = 30_000L
         /** ПК подключает наушники 2–5 с, иногда со второй попытки. */
         const val GIVE_WAIT_MS = 15_000L
-        const val PEER_TIMEOUT_MS = 150_000L
+        const val PEER_TIMEOUT_MS = 90_000L
         const val CLEANUP_MS = 30_000L
         const val RETRY_MS = 30_000L
     }
