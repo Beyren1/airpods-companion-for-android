@@ -1,9 +1,12 @@
 package dev.podscompanion.ui.battery
 
 import android.app.Activity
+import android.app.AppOpsManager
 import android.companion.AssociationRequest
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Process
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.IntentSenderRequest
@@ -11,6 +14,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PhoneInTalk
+import androidx.compose.material.icons.filled.SpeakerPhone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -23,7 +27,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.core.content.PermissionChecker
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import dev.podscompanion.ui.R
 import kotlinx.coroutines.delay
@@ -34,12 +37,28 @@ data class CallRouteUi(
     val enabled: Boolean = false,
     val backgroundEnabled: Boolean = false,
     val onEnabledChange: (Boolean) -> Unit = {},
+    /** Музыка и видео при снятых наушниках — в динамик телефона. */
+    val mediaEnabled: Boolean = false,
+    val onMediaChange: (Boolean) -> Unit = {},
 )
 
 private const val MANAGE_ONGOING_CALLS = "android.permission.MANAGE_ONGOING_CALLS"
 
-private fun hasCallPermission(context: Context): Boolean =
-    PermissionChecker.checkSelfPermission(context, MANAGE_ONGOING_CALLS) == PermissionChecker.PERMISSION_GRANTED
+private const val OP_MANAGE_ONGOING_CALLS = "android:manage_ongoing_calls"
+
+/**
+ * Разрешение выдаётся двумя путями: ролью «часы» (обычная выдача разрешения) или командой adb
+ * `appops set … allow` (режим app op). Telecom принимает любой из них, поэтому проверяем оба:
+ * обычная проверка разрешения режим app op не видит.
+ */
+private fun hasCallPermission(context: Context): Boolean {
+    if (context.checkSelfPermission(MANAGE_ONGOING_CALLS) == PackageManager.PERMISSION_GRANTED) return true
+    val mode = runCatching {
+        context.getSystemService(AppOpsManager::class.java)
+            .unsafeCheckOpNoThrow(OP_MANAGE_ONGOING_CALLS, Process.myUid(), context.packageName)
+    }.getOrNull()
+    return mode == AppOpsManager.MODE_ALLOWED
+}
 
 /**
  * Звонок при снятых наушниках — в телефон.
@@ -98,8 +117,19 @@ internal fun CallRouteSection(ui: CallRouteUi, address: String) {
         if (!ui.backgroundEnabled) add(stringResource(R.string.gestures_need_background))
         if (ui.enabled && !granted) add(stringResource(R.string.calls_no_permission))
     }
-    SectionTitle(stringResource(R.string.section_calls))
+    val mediaNotes = buildList {
+        add(stringResource(R.string.media_to_phone_hint))
+        if (!ui.backgroundEnabled) add(stringResource(R.string.gestures_need_background))
+    }
+    SectionTitle(stringResource(R.string.section_off_head))
     SettingsGroup {
+        row {
+            SwitchRow(
+                stringResource(R.string.media_to_phone_title), ui.mediaEnabled, ui.onMediaChange,
+                icon = Icons.Filled.SpeakerPhone,
+                description = mediaNotes.joinToString("\n"),
+            )
+        }
         row {
             SwitchRow(
                 stringResource(R.string.calls_to_phone_title), ui.enabled,

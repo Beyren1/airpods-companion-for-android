@@ -98,6 +98,7 @@ class PodsService : LifecycleService() {
     private lateinit var audioManager: AudioManager
     private lateinit var music: MusicAutomation
     private lateinit var usage: UsageTracking
+    private lateinit var offHeadAudio: OffHeadAudio
 
     /** Все наушники из последнего скана: статистике нужна модель каждой подключённой пары. */
     @Volatile private var latestNearby: List<PodsStatus> = emptyList()
@@ -109,6 +110,14 @@ class PodsService : LifecycleService() {
     private var lastLoggedName: String? = null
     private var lastActivityMs = 0L
     private var settings = AppSettings()
+
+    /**
+     * Какой плеер ставили на паузу при снятии; null — пауза была не нашей или играло приложение
+     * без плеера (TikTok, YouTube в ленте). [pausedKnownPlayer] false — доступа к плеерам нет,
+     * тогда продолжаем по-старому, кнопкой «play».
+     */
+    private var resumePackage: String? = null
+    private var pausedKnownPlayer = false
 
     /** Подключили/отключили Bluetooth-наушники: меняем частоту скана. */
     private val audioDeviceCallback = object : AudioDeviceCallback() {
@@ -162,6 +171,8 @@ class PodsService : LifecycleService() {
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
         CarAudioPriority(this, connectedAudio, audioRoute, aapLog).run(lifecycleScope, settingsRepository.settings)
+        offHeadAudio = OffHeadAudio(audioManager, connectedAudio, audioRoute, liveStatus, aapLog)
+        offHeadAudio.run(lifecycleScope, settingsRepository.settings)
         startScan()
     }
 
@@ -278,17 +289,44 @@ class PodsService : LifecycleService() {
         }
         // Музыку трогаем, только если звук идёт в Bluetooth: иначе это чужие наушники рядом
         // или пользователь слушает через динамик.
-        val playing = audioManager.isMusicActive && bluetoothAudioConnected()
+        val playing = audioManager.isMusicActive && bluetoothAudioConnected(includeHeld = false)
         when (policy.onUpdate(worn, playing, SystemClock.elapsedRealtime())) {
             MediaAction.PAUSE -> {
-                autoPauseLog.add("→ пауза")
                 music.onAutoPause(SystemClock.elapsedRealtime())
+                // Кнопка «пауза» уходит последнему плееру, а не тому, что сейчас звучит: если играет
+                // TikTok, она достанется Spotify. Поэтому запоминаем, какой плеер действительно играл.
+                pausedKnownPlayer = mediaRepository.access.value
+                resumePackage = if (pausedKnownPlayer) mediaRepository.playingPackage() else null
+                autoPauseLog.add("→ пауза" + (resumePackage?.let { " · ${mediaRepository.appLabel(it)}" } ?: ""))
                 sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
             }
             MediaAction.RESUME -> {
-                autoPauseLog.add("→ продолжение")
+                val pkg = resumePackage
+                resumePackage = null
+                if (audioManager.isMusicActive || mediaRepository.anyPlaying()) {
+                    // Пока наушники лежали, человек включил другое (TikTok, видео): не перебиваем его.
+                    autoPauseLog.add("→ уже что-то играет, не продолжаю")
+                    return
+                }
+                if (pausedKnownPlayer && pkg == null) {
+                    // Играло приложение без плеера: «play» включил бы Spotify или другой плеер.
+                    autoPauseLog.add("→ играл не плеер, не продолжаю")
+                    return
+                }
+                autoPauseLog.add("→ продолжение" + (pkg?.let { " · ${mediaRepository.appLabel(it)}" } ?: ""))
                 music.beforeAutoResume(SystemClock.elapsedRealtime())
-                sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                val play = {
+                    if (pkg == null || !mediaRepository.play(pkg)) sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                }
+                if (offHeadAudio.holding) {
+                    // Звук сейчас в динамике: сначала вернуть его в наушники, потом «play».
+                    lifecycleScope.launch {
+                        offHeadAudio.restoreNow()
+                        play()
+                    }
+                } else {
+                    play()
+                }
             }
             null -> Unit
         }
@@ -321,10 +359,15 @@ class PodsService : LifecycleService() {
         }.onFailure { Timber.w(it, "case popup") }
     }
 
-    private fun bluetoothAudioConnected(): Boolean =
-        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
-            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
-        }
+    /**
+     * Звук идёт в Bluetooth. [includeHeld] — считать и наушники, из которых звук увели в телефон,
+     * пока они сняты: скан тогда не должен замедляться и засыпать, иначе не заметим, что их надели.
+     */
+    private fun bluetoothAudioConnected(includeHeld: Boolean = true): Boolean =
+        (includeHeld && ::offHeadAudio.isInitialized && offHeadAudio.holding) ||
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+            }
 
     private fun hasConnectPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||

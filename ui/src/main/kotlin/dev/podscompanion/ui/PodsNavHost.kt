@@ -105,6 +105,8 @@ fun PodsNavHost() {
                             enabled = settings.callsToPhone,
                             backgroundEnabled = settings.backgroundEnabled,
                             onEnabledChange = viewModel::setCallsToPhone,
+                            mediaEnabled = settings.mediaToPhone,
+                            onMediaChange = viewModel::setMediaToPhone,
                         ),
                     )
                 }

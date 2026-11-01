@@ -50,6 +50,8 @@ data class AppSettings(
     val smartResume: Boolean = false,
     /** Звонок при снятых наушниках — в телефон, надели — обратно в наушники. */
     val callsToPhone: Boolean = false,
+    /** Музыка и другой звук при снятых наушниках — в динамик телефона, надели — обратно в наушники. */
+    val mediaToPhone: Boolean = false,
     /** Подключена машина — звук и звонки в машину, даже если подключены и наушники. */
     val carAudio: Boolean = false,
     /** Адреса устройств, которые пользователь сам отметил как машину. */
@@ -95,6 +97,7 @@ class SettingsRepository @Inject constructor(
                 appModeRules = AppModeRulesCodec.decode(prefs[APP_MODE_RULES].orEmpty()),
                 smartResume = prefs[SMART_RESUME] ?: false,
                 callsToPhone = prefs[CALLS_TO_PHONE] ?: false,
+                mediaToPhone = prefs[MEDIA_TO_PHONE] ?: false,
                 carAudio = prefs[CAR_AUDIO] ?: false,
                 carDevices = prefs[CAR_DEVICES].orEmpty(),
                 notCarDevices = prefs[NOT_CAR_DEVICES].orEmpty(),
@@ -170,6 +173,10 @@ class SettingsRepository @Inject constructor(
         context.settingsStore.edit { it[CALLS_TO_PHONE] = value }
     }
 
+    suspend fun setMediaToPhone(value: Boolean) {
+        context.settingsStore.edit { it[MEDIA_TO_PHONE] = value }
+    }
+
     suspend fun setCarAudio(value: Boolean) {
         context.settingsStore.edit { it[CAR_AUDIO] = value }
     }
@@ -219,6 +226,7 @@ class SettingsRepository @Inject constructor(
         val APP_MODE_RULES = stringSetPreferencesKey("app_mode_rules")
         val SMART_RESUME = booleanPreferencesKey("smart_resume")
         val CALLS_TO_PHONE = booleanPreferencesKey("calls_to_phone")
+        val MEDIA_TO_PHONE = booleanPreferencesKey("media_to_phone")
         val CAR_AUDIO = booleanPreferencesKey("car_audio")
         val CAR_DEVICES = stringSetPreferencesKey("car_devices")
         val NOT_CAR_DEVICES = stringSetPreferencesKey("not_car_devices")

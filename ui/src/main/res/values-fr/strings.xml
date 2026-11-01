@@ -233,7 +233,9 @@
     <string name="stats_clear_title">Réinitialiser les statistiques ?</string>
     <string name="stats_clear_text">Le temps de tous les écouteurs sera supprimé.</string>
     <string name="stats_clear_confirm">Réinitialiser</string>
-    <string name="section_calls">Appels</string>
+    <string name="section_off_head">Quand le casque est retiré</string>
+    <string name="media_to_phone_title">Musique et vidéo sur le téléphone si le casque est retiré</string>
+    <string name="media_to_phone_hint">Casque retiré (AirPods Max hors de la tête ou aucun AirPods dans les oreilles) : après une seconde et demie, le son passe sur le haut-parleur du téléphone ; remis : il revient dans le casque. La plupart des lecteurs se mettent en pause : appuyez sur lecture pour continuer sur le téléphone.</string>
     <string name="calls_to_phone_title">Appels sur le téléphone si le casque est retiré</string>
     <string name="calls_to_phone_hint">Casque retiré pendant un appel (AirPods Max hors de la tête ou aucun AirPods dans les oreilles) : l’appel passe sur le téléphone ; remis : il revient dans le casque. Android demandera d’associer l’app au casque comme une montre : c’est la seule façon de contrôler le son des appels.</string>
     <string name="calls_setup_declined">Sans association avec le casque, cette fonction ne peut pas marcher</string>
