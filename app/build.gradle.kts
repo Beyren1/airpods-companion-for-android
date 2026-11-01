@@ -28,6 +28,15 @@ android {
     // неподписанным, а обычные debug/fast-сборки работают как раньше.
     val releaseKeystore = System.getenv("RELEASE_KEYSTORE_PATH")
     signingConfigs {
+        // Один и тот же debug-ключ во всех сборках CI: иначе каждая машина CI создаёт свой ключ,
+        // и Android отказывается ставить новую сборку поверх старой («Приложение не установлено»).
+        // Ключ только для тестовых сборок, секретом не является.
+        getByName("debug") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
         if (releaseKeystore != null) {
             create("release") {
                 storeFile = file(releaseKeystore)
