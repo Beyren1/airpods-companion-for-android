@@ -101,6 +101,10 @@ class BatteryViewModel @Inject constructor(
         viewModelScope.launch { settingsRepository.setHeadGestures(value) }
     }
 
+    fun setCallsToPhone(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setCallsToPhone(value) }
+    }
+
     private val _calibration = MutableStateFlow<CalibrationState>(CalibrationState.Idle)
     val calibration: StateFlow<CalibrationState> = _calibration.asStateFlow()
     private var calibrationJob: Job? = null
@@ -181,6 +185,14 @@ class BatteryViewModel @Inject constructor(
 
     fun setLowBatteryThreshold(value: Int) {
         viewModelScope.launch { settingsRepository.setLowBatteryThreshold(value) }
+    }
+
+    fun setCarAudio(value: Boolean) {
+        viewModelScope.launch { settingsRepository.setCarAudio(value) }
+    }
+
+    fun setCarDevice(device: CarCandidate, isCar: Boolean) {
+        viewModelScope.launch { settingsRepository.setCarDevice(device.address, isCar, device.looksLikeCar) }
     }
 
     fun setTheme(value: ThemeMode) {

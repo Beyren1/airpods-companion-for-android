@@ -77,12 +77,22 @@ private fun isAssociated(context: Context, address: String): Boolean = runCatchi
     }
 }.getOrDefault(false)
 
-/** Просит систему связать приложение с наушниками: система вернёт окно подтверждения. */
+/**
+ * Просит систему связать приложение с наушниками: система вернёт окно подтверждения.
+ * [profile] — профиль устройства (например, «часы»), с ним система выдаёт приложению дополнительные права.
+ */
 @Suppress("DEPRECATION")
-private fun associate(context: Context, address: String, onSender: (IntentSender) -> Unit, onFailure: () -> Unit) {
+internal fun associate(
+    context: Context,
+    address: String,
+    onSender: (IntentSender) -> Unit,
+    onFailure: () -> Unit,
+    profile: String? = null,
+) {
     val request = AssociationRequest.Builder()
         .addDeviceFilter(BluetoothDeviceFilter.Builder().setAddress(address).build())
         .setSingleDevice(true)
+        .apply { if (profile != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) setDeviceProfile(profile) }
         .build()
     val callback = object : CompanionDeviceManager.Callback() {
         // До Android 13 окно приходит сюда, с 13-го — в onAssociationPending.

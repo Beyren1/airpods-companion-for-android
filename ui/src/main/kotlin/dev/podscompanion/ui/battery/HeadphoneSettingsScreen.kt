@@ -87,6 +87,7 @@ fun HeadphoneSettingsScreen(
     onCommand: (address: String, AapCommand) -> Unit,
     onBack: () -> Unit,
     gestures: GesturesUi = GesturesUi(),
+    calls: CallRouteUi = CallRouteUi(),
 ) {
     val context = LocalContext.current
     val setAlias = rememberAliasSetter { result ->
@@ -124,6 +125,7 @@ fun HeadphoneSettingsScreen(
                 if (model == null || Capability.HEAD_GESTURES in model.capabilities) {
                     HeadGesturesSection(gestures, onCalibrate = { gestures.onCalibrate(session.address) })
                 }
+                CallRouteSection(calls, session.address)
                 SettingsContent(session, model) { onCommand(session.address, it) }
             } else {
                 Text(

@@ -2,6 +2,7 @@ package dev.podscompanion.data
 
 import dev.podscompanion.protocol.aap.AapDeviceState
 import dev.podscompanion.protocol.advertising.BatteryLevel
+import dev.podscompanion.protocol.advertising.Capability
 import dev.podscompanion.protocol.advertising.PodState
 import dev.podscompanion.protocol.advertising.PodsModel
 
@@ -48,3 +49,19 @@ data class PodsStatus(
     val exactBattery: Boolean get() = exactFromAdvert ||
         aap != null && (aap.left != null || aap.right != null || aap.single != null)
 }
+
+/** Наушники полностью надеты: оба в ушах, у Max — на голове. */
+val PodsStatus.isWorn: Boolean
+    get() = if (model != null && Capability.STEREO_BUDS !in model.capabilities) {
+        primary.inEar
+    } else {
+        left.inEar && right.inEar
+    }
+
+/** Наушники сняты совсем: Max не на голове, ни одного наушника в ухе. Один наушник в ухе — это ещё «надеты». */
+val PodsStatus.isOffHead: Boolean
+    get() = if (model != null && Capability.STEREO_BUDS !in model.capabilities) {
+        !primary.inEar
+    } else {
+        !left.inEar && !right.inEar
+    }

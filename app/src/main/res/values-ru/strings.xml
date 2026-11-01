@@ -36,4 +36,8 @@
     <string name="player_channel_name">Запуск плеера</string>
     <string name="player_open_title">Наушники подключены: открыть %1$s</string>
     <string name="player_open_text">Нажмите, чтобы открыть плеер и включить музыку</string>
+    <string name="car_channel_name">Звук в машине</string>
+    <string name="car_channel_description">Когда не удалось перевести звук из наушников в машину</string>
+    <string name="car_title">Звук идёт не в %1$s</string>
+    <string name="car_text">Android оставил наушники. Нажмите, чтобы выбрать машину</string>
 </resources>

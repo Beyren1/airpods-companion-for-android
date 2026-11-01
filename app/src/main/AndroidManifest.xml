@@ -28,6 +28,13 @@
     <uses-permission android:name="android.permission.READ_PHONE_STATE" />
     <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS" />
 
+    <!-- Звонок при снятых наушниках — в телефон. Менять маршрут звонка может только служба звонков;
+         система подключает её приложению с «Управлением текущими звонками». Это разрешение выдаётся
+         связью с наушниками через Companion Device Manager в профиле «часы» (запрос профиля — второе). -->
+    <uses-permission android:name="android.permission.MANAGE_ONGOING_CALLS"
+        tools:ignore="ProtectedPermissions" />
+    <uses-permission android:name="android.permission.REQUEST_COMPANION_PROFILE_WATCH" />
+
     <!-- Окно с зарядом при открытии кейса: открыть его из фона можно только с этим разрешением. -->
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
 
@@ -73,6 +80,16 @@
             android:name=".service.PodsService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!-- Служба звонков без своего экрана: только переключает звук звонка. -->
+        <service
+            android:name=".call.CallRouteService"
+            android:exported="true"
+            android:permission="android.permission.BIND_INCALL_SERVICE">
+            <intent-filter>
+                <action android:name="android.telecom.InCallService" />
+            </intent-filter>
+        </service>
 
         <receiver
             android:name=".service.BootReceiver"

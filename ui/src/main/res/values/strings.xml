@@ -233,4 +233,19 @@
     <string name="stats_clear_title">Reset statistics?</string>
     <string name="stats_clear_text">Time for all headphones will be deleted.</string>
     <string name="stats_clear_confirm">Reset</string>
+    <string name="section_calls">Calls</string>
+    <string name="calls_to_phone_title">Calls go to the phone when headphones are off</string>
+    <string name="calls_to_phone_hint">Took the headphones off during a call (AirPods Max off your head, or no AirPods in your ears) — the call moves to the phone; put them back on — it returns to the headphones. Android will ask to link the app to the headphones as a watch: only then does it allow controlling call audio.</string>
+    <string name="calls_setup_declined">Without linking to the headphones this feature can’t work</string>
+    <string name="calls_no_permission">No permission to manage calls yet. Turn the switch off and on again.</string>
+    <string name="calls_setup_failed_title">Android didn’t grant the permission</string>
+    <string name="calls_setup_failed_text">The “Manage ongoing calls” permission can be granted from a computer with USB debugging:\n\n%1$s\n\nThen turn the switch on again.</string>
+    <string name="section_car">Car</string>
+    <string name="car_audio_title">Sound to the car</string>
+    <string name="car_audio_description">When the phone is connected to the car and to the headphones, music and calls go to the car. Works in background mode.</string>
+    <string name="car_devices_title">Which devices are a car</string>
+    <string name="car_devices_none">None chosen: tick your car in the list</string>
+    <string name="car_devices_hint">Car stereos usually say they are a car and are ticked already. If yours is not, tick it yourself.</string>
+    <string name="car_devices_empty">No paired audio devices. Pair the phone with the car first.</string>
+    <string name="done">Done</string>
 </resources>

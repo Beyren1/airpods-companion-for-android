@@ -27,7 +27,10 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.podscompanion.bluetooth.scan.ScanIntensity
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
+import dev.podscompanion.data.isWorn
 import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
+import dev.podscompanion.bluetooth.route.AudioRoute
+import dev.podscompanion.data.aap.AapLog
 import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.autopause.AutoPauseLog
 import dev.podscompanion.data.media.MediaRepository
@@ -45,7 +48,6 @@ import dev.podscompanion.data.snapshot.StatusSnapshotStore
 import dev.podscompanion.data.stats.UsageStatsStore
 import dev.podscompanion.tile.PodsTileService
 import dev.podscompanion.widget.PodsWidget
-import dev.podscompanion.protocol.advertising.Capability
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -82,6 +84,8 @@ class PodsService : LifecycleService() {
     @Inject lateinit var aapRepository: AapRepository
     @Inject lateinit var connectedAudio: ConnectedAudioDevices
     @Inject lateinit var usageStore: UsageStatsStore
+    @Inject lateinit var audioRoute: AudioRoute
+    @Inject lateinit var aapLog: AapLog
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -157,6 +161,7 @@ class PodsService : LifecycleService() {
         music.run(lifecycleScope, settingsRepository.settings)
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
+        CarAudioPriority(this, connectedAudio, audioRoute, aapLog).run(lifecycleScope, settingsRepository.settings)
         startScan()
     }
 
@@ -258,7 +263,7 @@ class PodsService : LifecycleService() {
         if (!settings.autoPause) return
 
         // Без рекламы и без уха из AAP флаги «в ухе» пустые: по ним музыку не трогаем.
-        val worn = status?.takeIf { it.earKnown }?.let(::isWorn)
+        val worn = status?.takeIf { it.earKnown }?.isWorn
         val name = status?.model?.displayName
         if (worn != lastWorn || name != lastLoggedName) {
             lastWorn = worn
@@ -286,15 +291,6 @@ class PodsService : LifecycleService() {
                 sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
             }
             null -> Unit
-        }
-    }
-
-    private fun isWorn(status: PodsStatus): Boolean {
-        val model = status.model
-        return if (model != null && Capability.STEREO_BUDS !in model.capabilities) {
-            status.primary.inEar
-        } else {
-            status.left.inEar && status.right.inEar
         }
     }
 

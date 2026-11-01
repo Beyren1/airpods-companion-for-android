@@ -48,7 +48,19 @@ data class AppSettings(
     val appModeRules: Map<String, ListeningMode> = emptyMap(),
     /** Сняли наушники больше чем на 2 минуты — при надевании отмотать трек на 5 секунд назад. */
     val smartResume: Boolean = false,
-)
+    /** Звонок при снятых наушниках — в телефон, надели — обратно в наушники. */
+    val callsToPhone: Boolean = false,
+    /** Подключена машина — звук и звонки в машину, даже если подключены и наушники. */
+    val carAudio: Boolean = false,
+    /** Адреса устройств, которые пользователь сам отметил как машину. */
+    val carDevices: Set<String> = emptySet(),
+    /** Похожи на машину по классу Bluetooth, но пользователь снял отметку. */
+    val notCarDevices: Set<String> = emptySet(),
+) {
+    /** Машина ли устройство: отметка пользователя важнее класса, который сообщило само устройство. */
+    fun isCar(address: String, looksLikeCar: Boolean): Boolean =
+        address in carDevices || (looksLikeCar && address !in notCarDevices)
+}
 
 /** Пороги, которые можно выбрать в настройках. */
 val LOW_BATTERY_THRESHOLDS = listOf(10, 20, 30)
@@ -82,6 +94,10 @@ class SettingsRepository @Inject constructor(
                 appModes = prefs[APP_MODES] ?: false,
                 appModeRules = AppModeRulesCodec.decode(prefs[APP_MODE_RULES].orEmpty()),
                 smartResume = prefs[SMART_RESUME] ?: false,
+                callsToPhone = prefs[CALLS_TO_PHONE] ?: false,
+                carAudio = prefs[CAR_AUDIO] ?: false,
+                carDevices = prefs[CAR_DEVICES].orEmpty(),
+                notCarDevices = prefs[NOT_CAR_DEVICES].orEmpty(),
             )
         }
         .distinctUntilChanged()
@@ -150,6 +166,24 @@ class SettingsRepository @Inject constructor(
         context.settingsStore.edit { it[SMART_RESUME] = value }
     }
 
+    suspend fun setCallsToPhone(value: Boolean) {
+        context.settingsStore.edit { it[CALLS_TO_PHONE] = value }
+    }
+
+    suspend fun setCarAudio(value: Boolean) {
+        context.settingsStore.edit { it[CAR_AUDIO] = value }
+    }
+
+    /** Отметить устройство как машину или снять отметку; [looksLikeCar] — что говорит класс Bluetooth. */
+    suspend fun setCarDevice(address: String, isCar: Boolean, looksLikeCar: Boolean) {
+        context.settingsStore.edit {
+            val added = it[CAR_DEVICES].orEmpty()
+            val removed = it[NOT_CAR_DEVICES].orEmpty()
+            it[CAR_DEVICES] = if (isCar && !looksLikeCar) added + address else added - address
+            it[NOT_CAR_DEVICES] = if (!isCar && looksLikeCar) removed + address else removed - address
+        }
+    }
+
     suspend fun setHeadGestures(value: Boolean) {
         context.settingsStore.edit { it[HEAD_GESTURES] = value }
     }
@@ -184,5 +218,9 @@ class SettingsRepository @Inject constructor(
         val APP_MODES = booleanPreferencesKey("app_modes")
         val APP_MODE_RULES = stringSetPreferencesKey("app_mode_rules")
         val SMART_RESUME = booleanPreferencesKey("smart_resume")
+        val CALLS_TO_PHONE = booleanPreferencesKey("calls_to_phone")
+        val CAR_AUDIO = booleanPreferencesKey("car_audio")
+        val CAR_DEVICES = stringSetPreferencesKey("car_devices")
+        val NOT_CAR_DEVICES = stringSetPreferencesKey("not_car_devices")
     }
 }
