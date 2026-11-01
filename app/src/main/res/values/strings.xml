@@ -42,4 +42,8 @@
     <string name="player_channel_name">Player start</string>
     <string name="player_open_title">Headphones connected: open %1$s</string>
     <string name="player_open_text">Tap to open the player and start the music</string>
+    <string name="car_channel_name">Sound in the car</string>
+    <string name="car_channel_description">When the sound could not be moved from the headphones to the car</string>
+    <string name="car_title">Sound is not going to %1$s</string>
+    <string name="car_text">Android kept the headphones. Tap to choose the car</string>
 </resources>

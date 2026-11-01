@@ -28,34 +28,36 @@ import dagger.hilt.android.AndroidEntryPoint
 import dev.podscompanion.R
 import dev.podscompanion.bluetooth.connect.PodsConnector
 import dev.podscompanion.bluetooth.connect.TakeOverResult
+import dev.podscompanion.bluetooth.route.AudioRoute
+import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.bluetooth.scan.PcSignalScanner
-import dev.podscompanion.data.ConnectedNameMatcher
 import dev.podscompanion.bluetooth.scan.ScanIntensity
-import dev.podscompanion.protocol.advertising.PcSignal
+import dev.podscompanion.data.ConnectedNameMatcher
 import dev.podscompanion.data.PodsRepository
 import dev.podscompanion.data.PodsStatus
 import dev.podscompanion.data.PodsTakeOver
 import dev.podscompanion.data.aap.AapLog
-import dev.podscompanion.data.link.DeviceLink
-import dev.podscompanion.bluetooth.scan.ConnectedAudioDevices
 import dev.podscompanion.data.aap.AapRepository
 import dev.podscompanion.data.autopause.AutoPauseLog
-import dev.podscompanion.data.media.MediaRepository
-import dev.podscompanion.data.battery.LowBatteryWatcher
-import dev.podscompanion.data.gestures.HeadGestureController
-import dev.podscompanion.data.popup.CaseOpenDetector
-import dev.podscompanion.data.popup.LiveStatus
-import dev.podscompanion.popup.CasePopupActivity
 import dev.podscompanion.data.autopause.EarDetectionPolicy
 import dev.podscompanion.data.autopause.MediaAction
+import dev.podscompanion.data.battery.LowBatteryWatcher
+import dev.podscompanion.data.gestures.HeadGestureController
+import dev.podscompanion.data.isWorn
+import dev.podscompanion.data.link.DeviceLink
+import dev.podscompanion.data.media.MediaRepository
+import dev.podscompanion.data.popup.CaseOpenDetector
+import dev.podscompanion.data.popup.LiveStatus
 import dev.podscompanion.data.settings.AppSettings
 import dev.podscompanion.data.settings.SettingsRepository
 import dev.podscompanion.data.snapshot.StatusSnapshot
 import dev.podscompanion.data.snapshot.StatusSnapshotStore
 import dev.podscompanion.data.stats.UsageStatsStore
+import dev.podscompanion.popup.CasePopupActivity
+import dev.podscompanion.protocol.advertising.PcSignal
 import dev.podscompanion.tile.PodsTileService
 import dev.podscompanion.widget.PodsWidget
-import dev.podscompanion.protocol.advertising.Capability
+import timber.log.Timber
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -69,7 +71,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
-import timber.log.Timber
 
 /**
  * Фоновый сервис: держит уведомление с зарядом и делает автопаузу.
@@ -98,6 +99,7 @@ class PodsService : LifecycleService() {
     @Inject lateinit var pcSignalScanner: PcSignalScanner
     @Inject lateinit var podsConnector: PodsConnector
     @Inject lateinit var deviceLink: DeviceLink
+    @Inject lateinit var audioRoute: AudioRoute
 
     private val caseOpenDetector = CaseOpenDetector()
     private val lowBattery = LowBatteryWatcher()
@@ -112,6 +114,7 @@ class PodsService : LifecycleService() {
     private lateinit var usage: UsageTracking
     private var autoSwitch: AutoSwitch? = null
     private var pcLink: PcLink? = null
+    private lateinit var offHeadAudio: OffHeadAudio
 
     /** Все наушники из последнего скана: статистике нужна модель каждой подключённой пары. */
     @Volatile private var latestNearby: List<PodsStatus> = emptyList()
@@ -123,6 +126,14 @@ class PodsService : LifecycleService() {
     private var lastLoggedName: String? = null
     private var lastActivityMs = 0L
     private var settings = AppSettings()
+
+    /**
+     * Какой плеер ставили на паузу при снятии; null — пауза была не нашей или играло приложение
+     * без плеера (TikTok, YouTube в ленте). [pausedKnownPlayer] false — доступа к плеерам нет,
+     * тогда продолжаем по-старому, кнопкой «play».
+     */
+    private var resumePackage: String? = null
+    private var pausedKnownPlayer = false
 
     /** Подключили/отключили Bluetooth-наушники: меняем частоту скана. */
     private val audioDeviceCallback = object : AudioDeviceCallback() {
@@ -175,7 +186,7 @@ class PodsService : LifecycleService() {
         music.run(lifecycleScope, settingsRepository.settings)
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
-        autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, ::isWorn, ::startScan) {
+        autoSwitch = AutoSwitch(audioManager, connectedAudio, podsTakeOver, aapLog, { settings }, { latestNearby }, { it.isWorn }, ::startScan) {
             deviceLink.peers.value.firstOrNull { pc -> pc.pods.any { it.here && it.inCall } }?.name
         }
             .also { it.run(lifecycleScope) }
@@ -186,6 +197,9 @@ class PodsService : LifecycleService() {
             }.distinctUntilChanged().collect(notifications::showOnPc)
         }
         pcLink = PcLink(this, audioManager, connectedAudio, pcSignalScanner, deviceLink, podsConnector, podsTakeOver, aapLog).also { it.run(lifecycleScope) }
+        CarAudioPriority(this, connectedAudio, audioRoute, aapLog).run(lifecycleScope, settingsRepository.settings)
+        offHeadAudio = OffHeadAudio(audioManager, connectedAudio, audioRoute, liveStatus, aapLog)
+        offHeadAudio.run(lifecycleScope, settingsRepository.settings)
         startScan()
     }
 
@@ -331,7 +345,7 @@ class PodsService : LifecycleService() {
         if (!settings.autoPause) return
 
         // Без рекламы и без уха из AAP флаги «в ухе» пустые: по ним музыку не трогаем.
-        val worn = status?.takeIf { it.earKnown }?.let(::isWorn)
+        val worn = status?.takeIf { it.earKnown }?.isWorn
         val name = status?.model?.displayName
         if (worn != lastWorn || name != lastLoggedName) {
             lastWorn = worn
@@ -346,28 +360,46 @@ class PodsService : LifecycleService() {
         }
         // Музыку трогаем, только если звук идёт в Bluetooth: иначе это чужие наушники рядом
         // или пользователь слушает через динамик.
-        val playing = audioManager.isMusicActive && bluetoothAudioConnected()
+        val playing = audioManager.isMusicActive && bluetoothAudioConnected(includeHeld = false)
         when (policy.onUpdate(worn, playing, SystemClock.elapsedRealtime())) {
             MediaAction.PAUSE -> {
-                autoPauseLog.add("→ пауза")
                 music.onAutoPause(SystemClock.elapsedRealtime())
+                // Кнопка «пауза» уходит последнему плееру, а не тому, что сейчас звучит: если играет
+                // TikTok, она достанется Spotify. Поэтому запоминаем, какой плеер действительно играл.
+                pausedKnownPlayer = mediaRepository.access.value
+                resumePackage = if (pausedKnownPlayer) mediaRepository.playingPackage() else null
+                autoPauseLog.add("→ пауза" + (resumePackage?.let { " · ${mediaRepository.appLabel(it)}" } ?: ""))
                 sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
             }
             MediaAction.RESUME -> {
-                autoPauseLog.add("→ продолжение")
+                val pkg = resumePackage
+                resumePackage = null
+                if (audioManager.isMusicActive || mediaRepository.anyPlaying()) {
+                    // Пока наушники лежали, человек включил другое (TikTok, видео): не перебиваем его.
+                    autoPauseLog.add("→ уже что-то играет, не продолжаю")
+                    return
+                }
+                if (pausedKnownPlayer && pkg == null) {
+                    // Играло приложение без плеера: «play» включил бы Spotify или другой плеер.
+                    autoPauseLog.add("→ играл не плеер, не продолжаю")
+                    return
+                }
+                autoPauseLog.add("→ продолжение" + (pkg?.let { " · ${mediaRepository.appLabel(it)}" } ?: ""))
                 music.beforeAutoResume(SystemClock.elapsedRealtime())
-                sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                val play = {
+                    if (pkg == null || !mediaRepository.play(pkg)) sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                }
+                if (offHeadAudio.holding) {
+                    // Звук сейчас в динамике: сначала вернуть его в наушники, потом «play».
+                    lifecycleScope.launch {
+                        offHeadAudio.restoreNow()
+                        play()
+                    }
+                } else {
+                    play()
+                }
             }
             null -> Unit
-        }
-    }
-
-    private fun isWorn(status: PodsStatus): Boolean {
-        val model = status.model
-        return if (model != null && Capability.STEREO_BUDS !in model.capabilities) {
-            status.primary.inEar
-        } else {
-            status.left.inEar && status.right.inEar
         }
     }
 
@@ -398,10 +430,15 @@ class PodsService : LifecycleService() {
         }.onFailure { Timber.w(it, "case popup") }
     }
 
-    private fun bluetoothAudioConnected(): Boolean =
-        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
-            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
-        }
+    /**
+     * Звук идёт в Bluetooth. [includeHeld] — считать и наушники, из которых звук увели в телефон,
+     * пока они сняты: скан тогда не должен замедляться и засыпать, иначе не заметим, что их надели.
+     */
+    private fun bluetoothAudioConnected(includeHeld: Boolean = true): Boolean =
+        (includeHeld && ::offHeadAudio.isInitialized && offHeadAudio.holding) ||
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+            }
 
     private fun hasConnectPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||

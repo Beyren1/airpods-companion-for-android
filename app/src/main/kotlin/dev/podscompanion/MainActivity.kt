@@ -1,6 +1,7 @@
 package dev.podscompanion
 
 import android.content.Context
+import android.content.Intent
 import android.graphics.Color
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -14,6 +15,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import dev.podscompanion.bluetooth.route.AudioRoute
 import dev.podscompanion.data.settings.SettingsRepository
 import dev.podscompanion.service.PodsService
 import dev.podscompanion.ui.PodsNavHost
@@ -33,6 +35,7 @@ import kotlinx.coroutines.runBlocking
 class MainActivity : ComponentActivity() {
 
     @Inject lateinit var settings: SettingsRepository
+    @Inject lateinit var audioRoute: AudioRoute
 
     // Язык, выбранный в приложении (на Android 10–12; на 13+ это делает система).
     override fun attachBaseContext(newBase: Context) {
@@ -45,6 +48,7 @@ class MainActivity : ComponentActivity() {
         // DataStore отвечает за миллисекунды, поэтому ждать на главном потоке тут можно.
         val initial = runBlocking { settings.settings.first() }
         enableEdgeToEdge()
+        handleIntent(intent)
         setContent {
             val appSettings by settings.settings.collectAsStateWithLifecycle(initial)
             val dark = appSettings.theme.isDark()
@@ -78,9 +82,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private companion object {
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        handleIntent(intent)
+    }
+
+    /** Уведомление «звук не в машине»: сразу открываем системное окно выбора устройства. */
+    private fun handleIntent(intent: Intent?) {
+        if (intent?.action != ACTION_OUTPUT_SWITCHER) return
+        intent.action = null
+        audioRoute.showOutputSwitcher()
+    }
+
+    companion object {
+        const val ACTION_OUTPUT_SWITCHER = "dev.podscompanion.OUTPUT_SWITCHER"
+
         // Как у enableEdgeToEdge() по умолчанию: полупрозрачная подложка под кнопками навигации.
-        val LIGHT_SCRIM = Color.argb(0xE6, 0xFF, 0xFF, 0xFF)
-        val DARK_SCRIM = Color.argb(0x80, 0x1B, 0x1B, 0x1B)
+        private val LIGHT_SCRIM = Color.argb(0xE6, 0xFF, 0xFF, 0xFF)
+        private val DARK_SCRIM = Color.argb(0x80, 0x1B, 0x1B, 0x1B)
     }
 }

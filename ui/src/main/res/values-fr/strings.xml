@@ -16,7 +16,7 @@
     <string name="signal_good">bon</string>
     <string name="signal_weak">faible</string>
     <string name="bg_title">Mode arrière-plan</string>
-    <string name="bg_description">Batterie dans le volet des notifications, même app fermée. Android demandera d’autoriser les notifications et la connexion aux appareils à proximité : cette dernière permet de détecter tout de suite la connexion des écouteurs.</string>
+    <string name="bg_description">Fonctionne même app fermée. Android demandera d’autoriser les notifications et la connexion aux appareils à proximité : cette dernière permet de détecter tout de suite la connexion des écouteurs.</string>
     <string name="autopause_title">Pause automatique</string>
     <string name="autopause_description">Met en pause quand vous retirez un écouteur ou l’AirPods Max, et reprend quand vous le remettez. Fonctionne en mode arrière-plan.</string>
     <string name="case_popup_title">Fenêtre à l’ouverture du boîtier</string>
@@ -241,4 +241,23 @@
     <string name="take_over">Connecter au téléphone</string>
     <string name="take_over_working">Connexion…</string>
     <string name="take_over_failed">Connexion automatique impossible. Choisissez les écouteurs dans la fenêtre ouverte.</string>
+    <string name="section_off_head">Quand le casque est retiré</string>
+    <string name="media_to_phone_title">Musique et vidéo sur le téléphone si le casque est retiré</string>
+    <string name="media_to_phone_hint">Casque retiré (AirPods Max hors de la tête ou aucun AirPods dans les oreilles) : après une seconde et demie, le son passe sur le haut-parleur du téléphone ; remis : il revient dans le casque. La plupart des lecteurs se mettent en pause : appuyez sur lecture pour continuer sur le téléphone.</string>
+    <string name="calls_to_phone_title">Appels sur le téléphone si le casque est retiré</string>
+    <string name="calls_to_phone_hint">Casque retiré pendant un appel (AirPods Max hors de la tête ou aucun AirPods dans les oreilles) : l’appel passe sur le téléphone ; remis : il revient dans le casque. Android demandera d’associer l’app au casque comme une montre : c’est la seule façon de contrôler le son des appels.</string>
+    <string name="calls_setup_declined">Sans association avec le casque, cette fonction ne peut pas marcher</string>
+    <string name="calls_no_permission">Pas encore d’autorisation de gérer les appels. Désactivez puis réactivez l’option.</string>
+    <string name="calls_setup_failed_title">Android n’a pas accordé l’autorisation</string>
+    <string name="calls_setup_failed_text">L’autorisation « Gérer les appels en cours » peut être accordée depuis un ordinateur avec le débogage USB :\n\n%1$s\n\nPuis réactivez l’option.</string>
+    <string name="section_car">Voiture</string>
+    <string name="car_audio_title">Son vers la voiture</string>
+    <string name="car_audio_description">Quand le téléphone est connecté à la voiture et aux écouteurs, la musique et les appels passent par la voiture. Fonctionne en mode arrière-plan.</string>
+    <string name="car_devices_title">Quels appareils sont une voiture</string>
+    <string name="car_devices_none">Aucun choisi : cochez votre voiture dans la liste</string>
+    <string name="car_devices_hint">Les autoradios indiquent en général qu’ils sont une voiture et sont déjà cochés. Si le vôtre ne l’est pas, cochez-le vous-même.</string>
+    <string name="car_devices_empty">Aucun appareil audio associé. Associez d’abord le téléphone à la voiture.</string>
+    <string name="done">Terminé</string>
+    <string name="shade_notif_title">Notification dans le volet</string>
+    <string name="shade_notif_description">Android exige une notification pour fonctionner en arrière-plan. Elle est déjà réduite, sans icône dans la barre d’état. Pour la supprimer complètement, désactivez-la sur l’écran qui s’ouvre : le mode arrière-plan continue de fonctionner.</string>
 </resources>
