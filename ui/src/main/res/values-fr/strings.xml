@@ -16,7 +16,7 @@
     <string name="signal_good">bon</string>
     <string name="signal_weak">faible</string>
     <string name="bg_title">Mode arrière-plan</string>
-    <string name="bg_description">Batterie dans le volet des notifications, même app fermée. Android demandera d’autoriser les notifications et la connexion aux appareils à proximité : cette dernière permet de détecter tout de suite la connexion des écouteurs.</string>
+    <string name="bg_description">Fonctionne même app fermée. Android demandera d’autoriser les notifications et la connexion aux appareils à proximité : cette dernière permet de détecter tout de suite la connexion des écouteurs.</string>
     <string name="autopause_title">Pause automatique</string>
     <string name="autopause_description">Met en pause quand vous retirez un écouteur ou l’AirPods Max, et reprend quand vous le remettez. Fonctionne en mode arrière-plan.</string>
     <string name="case_popup_title">Fenêtre à l’ouverture du boîtier</string>
@@ -248,4 +248,6 @@
     <string name="car_devices_hint">Les autoradios indiquent en général qu’ils sont une voiture et sont déjà cochés. Si le vôtre ne l’est pas, cochez-le vous-même.</string>
     <string name="car_devices_empty">Aucun appareil audio associé. Associez d’abord le téléphone à la voiture.</string>
     <string name="done">Terminé</string>
+    <string name="shade_notif_title">Notification dans le volet</string>
+    <string name="shade_notif_description">Android exige une notification pour fonctionner en arrière-plan. Elle est déjà réduite, sans icône dans la barre d’état. Pour la supprimer complètement, désactivez-la sur l’écran qui s’ouvre : le mode arrière-plan continue de fonctionner.</string>
 </resources>

@@ -16,7 +16,7 @@
     <string name="signal_good">good</string>
     <string name="signal_weak">weak</string>
     <string name="bg_title">Background mode</string>
-    <string name="bg_description">Battery in the notification shade even when the app is closed. Android will ask to allow notifications and connecting to nearby devices: the latter lets the app notice right away when headphones connect.</string>
+    <string name="bg_description">Works even when the app is closed. Android will ask to allow notifications and connecting to nearby devices: the latter lets the app notice right away when headphones connect.</string>
     <string name="autopause_title">Auto-pause</string>
     <string name="autopause_description">Pauses when you take out an earbud or remove the Max, and resumes when you put it back. Works in background mode.</string>
     <string name="case_popup_title">Pop-up when opening the case</string>
@@ -248,4 +248,6 @@
     <string name="car_devices_hint">Car stereos usually say they are a car and are ticked already. If yours is not, tick it yourself.</string>
     <string name="car_devices_empty">No paired audio devices. Pair the phone with the car first.</string>
     <string name="done">Done</string>
+    <string name="shade_notif_title">Notification in the shade</string>
+    <string name="shade_notif_description">Android requires a notification while the app works in the background. It is already minimised, with no icon in the status bar. To remove it completely, turn it off on the screen that opens: background mode keeps working.</string>
 </resources>
