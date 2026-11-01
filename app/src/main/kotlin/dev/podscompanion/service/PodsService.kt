@@ -111,6 +111,14 @@ class PodsService : LifecycleService() {
     private var lastActivityMs = 0L
     private var settings = AppSettings()
 
+    /**
+     * Какой плеер ставили на паузу при снятии; null — пауза была не нашей или играло приложение
+     * без плеера (TikTok, YouTube в ленте). [pausedKnownPlayer] false — доступа к плеерам нет,
+     * тогда продолжаем по-старому, кнопкой «play».
+     */
+    private var resumePackage: String? = null
+    private var pausedKnownPlayer = false
+
     /** Подключили/отключили Bluetooth-наушники: меняем частоту скана. */
     private val audioDeviceCallback = object : AudioDeviceCallback() {
         override fun onAudioDevicesAdded(addedDevices: Array<out AudioDeviceInfo>) = restartScanIfIntensityChanged()
@@ -284,21 +292,35 @@ class PodsService : LifecycleService() {
         val playing = audioManager.isMusicActive && bluetoothAudioConnected(includeHeld = false)
         when (policy.onUpdate(worn, playing, SystemClock.elapsedRealtime())) {
             MediaAction.PAUSE -> {
-                autoPauseLog.add("→ пауза")
                 music.onAutoPause(SystemClock.elapsedRealtime())
+                // Кнопка «пауза» уходит последнему плееру, а не тому, что сейчас звучит: если играет
+                // TikTok, она достанется Spotify. Поэтому запоминаем, какой плеер действительно играл.
+                pausedKnownPlayer = mediaRepository.access.value
+                resumePackage = if (pausedKnownPlayer) mediaRepository.playingPackage() else null
+                autoPauseLog.add("→ пауза" + (resumePackage?.let { " · ${mediaRepository.appLabel(it)}" } ?: ""))
                 sendMediaKey(KeyEvent.KEYCODE_MEDIA_PAUSE)
             }
             MediaAction.RESUME -> {
-                autoPauseLog.add("→ продолжение")
+                val pkg = resumePackage
+                resumePackage = null
+                if (pausedKnownPlayer && pkg == null) {
+                    // Играло приложение без плеера: «play» включил бы Spotify или другой плеер.
+                    autoPauseLog.add("→ играл не плеер, не продолжаю")
+                    return
+                }
+                autoPauseLog.add("→ продолжение" + (pkg?.let { " · ${mediaRepository.appLabel(it)}" } ?: ""))
                 music.beforeAutoResume(SystemClock.elapsedRealtime())
+                val play = {
+                    if (pkg == null || !mediaRepository.play(pkg)) sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                }
                 if (offHeadAudio.holding) {
                     // Звук сейчас в динамике: сначала вернуть его в наушники, потом «play».
                     lifecycleScope.launch {
                         offHeadAudio.restoreNow()
-                        sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                        play()
                     }
                 } else {
-                    sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                    play()
                 }
             }
             null -> Unit
