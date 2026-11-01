@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PhoneInTalk
+import androidx.compose.material.icons.filled.SpeakerPhone
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -34,6 +35,9 @@ data class CallRouteUi(
     val enabled: Boolean = false,
     val backgroundEnabled: Boolean = false,
     val onEnabledChange: (Boolean) -> Unit = {},
+    /** Музыка и видео при снятых наушниках — в динамик телефона. */
+    val mediaEnabled: Boolean = false,
+    val onMediaChange: (Boolean) -> Unit = {},
 )
 
 private const val MANAGE_ONGOING_CALLS = "android.permission.MANAGE_ONGOING_CALLS"
@@ -98,8 +102,19 @@ internal fun CallRouteSection(ui: CallRouteUi, address: String) {
         if (!ui.backgroundEnabled) add(stringResource(R.string.gestures_need_background))
         if (ui.enabled && !granted) add(stringResource(R.string.calls_no_permission))
     }
-    SectionTitle(stringResource(R.string.section_calls))
+    val mediaNotes = buildList {
+        add(stringResource(R.string.media_to_phone_hint))
+        if (!ui.backgroundEnabled) add(stringResource(R.string.gestures_need_background))
+    }
+    SectionTitle(stringResource(R.string.section_off_head))
     SettingsGroup {
+        row {
+            SwitchRow(
+                stringResource(R.string.media_to_phone_title), ui.mediaEnabled, ui.onMediaChange,
+                icon = Icons.Filled.SpeakerPhone,
+                description = mediaNotes.joinToString("\n"),
+            )
+        }
         row {
             SwitchRow(
                 stringResource(R.string.calls_to_phone_title), ui.enabled,

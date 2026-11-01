@@ -161,6 +161,74 @@ class AudioRoute @Inject constructor(
     }
 
     /**
+     * Убрать звук (музыку и видео) с наушников, не отключая их: Android переводит его в динамик
+     * телефона. Звонки не трогаем. Скрытые вызовы, каждый пишем в журнал. true — система согласилась.
+     */
+    @SuppressLint("MissingPermission")
+    suspend fun releaseMedia(log: (String) -> Unit): Boolean {
+        exemptHiddenApis()
+        val attempts = listOf<Pair<String, suspend () -> Any?>>(
+            // ACTIVE_DEVICE_AUDIO = 0: только музыка, звонки остаются как есть.
+            "Adapter.removeActiveDevice" to {
+                val adapter = adapter() ?: error("нет Bluetooth")
+                BluetoothAdapter::class.java
+                    .getMethod("removeActiveDevice", Int::class.javaPrimitiveType)
+                    .invoke(adapter, ACTIVE_DEVICE_AUDIO)
+            },
+            "A2DP.setActiveDevice(null)" to { profileCall(BluetoothProfile.A2DP, null, "setActiveDevice") },
+        )
+        return runAll(attempts, log, stopOnSuccess = false)
+    }
+
+    /** Вернуть музыку в [device] после [releaseMedia]: сделать его активным только для музыки. */
+    @SuppressLint("MissingPermission")
+    suspend fun restoreMedia(device: BluetoothDevice, log: (String) -> Unit): Boolean {
+        exemptHiddenApis()
+        val attempts = listOf<Pair<String, suspend () -> Any?>>(
+            "A2DP.setActiveDevice" to { profileCall(BluetoothProfile.A2DP, device, "setActiveDevice") },
+            "Adapter.setActiveDevice" to {
+                val adapter = adapter() ?: error("нет Bluetooth")
+                BluetoothAdapter::class.java
+                    .getMethod("setActiveDevice", BluetoothDevice::class.java, Int::class.javaPrimitiveType)
+                    .invoke(adapter, device, ACTIVE_DEVICE_AUDIO)
+            },
+        )
+        return runAll(attempts, log, stopOnSuccess = true)
+    }
+
+    /** Отключить от наушников только музыку (A2DP); звонки и прямое подключение остаются. */
+    @SuppressLint("MissingPermission")
+    suspend fun disconnectMedia(device: BluetoothDevice, log: (String) -> Unit): Boolean {
+        exemptHiddenApis()
+        val attempts = listOf<Pair<String, suspend () -> Any?>>(
+            "A2DP.disconnect" to { profileCall(BluetoothProfile.A2DP, device, "disconnect") },
+        )
+        return runAll(attempts, log, stopOnSuccess = true)
+    }
+
+    private suspend fun runAll(
+        attempts: List<Pair<String, suspend () -> Any?>>,
+        log: (String) -> Unit,
+        stopOnSuccess: Boolean,
+    ): Boolean {
+        var any = false
+        for ((name, attempt) in attempts) {
+            val result = runCatching { attempt() }
+            val error = result.exceptionOrNull()?.unwrap()
+            when {
+                error != null -> log("$name — ${error.javaClass.simpleName}: ${error.message}")
+                result.getOrNull() == false -> log("$name — система ответила false")
+                else -> {
+                    log("$name — принято")
+                    any = true
+                    if (stopOnSuccess) return true
+                }
+            }
+        }
+        return any
+    }
+
+    /**
      * Системное окно «Где воспроизводить» (Android 14+): выбор устройства одним касанием.
      * На старых версиях — настройки Bluetooth.
      */
@@ -176,7 +244,7 @@ class AudioRoute @Inject constructor(
     private fun adapter() = context.getSystemService(BluetoothManager::class.java)?.adapter
 
     /** Скрытый метод профиля (A2DP или HFP) с одним аргументом-устройством. */
-    private suspend fun profileCall(profile: Int, device: BluetoothDevice, method: String): Any? {
+    private suspend fun profileCall(profile: Int, device: BluetoothDevice?, method: String): Any? {
         val adapter = adapter() ?: error("нет Bluetooth")
         val proxy = withTimeoutOrNull(PROXY_TIMEOUT_MS) {
             suspendCancellableCoroutine<BluetoothProfile> { cont ->
@@ -191,7 +259,7 @@ class AudioRoute @Inject constructor(
         } ?: error("профиль недоступен")
         try {
             val type = if (profile == BluetoothProfile.A2DP) BluetoothA2dp::class.java else BluetoothHeadset::class.java
-            return type.getMethod(method, BluetoothDevice::class.java).invoke(proxy, device)
+            return type.getMethod(method, BluetoothDevice::class.java).invoke(proxy, *arrayOf<Any?>(device))
         } finally {
             runCatching { adapter.closeProfileProxy(profile, proxy) }
         }
@@ -210,6 +278,7 @@ class AudioRoute @Inject constructor(
     }
 
     private companion object {
+        const val ACTIVE_DEVICE_AUDIO = 0
         const val ACTIVE_DEVICE_ALL = 2
         const val PROXY_TIMEOUT_MS = 3_000L
     }

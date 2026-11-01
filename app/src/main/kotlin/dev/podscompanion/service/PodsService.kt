@@ -98,6 +98,7 @@ class PodsService : LifecycleService() {
     private lateinit var audioManager: AudioManager
     private lateinit var music: MusicAutomation
     private lateinit var usage: UsageTracking
+    private lateinit var offHeadAudio: OffHeadAudio
 
     /** Все наушники из последнего скана: статистике нужна модель каждой подключённой пары. */
     @Volatile private var latestNearby: List<PodsStatus> = emptyList()
@@ -162,6 +163,8 @@ class PodsService : LifecycleService() {
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
         CarAudioPriority(this, connectedAudio, audioRoute, aapLog).run(lifecycleScope, settingsRepository.settings)
+        offHeadAudio = OffHeadAudio(audioManager, connectedAudio, audioRoute, liveStatus, aapLog)
+        offHeadAudio.run(lifecycleScope, settingsRepository.settings)
         startScan()
     }
 
@@ -278,7 +281,7 @@ class PodsService : LifecycleService() {
         }
         // Музыку трогаем, только если звук идёт в Bluetooth: иначе это чужие наушники рядом
         // или пользователь слушает через динамик.
-        val playing = audioManager.isMusicActive && bluetoothAudioConnected()
+        val playing = audioManager.isMusicActive && bluetoothAudioConnected(includeHeld = false)
         when (policy.onUpdate(worn, playing, SystemClock.elapsedRealtime())) {
             MediaAction.PAUSE -> {
                 autoPauseLog.add("→ пауза")
@@ -288,7 +291,15 @@ class PodsService : LifecycleService() {
             MediaAction.RESUME -> {
                 autoPauseLog.add("→ продолжение")
                 music.beforeAutoResume(SystemClock.elapsedRealtime())
-                sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                if (offHeadAudio.holding) {
+                    // Звук сейчас в динамике: сначала вернуть его в наушники, потом «play».
+                    lifecycleScope.launch {
+                        offHeadAudio.restoreNow()
+                        sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                    }
+                } else {
+                    sendMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY)
+                }
             }
             null -> Unit
         }
@@ -321,10 +332,15 @@ class PodsService : LifecycleService() {
         }.onFailure { Timber.w(it, "case popup") }
     }
 
-    private fun bluetoothAudioConnected(): Boolean =
-        audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
-            it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
-        }
+    /**
+     * Звук идёт в Bluetooth. [includeHeld] — считать и наушники, из которых звук увели в телефон,
+     * пока они сняты: скан тогда не должен замедляться и засыпать, иначе не заметим, что их надели.
+     */
+    private fun bluetoothAudioConnected(includeHeld: Boolean = true): Boolean =
+        (includeHeld && ::offHeadAudio.isInitialized && offHeadAudio.holding) ||
+            audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS).any {
+                it.type == AudioDeviceInfo.TYPE_BLUETOOTH_A2DP
+            }
 
     private fun hasConnectPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.S ||

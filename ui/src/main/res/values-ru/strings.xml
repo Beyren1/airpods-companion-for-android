@@ -235,7 +235,9 @@
     <string name="stats_clear_title">Сбросить статистику?</string>
     <string name="stats_clear_text">Время для всех наушников будет удалено.</string>
     <string name="stats_clear_confirm">Сбросить</string>
-    <string name="section_calls">Звонки</string>
+    <string name="section_off_head">Когда наушники сняты</string>
+    <string name="media_to_phone_title">Музыка и видео в телефон, если наушники сняты</string>
+    <string name="media_to_phone_hint">Сняли наушники (AirPods Max не на голове или ни одного AirPods в ушах) — через полторы секунды звук переходит в динамик телефона; надели — возвращается в наушники. Большинство плееров при этом ставят паузу: нажмите «play», чтобы слушать дальше с телефона.</string>
     <string name="calls_to_phone_title">Звонок в телефон, если наушники сняты</string>
     <string name="calls_to_phone_hint">Сняли наушники во время звонка (AirPods Max не на голове или ни одного AirPods в ушах) — разговор переходит в телефон; надели — возвращается в наушники. Android попросит связать приложение с наушниками как с часами: только так он даёт управлять звуком звонка.</string>
     <string name="calls_setup_declined">Без связи с наушниками эта функция работать не сможет</string>
