@@ -86,7 +86,7 @@ public static class PhoneSignal
     }
 
     /// <summary>Широковещательные адреса включённых сетей IPv4 (Ethernet и Wi-Fi), например 192.168.1.255.</summary>
-    private static IEnumerable<IPAddress> BroadcastAddresses() =>
+    internal static IEnumerable<IPAddress> BroadcastAddresses() =>
         NetworkInterface.GetAllNetworkInterfaces()
             .Where(n => n.OperationalStatus == OperationalStatus.Up && n.NetworkInterfaceType != NetworkInterfaceType.Loopback)
             .SelectMany(n => n.GetIPProperties().UnicastAddresses)

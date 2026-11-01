@@ -18,6 +18,7 @@ import dev.podscompanion.protocol.link.LinkMessage
 import dev.podscompanion.protocol.link.LinkPods
 import java.net.DatagramPacket
 import java.net.DatagramSocket
+import java.net.NetworkInterface
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.SocketTimeoutException
@@ -91,6 +92,8 @@ class DeviceLink @Inject constructor(
     val releaseRequests: SharedFlow<String> = _releaseRequests
 
     @Volatile private var socket: DatagramSocket? = null
+    /** Откуда последний раз пришёл пакет ПК: на него шлём «hi» напрямую, даже если ПК пропал из списка. */
+    @Volatile private var lastPcAddress: InetAddress? = null
     /** Ошибку отправки пишем в журнал один раз подряд, а не на каждый пакет. */
     private val sendFailureLogged = java.util.concurrent.atomic.AtomicBoolean(false)
 
@@ -162,7 +165,7 @@ class DeviceLink @Inject constructor(
         } else {
             // ПК давно не слышно (мог пропустить его hello): зовём всех в сети, ответит тот, где программа.
             log.add("отдаю наушники: ПК не слышно, зову всех в сети")
-            sendRepeated(message, BROADCAST)
+            broadcastTargets().forEach { sendRepeated(message, it) }
         }
         val hash = PcSignal.hashHex(address)
         val taken = withTimeoutOrNull(GIVE_WAIT_MS) { _peers.first { list -> list.any { it.has(hash) } } } != null
@@ -203,8 +206,22 @@ class DeviceLink @Inject constructor(
     /** Широковещательно и каждому известному ПК напрямую. */
     private suspend fun say(type: LinkMessage.Type) {
         val message = message(type, ownPods())
-        send(message, BROADCAST)
-        _peers.value.forEach { send(message, it.address) }
+        val targets = broadcastTargets() + _peers.value.map { it.address } + listOfNotNull(lastPcAddress)
+        targets.distinct().forEach { send(message, it) }
+    }
+
+    /**
+     * Адреса рассылки каждой сети телефона (например 192.168.1.255). На общий 255.255.255.255
+     * GrapheneOS отвечает «Permission denied», а рассылка по своей сети проходит.
+     */
+    private fun broadcastTargets(): List<InetAddress> {
+        val own = runCatching {
+            NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+                .filter { it.isUp && !it.isLoopback }
+                .flatMap { it.interfaceAddresses }
+                .mapNotNull { it.broadcast }
+        }.getOrDefault(emptyList())
+        return own.ifEmpty { listOf(BROADCAST) }.distinct()
     }
 
     private suspend fun send(message: LinkMessage, to: InetAddress) = withContext(Dispatchers.IO) {
@@ -259,11 +276,15 @@ class DeviceLink @Inject constructor(
 
     private fun onPacket(scope: CoroutineScope, data: ByteArray, from: InetAddress) {
         PcSignal.parse(data)?.let {
+            lastPcAddress = from
             _takeSignals.tryEmit(it)
+            // Сигнал пришёл от ПК, а сам ПК мы ещё не знаем: здороваемся с ним напрямую.
+            if (_peers.value.none { it.address == from }) scope.launch { send(message(LinkMessage.Type.HI, ownPods()), from) }
             return
         }
         val message = LinkMessage.parse(data.toString(Charsets.UTF_8)) ?: return
         if (message.id == id || message.kind != LinkMessage.Kind.PC) return
+        lastPcAddress = from
         val now = SystemClock.elapsedRealtime()
         var isNew = false
         _peers.update { list ->

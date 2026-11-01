@@ -124,8 +124,11 @@ public sealed class DeviceLink : IDisposable
     private async Task SayHelloAsync(LinkType type)
     {
         var message = Message(type, ownPods());
-        await SendAsync(message, new IPEndPoint(IPAddress.Broadcast, LinkMessage.Port));
-        foreach (var peer in Peers) await SendAsync(message, new IPEndPoint(peer.Address, LinkMessage.Port));
+        // Рассылка по каждой сети ПК: общий 255.255.255.255 Windows отправляет только в одну сеть,
+        // и это может быть VPN (Radmin и т. п.), а не Wi-Fi, где телефон.
+        var targets = PhoneSignal.BroadcastAddresses().Append(IPAddress.Broadcast)
+            .Concat(Peers.Select(p => p.Address)).Distinct().ToList();
+        foreach (var target in targets) await SendAsync(message, new IPEndPoint(target, LinkMessage.Port));
         PeersChanged?.Invoke(); // кто-то мог пропасть по таймауту
     }
 
