@@ -45,13 +45,12 @@ internal class OffHeadAudio(
     private val aapLog: AapLog,
 ) {
     /** Как увели звук: по этому выбираем, как вернуть. */
-    private enum class Moved { NONE, RELEASED, DISCONNECTED }
+    private enum class Moved { NONE, RELEASED }
 
     private val policy = OffHeadMediaPolicy()
     private val lock = Mutex()
     private var enabled = false
     private var lastOffHead: Boolean? = null
-    private var goneSinceMs: Long? = null
 
     @Volatile private var moved = Moved.NONE
     private var movedDevice: BluetoothDevice? = null
@@ -73,8 +72,7 @@ internal class OffHeadAudio(
                     evaluate(status, devices.orEmpty(), on)
                     // Пока наушники сняты, а звук ещё не уведён, проверяем раз в секунду:
                     // задержка снятия и только что подключённые наушники ждут без новых событий.
-                    // Так же отсчитываем, сколько не видно наушников, у которых сами отключили музыку.
-                    while (on && (policy.waiting(SystemClock.elapsedRealtime()) || moved == Moved.DISCONNECTED && status == null)) {
+                    while (on && (policy.waiting(SystemClock.elapsedRealtime()))) {
                         delay(TICK_MS)
                         evaluate(status, devices.orEmpty(), on)
                     }
@@ -106,39 +104,17 @@ internal class OffHeadAudio(
                 enabled = true
 
                 val pods = findPods(status, devices)
-                // Отключали музыку сами, а наушники снова подключились к звуку: Android вернул всё сам.
-                // Список подключённых обновляется с опозданием, поэтому верим только звуку, который уже идёт в них.
-                if (moved == Moved.DISCONNECTED && pods != null && pods.address == movedDevice?.address && route.isActive(pods)) {
-                    log("наушники снова подключены к звуку")
-                    clearMoved()
-                    policy.reset()
-                }
-                // Наушники отключились от звука не по нашей воле (убрали в кейс): возвращать нечего,
+                // Наушники отключились от звука (убрали в кейс): возвращать нечего,
                 // при следующем подключении Android сам пустит звук в них.
-                if (pods == null && moved != Moved.DISCONNECTED) {
+                if (pods == null) {
                     if (moved != Moved.NONE) log("наушники отключились")
                     clearMoved()
                     policy.reset()
                     lastOffHead = null
                     return@withLock
                 }
-                // Музыку отключали сами, а наушников давно не видно (кейс закрыли): забываем о них.
                 val now = SystemClock.elapsedRealtime()
-                if (moved == Moved.DISCONNECTED && status == null) {
-                    val since = goneSinceMs ?: now.also { goneSinceMs = it }
-                    if (now - since > GONE_FORGET_MS) {
-                        log("наушников не видно — больше не жду их")
-                        clearMoved()
-                        policy.reset()
-                    }
-                } else {
-                    goneSinceMs = null
-                }
-
-                // После отключения музыки «подключены» уже не скажешь: узнаём свои наушники по адресу.
-                val ours = status?.takeIf {
-                    it.earKnown && (it.connected || moved == Moved.DISCONNECTED && it.owner.equals(movedDevice?.address, ignoreCase = true))
-                }
+                val ours = status?.takeIf { it.earKnown && it.connected }
                 val offHead = ours?.isOffHead
                 if (offHead != null && offHead != lastOffHead) log(if (offHead) "наушники сняты" else "наушники надеты")
                 if (offHead != null) lastOffHead = offHead
@@ -172,14 +148,9 @@ internal class OffHeadAudio(
             }
             log("система приняла запрос, но звук остался в наушниках")
         }
-        if (route.disconnectMedia(pods, ::log)) {
-            if (waitFor(SWITCH_WAIT_MS) { !route.isActive(pods) }) {
-                setMoved(Moved.DISCONNECTED, pods)
-                log("музыка отключена от наушников, звук в телефоне")
-                return
-            }
-        }
-        log("перевести не вышло")
+        // Отключать наушники от музыки нельзя: без связи с телефоном AirPods уходят к другому
+        // устройству Apple (iPhone, Mac, ПК) и возвращаются только через несколько секунд.
+        log("перевести не вышло, наушники не трогаю")
         policy.onMoveFailed()
     }
 
@@ -194,12 +165,8 @@ internal class OffHeadAudio(
             return
         }
         log("возвращаю звук в наушники")
-        val ok = when (how) {
-            Moved.RELEASED -> route.restoreMedia(device, ::log) || route.makeActive(device, ::log)
-            Moved.DISCONNECTED -> route.reconnectAudio(device, ::log)
-            Moved.NONE -> false
-        }
-        val back = ok && waitFor(if (how == Moved.DISCONNECTED) RECONNECT_WAIT_MS else SWITCH_WAIT_MS) { route.isActive(device) }
+        val ok = route.restoreMedia(device, ::log) || route.makeActive(device, ::log)
+        val back = ok && waitFor(SWITCH_WAIT_MS) { route.isActive(device) }
         log(if (back) "звук в наушниках" else "вернуть не вышло — выберите наушники в окне вывода звука")
     }
 
@@ -244,7 +211,5 @@ internal class OffHeadAudio(
         const val TICK_MS = 1_000L
         const val POLL_MS = 250L
         const val SWITCH_WAIT_MS = 2_000L
-        const val RECONNECT_WAIT_MS = 6_000L
-        const val GONE_FORGET_MS = 2 * 60_000L
     }
 }

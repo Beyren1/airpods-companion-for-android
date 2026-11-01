@@ -196,16 +196,6 @@ class AudioRoute @Inject constructor(
         return runAll(attempts, log, stopOnSuccess = true)
     }
 
-    /** Отключить от наушников только музыку (A2DP); звонки и прямое подключение остаются. */
-    @SuppressLint("MissingPermission")
-    suspend fun disconnectMedia(device: BluetoothDevice, log: (String) -> Unit): Boolean {
-        exemptHiddenApis()
-        val attempts = listOf<Pair<String, suspend () -> Any?>>(
-            "A2DP.disconnect" to { profileCall(BluetoothProfile.A2DP, device, "disconnect") },
-        )
-        return runAll(attempts, log, stopOnSuccess = true)
-    }
-
     private suspend fun runAll(
         attempts: List<Pair<String, suspend () -> Any?>>,
         log: (String) -> Unit,
