@@ -303,6 +303,11 @@ class PodsService : LifecycleService() {
             MediaAction.RESUME -> {
                 val pkg = resumePackage
                 resumePackage = null
+                if (audioManager.isMusicActive || mediaRepository.anyPlaying()) {
+                    // Пока наушники лежали, человек включил другое (TikTok, видео): не перебиваем его.
+                    autoPauseLog.add("→ уже что-то играет, не продолжаю")
+                    return
+                }
                 if (pausedKnownPlayer && pkg == null) {
                     // Играло приложение без плеера: «play» включил бы Spotify или другой плеер.
                     autoPauseLog.add("→ играл не плеер, не продолжаю")
