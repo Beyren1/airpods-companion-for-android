@@ -312,7 +312,13 @@ class AapRepository @Inject constructor(
                             }
                             if (event is AapEvent.DeviceInfo) log.add("${target.name}: ${event.label()}")
                             else log.add("← ${Hex.encode(io.data)}" + (event?.let { " · ${it.label()}" } ?: ""))
-                            if (event is AapEvent.ListeningModeChanged) link.mode.onReported(event.mode)
+                            if (event is AapEvent.ListeningModeChanged) {
+                                val waited = link.mode.pending
+                                link.mode.onReported(event.mode, SystemClock.elapsedRealtime())
+                                if (waited != null && waited != event.mode && link.mode.pending == null) {
+                                    log.add("${target.name}: режим сменили на наушниках (${event.mode}), повтор $waited отменён")
+                                }
+                            }
                             if (event != null) device = device.apply(event)
                             publish()
                         }

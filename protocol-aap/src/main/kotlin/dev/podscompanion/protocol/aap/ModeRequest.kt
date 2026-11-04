@@ -10,7 +10,9 @@ package dev.podscompanion.protocol.aap
  * - если подтверждения нет [retryMs], команда уходит ещё раз (до [maxAttempts] раз);
  * - после переподключения команда повторяется, если выбор свежее [ttlMs];
  * - наушники так и не согласились (например, шумоподавление с одним наушником) — запрос
- *   снимается, и экран показывает то, что сообщили наушники.
+ *   снимается, и экран показывает то, что сообщили наушники;
+ * - пользователь сам сменил режим кнопкой на наушниках, пока запрос ждал подтверждения, —
+ *   запрос снимается, а не перебивает нажатие повтором (см. [onReported]).
  *
  * Без Android, время передаётся снаружи: так проверяется тестами на JVM.
  * Вызывается и из интерфейса, и из соединения, поэтому методы synchronized.
@@ -24,6 +26,10 @@ class ModeRequest(
     private var createdAtMs = 0L
     private var sentAtMs = 0L
     private var attempts = 0
+    /** Последний режим, о котором сообщили наушники. */
+    private var lastReported: ListeningMode? = null
+    /** Режим наушников в момент выбора: уведомление с ним может прийти уже после команды. */
+    private var before: ListeningMode? = null
 
     /** Выбранный, но ещё не подтверждённый режим; null — ничего не ждём. */
     @get:Synchronized
@@ -33,15 +39,31 @@ class ModeRequest(
     @Synchronized
     fun request(mode: ListeningMode, nowMs: Long) {
         this.mode = mode
+        before = lastReported
         createdAtMs = nowMs
         sentAtMs = nowMs
         attempts = 1
     }
 
-    /** Наушники сообщили свой режим. Совпал с выбранным — запрос выполнен. */
+    /**
+     * Наушники сообщили свой режим. Совпал с выбранным — запрос выполнен.
+     * Не совпал — это либо запоздалое уведомление со старым режимом (его пропускаем), либо
+     * нажатие кнопки на наушниках. Нажатие узнаём так: пришёл третий режим, не старый и не выбранный,
+     * или старый режим вернулся спустя [retryMs] после отправки. Тогда запрос снимаем: последнее
+     * слово за кнопкой, иначе повтор команды перебил бы нажатие.
+     */
     @Synchronized
-    fun onReported(reported: ListeningMode) {
-        if (reported == mode) mode = null
+    fun onReported(reported: ListeningMode, nowMs: Long) {
+        lastReported = reported
+        val wanted = mode ?: return
+        if (reported == wanted) {
+            mode = null
+            return
+        }
+        if (reported == ListeningMode.UNKNOWN) return
+        // Старый режим ещё не знаем (запрос раньше первого уведомления) — тоже считаем его старым.
+        val stale = (before == null || reported == before) && nowMs - sentAtMs < retryMs
+        if (!stale) mode = null
     }
 
     /**
