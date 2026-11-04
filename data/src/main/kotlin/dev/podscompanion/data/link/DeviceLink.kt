@@ -3,6 +3,7 @@ package dev.podscompanion.data.link
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Build
+import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -96,8 +97,21 @@ class DeviceLink @Inject constructor(
     @Volatile private var lastPcAddress: InetAddress? = null
     /** Ошибку отправки пишем в журнал один раз подряд, а не на каждый пакет. */
     private val sendFailureLogged = java.util.concurrent.atomic.AtomicBoolean(false)
+    /** Адреса рассылки, на которые система не даёт слать (EACCES): больше не пробуем, пишем ПК напрямую. */
+    private val blockedBroadcasts = java.util.concurrent.ConcurrentHashMap.newKeySet<InetAddress>()
+
+    @Volatile private var runScope: CoroutineScope? = null
+
+    /**
+     * Экран включился: телефон вышел из сна, а ПК мог перестать его ждать. Здороваемся сразу,
+     * чтобы связь была готова к нажатию кнопки, а не через полминуты.
+     */
+    fun wake() {
+        runScope?.launch { say(LinkMessage.Type.HI) }
+    }
 
     fun run(scope: CoroutineScope) {
+        runScope = scope
         scope.launch(Dispatchers.IO) { receiveLoop(scope) }
         scope.launch {
             // Подключились или отключились наушники — сразу сообщаем ПК. Первое значение — при запуске:
@@ -214,7 +228,9 @@ class DeviceLink @Inject constructor(
      * Адреса рассылки каждой сети телефона (например 192.168.1.255). На общий 255.255.255.255
      * GrapheneOS отвечает «Permission denied», а рассылка по своей сети проходит.
      */
-    private fun broadcastTargets(): List<InetAddress> {
+    private fun broadcastTargets(): List<InetAddress> = interfaceBroadcasts().filter { it !in blockedBroadcasts }
+
+    private fun interfaceBroadcasts(): List<InetAddress> {
         val own = runCatching {
             NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
                 .filter { it.isUp && !it.isLoopback }
@@ -236,9 +252,23 @@ class DeviceLink @Inject constructor(
             }
         }.onFailure {
             Timber.d(it, "link send")
-            if (sendFailureLogged.compareAndSet(false, true)) log.add("связь с ПК: не могу отправить (${it.javaClass.simpleName}: ${it.message})")
+            val denied = it.message?.contains("EACCES") == true
+            if (denied && isBroadcast(to)) {
+                // Рассылку система запрещает (так бывает на GrapheneOS), а прямые пакеты ПК проходят:
+                // больше не пробуем этот адрес, ПК узнаём по его собственным пакетам.
+                if (blockedBroadcasts.add(to)) log.add("связь с ПК: рассылка на ${to.hostAddress} запрещена системой, пишу ПК напрямую")
+            } else if (sendFailureLogged.compareAndSet(false, true)) {
+                log.add("связь с ПК: не могу отправить на ${to.hostAddress} (${it.javaClass.simpleName}: ${it.message})" +
+                    if (denied && !batteryUnrestricted()) " — телефон спит; включите «Без ограничений» для батареи" else "")
+            }
         }.onSuccess { sendFailureLogged.set(false) }
     }
+
+    private fun isBroadcast(address: InetAddress): Boolean =
+        address == BROADCAST || address in interfaceBroadcasts()
+
+    private fun batteryUnrestricted(): Boolean =
+        context.getSystemService(PowerManager::class.java)?.isIgnoringBatteryOptimizations(context.packageName) == true
 
     private suspend fun receiveLoop(scope: CoroutineScope) {
         while (scope.isActive) {
@@ -250,7 +280,8 @@ class DeviceLink @Inject constructor(
                     // receive() отмену не слышит: просыпаемся раз в секунду и проверяем, не пора ли выйти.
                     s.soTimeout = 1_000
                     socket = s
-                    log.add("связь с ПК: слушаю порт ${LinkMessage.PORT}")
+                    log.add("связь с ПК: слушаю порт ${LinkMessage.PORT}" +
+                        if (batteryUnrestricted()) "" else " (батарея не «Без ограничений»: во сне телефон не слышит ПК)")
                     val buffer = ByteArray(512)
                     while (scope.isActive) {
                         val packet = DatagramPacket(buffer, buffer.size)

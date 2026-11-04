@@ -145,6 +145,7 @@ class PodsService : LifecycleService() {
         override fun onReceive(context: Context, intent: Intent) {
             Timber.d("wake: %s", intent.action)
             startScan()
+            if (intent.action == Intent.ACTION_SCREEN_ON) deviceLink.wake()
         }
     }
 
