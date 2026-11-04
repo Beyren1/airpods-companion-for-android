@@ -3,6 +3,9 @@
     <string name="notif_channel_name">Batterie des écouteurs</string>
     <string name="notif_channel_description">Notification permanente avec la batterie quand le mode arrière-plan est activé</string>
     <string name="notif_text_idle">Aucun écouteur à proximité. Ouvrez le boîtier pour voir la batterie</string>
+    <string name="notif_on_pc_title">Écouteurs sur le PC %1$s</string>
+    <string name="notif_on_pc_text">Touchez Reprendre pour les passer au téléphone</string>
+    <string name="notif_on_pc_take">Reprendre</string>
     <string name="notif_left">G %1$s</string>
     <string name="notif_right">D %1$s</string>
     <string name="notif_case">Boîtier %1$s</string>
@@ -15,6 +18,9 @@
     <string name="widget_right">Droit</string>
     <string name="widget_case">Boîtier</string>
     <string name="widget_battery">Batterie</string>
+    <string name="widget_switch">⇄ PC</string>
+    <string name="switch_take_failed">Impossible de prendre le casque : il n\'est pas visible à proximité.</string>
+    <string name="switch_give_failed">Le PC n\'a pas pris le casque. Vérifiez que Pods Companion tourne sur le PC et le même Wi-Fi.</string>
 
     <string name="tile_label">Écouteurs</string>
     <string name="tile_no_data">Aucune donnée</string>

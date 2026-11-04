@@ -48,6 +48,8 @@ data class AppSettings(
     val appModeRules: Map<String, ListeningMode> = emptyMap(),
     /** Сняли наушники больше чем на 2 минуты — при надевании отмотать трек на 5 секунд назад. */
     val smartResume: Boolean = false,
+    /** Включили звук на телефоне, а надетые наушники подключены к другому устройству (ПК) — забрать их. */
+    val autoSwitch: Boolean = true,
     /** Звонок при снятых наушниках — в телефон, надели — обратно в наушники. */
     val callsToPhone: Boolean = false,
     /** Музыка и другой звук при снятых наушниках — в динамик телефона, надели — обратно в наушники. */
@@ -96,6 +98,7 @@ class SettingsRepository @Inject constructor(
                 appModes = prefs[APP_MODES] ?: false,
                 appModeRules = AppModeRulesCodec.decode(prefs[APP_MODE_RULES].orEmpty()),
                 smartResume = prefs[SMART_RESUME] ?: false,
+                autoSwitch = prefs[AUTO_SWITCH] ?: true,
                 callsToPhone = prefs[CALLS_TO_PHONE] ?: false,
                 mediaToPhone = prefs[MEDIA_TO_PHONE] ?: false,
                 carAudio = prefs[CAR_AUDIO] ?: false,
@@ -169,6 +172,10 @@ class SettingsRepository @Inject constructor(
         context.settingsStore.edit { it[SMART_RESUME] = value }
     }
 
+    suspend fun setAutoSwitch(value: Boolean) {
+        context.settingsStore.edit { it[AUTO_SWITCH] = value }
+    }
+
     suspend fun setCallsToPhone(value: Boolean) {
         context.settingsStore.edit { it[CALLS_TO_PHONE] = value }
     }
@@ -225,6 +232,7 @@ class SettingsRepository @Inject constructor(
         val APP_MODES = booleanPreferencesKey("app_modes")
         val APP_MODE_RULES = stringSetPreferencesKey("app_mode_rules")
         val SMART_RESUME = booleanPreferencesKey("smart_resume")
+        val AUTO_SWITCH = booleanPreferencesKey("auto_switch")
         val CALLS_TO_PHONE = booleanPreferencesKey("calls_to_phone")
         val MEDIA_TO_PHONE = booleanPreferencesKey("media_to_phone")
         val CAR_AUDIO = booleanPreferencesKey("car_audio")

@@ -38,7 +38,8 @@
 
 ## Разрешения и приватность
 
-Приложению не нужен интернет: в нём нет разрешения `INTERNET`, рекламы и аналитики.
+Приложение ничего не отправляет в интернет, в нём нет рекламы и аналитики. Разрешение на сеть
+нужно только, чтобы слышать кнопку «Отдать телефону» программы для Windows в домашней сети.
 Все данные (настройки, статистика) хранятся только на телефоне.
 Подробно, зачем нужно каждое разрешение: [PRIVACY.md](PRIVACY.md).
 
@@ -72,7 +73,8 @@ answers or declines calls with head gestures, warns about low battery, integrate
 and keeps per-pair usage statistics. No root required; tested on a Pixel 9 with AirPods 4 (ANC),
 AirPods Pro 2 and AirPods Max (USB-C).
 
-The app has no internet permission, no ads and no analytics; all data stays on the phone.
+The app never sends anything to the internet and has no ads or analytics; all data stays on the phone.
+The network permission only lets it hear the Windows app's "Give to phone" button on your home network.
 See [PRIVACY.md](PRIVACY.md). Download the APK from [Releases](../../releases).
 
 Not affiliated with Apple Inc. AirPods is a trademark of Apple Inc.

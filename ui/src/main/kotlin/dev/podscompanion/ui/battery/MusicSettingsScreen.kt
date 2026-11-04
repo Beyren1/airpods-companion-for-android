@@ -23,6 +23,7 @@ import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Devices
 import androidx.compose.material.icons.filled.Headphones
 import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.MusicNote
@@ -197,6 +198,19 @@ fun MusicSettingsScreen(viewModel: MusicViewModel, onBack: (() -> Unit)? = null)
                                 ?: stringResource(R.string.music_player_none),
                         )
                     }
+                }
+            }
+
+            SettingsGroup {
+                row {
+                    // Доступ к уведомлениям не нужен: начало звука система сообщает и так.
+                    SwitchRow(
+                        stringResource(R.string.music_switch_title), settings.autoSwitch,
+                        viewModel::setAutoSwitch,
+                        icon = Icons.Filled.Devices,
+                        description = stringResource(R.string.music_switch_description),
+                        enabled = settings.backgroundEnabled,
+                    )
                 }
             }
 

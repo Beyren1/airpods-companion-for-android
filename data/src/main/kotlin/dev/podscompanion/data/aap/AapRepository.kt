@@ -58,7 +58,7 @@ data class HeadSample(val address: String, val timeMs: Long, val motion: AapEven
 @OptIn(ExperimentalCoroutinesApi::class)
 @Singleton
 class AapRepository @Inject constructor(
-    connectedAudio: ConnectedAudioDevices,
+    private val connectedAudio: ConnectedAudioDevices,
     private val client: AapClient,
     private val log: AapLog,
     private val keyStore: ProximityKeyStore,
@@ -332,12 +332,23 @@ class AapRepository @Inject constructor(
             val reason = if (blocked) FailureReason.SOCKET_BLOCKED else FailureReason.CONNECTION_FAILED
             val details = (failure?.cause ?: failure)?.let { "${it::class.simpleName}: ${it.message}" } ?: "соединение закрыто"
             log.add("${target.name}: ошибка: $details")
-            // Оборвалось рабочее соединение — сразу пробуем снова: обычно наушники просто на миг пропали.
+            // Оборвалось рабочее соединение — скоро пробуем снова: обычно наушники просто на миг пропали.
+            // Но не сразу: так же рвётся соединение, когда наушники забрал ПК или другое устройство,
+            // и наше переподключение в эту секунду перетягивало их обратно на телефон.
             val delayMs = if (connected) RECONNECT_AFTER_DROP_MS else BACKOFF_SEC[(attempt - 1).coerceIn(0, BACKOFF_SEC.lastIndex)] * 1_000L
             send(AapSessionState.Failed(target.name, address, reason, details, ((delayMs + 999) / 1_000).toInt()))
             withTimeoutOrNull(delayMs) { retryRequests.first() }
+            if (connected && !stillConnected(address)) {
+                log.add("${target.name}: звук ушёл с телефона — не переподключаюсь")
+                // Сессию отменит список подключённых; если наушники вернутся, продолжим отсюда.
+                connectedAudio.devices().first { list -> list?.any { it.device.address == address } == true }
+            }
         }
     }
+
+    /** Подключены ли наушники к телефону для звука прямо сейчас (системный список, не наш кэш). */
+    private suspend fun stillConnected(address: String): Boolean =
+        connectedAudio.devices().first()?.any { it.device.address == address } ?: true
 
     private fun AapEvent?.isSetting(): Boolean =
         this is AapEvent.ControlChanged || this is AapEvent.ListeningModeChanged || this is AapEvent.ConversationalAwarenessChanged
@@ -357,7 +368,7 @@ class AapRepository @Inject constructor(
 
     private companion object {
         const val MODE_TICK_MS = 200L
-        const val RECONNECT_AFTER_DROP_MS = 300L
+        const val RECONNECT_AFTER_DROP_MS = 2_500L
         val BACKOFF_SEC = intArrayOf(3, 10, 30, 60)
         const val BLOCKED_AFTER_TIMEOUTS = 3
         const val MOTION_LOG_EVERY = 100
