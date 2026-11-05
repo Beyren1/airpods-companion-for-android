@@ -17,3 +17,7 @@ sysdiagnose_*
 # Сборка Windows-приложения (.NET)
 windows/**/bin/
 windows/**/obj/
+# Сборка Mac-приложения (Swift)
+macos/.build/
+macos/out/
+macos/.swiftpm/
