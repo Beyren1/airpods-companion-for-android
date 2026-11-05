@@ -47,6 +47,8 @@ internal class MusicAutomation(
     private val aap: AapRepository,
     private val connectedAudio: ConnectedAudioDevices,
     private val log: AutoPauseLog,
+    /** Только что сменили профиль телефона: музыку сами не включаем. */
+    private val quiet: () -> Boolean,
     private val settings: () -> AppSettings,
 ) {
     private val smartResume = SmartResume()
@@ -104,6 +106,11 @@ internal class MusicAutomation(
     private suspend fun autoLaunch(pkg: String) {
         // Ждём, пока звук переключится на наушники, иначе первые секунды сыграют из динамика.
         delay(ROUTE_SETTLE_MS)
+        if (quiet()) {
+            // Наушники «подключились» из-за смены профиля, а не потому что их достали.
+            log.add("автозапуск: только что сменили профиль, не включаю")
+            return
+        }
         if (media.anyPlaying()) {
             log.add("автозапуск: уже что-то играет")
             return
