@@ -1,0 +1,2 @@
+"NSBluetoothAlwaysUsageDescription" = "Pods Companion подключает AirPods к этому Mac и узнаёт, надеты ли они.";
+"NSLocalNetworkUsageDescription" = "Pods Companion связывается с приложением Pods Companion на Android-телефоне через домашний Wi-Fi, чтобы переключать AirPods между ними.";
