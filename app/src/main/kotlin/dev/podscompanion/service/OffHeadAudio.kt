@@ -43,6 +43,8 @@ internal class OffHeadAudio(
     private val route: AudioRoute,
     private val liveStatus: LiveStatus,
     private val aapLog: AapLog,
+    /** Наш профиль телефона сейчас в фоне: звук не переводим. */
+    private val paused: () -> Boolean,
 ) {
     /** Как увели звук: по этому выбираем, как вернуть. */
     private enum class Moved { NONE, RELEASED }
@@ -93,6 +95,7 @@ internal class OffHeadAudio(
     private suspend fun evaluate(status: PodsStatus?, devices: List<ConnectedAudioDevice>, on: Boolean) =
         withContext(NonCancellable) {
             lock.withLock {
+                if (on && paused()) return@withLock
                 if (!on) {
                     if (enabled) log("выключено")
                     enabled = false

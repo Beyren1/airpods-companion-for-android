@@ -99,6 +99,7 @@ class PodsService : LifecycleService() {
     private lateinit var music: MusicAutomation
     private lateinit var usage: UsageTracking
     private lateinit var offHeadAudio: OffHeadAudio
+    private lateinit var userSwitch: UserSwitchGuard
 
     /** Все наушники из последнего скана: статистике нужна модель каждой подключённой пары. */
     @Volatile private var latestNearby: List<PodsStatus> = emptyList()
@@ -154,6 +155,12 @@ class PodsService : LifecycleService() {
         }
 
         registerWakeReceiver()
+        userSwitch = UserSwitchGuard(this, audioManager, aapLog, { bluetoothAudioConnected(includeHeld = false) }) {
+            // Вернулись в профиль: паузу до переключения не продолжаем, Bluetooth всё равно перезапустился.
+            policy.reset()
+            resumePackage = null
+        }
+        userSwitch.register(lifecycleScope)
         audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
 
         lifecycleScope.launch {
@@ -166,12 +173,12 @@ class PodsService : LifecycleService() {
         lifecycleScope.launch { idleWatchdog() }
         headGestures.run(lifecycleScope)
         lifecycleScope.launch { publishSnapshots() }
-        music = MusicAutomation(this, mediaRepository, aapRepository, connectedAudio, autoPauseLog) { settings }
+        music = MusicAutomation(this, mediaRepository, aapRepository, connectedAudio, autoPauseLog, { userSwitch.quiet() }) { settings }
         music.run(lifecycleScope, settingsRepository.settings)
         usage = UsageTracking(audioManager, connectedAudio, aapRepository, usageStore) { latestNearby }
         usage.run(lifecycleScope)
         CarAudioPriority(this, connectedAudio, audioRoute, aapLog).run(lifecycleScope, settingsRepository.settings)
-        offHeadAudio = OffHeadAudio(audioManager, connectedAudio, audioRoute, liveStatus, aapLog)
+        offHeadAudio = OffHeadAudio(audioManager, connectedAudio, audioRoute, liveStatus, aapLog) { userSwitch.background }
         offHeadAudio.run(lifecycleScope, settingsRepository.settings)
         startScan()
     }
@@ -186,6 +193,7 @@ class PodsService : LifecycleService() {
             refreshSurfaces(context)
         }
         runCatching { unregisterReceiver(wakeReceiver) }
+        if (::userSwitch.isInitialized) userSwitch.unregister()
         runCatching { audioManager.unregisterAudioDeviceCallback(audioDeviceCallback) }
         super.onDestroy()
     }
@@ -272,6 +280,12 @@ class PodsService : LifecycleService() {
         maybeShowCasePopup(status)
         checkLowBattery(status)
         if (!settings.autoPause) return
+        if (userSwitch.background) {
+            // Телефоном сейчас пользуется другой профиль: музыку этого профиля не трогаем.
+            policy.reset()
+            resumePackage = null
+            return
+        }
 
         // Без рекламы и без уха из AAP флаги «в ухе» пустые: по ним музыку не трогаем.
         val worn = status?.takeIf { it.earKnown }?.isWorn
@@ -303,6 +317,15 @@ class PodsService : LifecycleService() {
             MediaAction.RESUME -> {
                 val pkg = resumePackage
                 resumePackage = null
+                if (userSwitch.quiet()) {
+                    // Только что вернулись в профиль: Bluetooth перезапускается, звук ушёл бы в динамик.
+                    autoPauseLog.add("→ только что сменили профиль, не продолжаю")
+                    return
+                }
+                if (!bluetoothAudioConnected()) {
+                    autoPauseLog.add("→ звук не в наушниках, не продолжаю")
+                    return
+                }
                 if (audioManager.isMusicActive || mediaRepository.anyPlaying()) {
                     // Пока наушники лежали, человек включил другое (TikTok, видео): не перебиваем его.
                     autoPauseLog.add("→ уже что-то играет, не продолжаю")
